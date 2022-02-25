@@ -96,7 +96,9 @@ def colIndices {α} [DecidableEq α] {ys : List α} (xs : Sublist ys) :=
   (List.enum ys) |> List.filter (λ (i, e) => xs.val.elem e)
                  |> List.map Prod.fst
 
--- def getCol : (schema : @Table.Schema η) → Table.Row schema → Table.ColumnHeader → _
+def getCol : (schema : @Table.Schema η) → Table.Row schema → @Table.ColumnHeader η → _ -- What do we even return???
+| [], DepList.nil, (name, τ) => sorry
+| h :: hs, DepList.cons y ys, c => if h = c then y else getCol hs ys c
 
 -- TODO: fill this in
 -- TODO: need to enforce that all entries in the schemata for elements of cs
@@ -111,8 +113,10 @@ def Table.leftJoin {schema₁ schema₂}
     -- TODO: make this WAY more readable
     Table (List.append schema₁ (schema₂.filter (λ x => cs.val.notElem (Prod.fst x)))) := sorry
     -- t1.cells.map (λ r1 =>
-    --   let r2 := t2.cells.filter (λ r2 => cs.all (λ c => r1[c] = r2[c]) ) in
-    --   r2
+    --   let rs2 := t2.cells.filter (λ r2 => cs.all (λ c => r1[c] = r2[c]) ) in
+    --   match rs2 with
+    --   | [] => []
+    --   | _ => rs2.map (r2 => _)
     --   )
 
 -- Want some sort of easy way to specify that an η is a valid column name to
