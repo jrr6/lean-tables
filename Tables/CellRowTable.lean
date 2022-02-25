@@ -6,10 +6,12 @@ def Stringable (τ : Type u) [inst : ToString τ] : Type u × ToString τ := (τ
 -- Based on Stephanie Weirich, "Dependent Types in Haskell,"
 -- https://www.youtube.com/watch?v=wNa3MMbhwS4
 
-inductive Cell {η : Type u_η} (name : η) (τ : Sort u) : Sort _
-| mk : τ → Cell name τ
+inductive Cell {η : Type u_η} (name : η) (τ : Type u) : Type (max u u_η)
+| emp : Cell name τ
+| val : τ → Cell name τ
 
-inductive Row {η : Type u_η} : List (η × Type u) → Sort _
+
+inductive Row {η : Type u_η} : List (η × Type u) → Type (max u_η (u + 1))
 | nil : Row []
 | cons {name : η} {τ : Type u} {hs : List (η × Type u)} :
     Cell name τ → Row hs → Row ((name, τ) :: hs)
@@ -23,6 +25,6 @@ def Row.repr {η} [ToString η] : {xs : List (η × Type u)} → Row xs → Stri
 
 #check Cell "hi" Nat
 
-def x : Cell "hi" Nat := Cell.mk 42
+def x : Cell "hi" Nat := Cell.val 42
 
 #eval Row.repr (Row.cons x Row.nil)
