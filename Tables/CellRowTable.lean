@@ -5,6 +5,8 @@ def Stringable (τ : Type u) [inst : ToString τ] : Type u × ToString τ := (τ
 
 -- Row/Cell setup based on Stephanie Weirich, "Dependent Types in Haskell,"
 -- https://www.youtube.com/watch?v=wNa3MMbhwS4
+-- Code!:
+-- https://github.com/sweirich/dth/blob/master/regexp/src/OccDict.hs
 
 def Header {η} := (η × Type u)
 def Schema {η} := List (@Header η)
@@ -18,6 +20,10 @@ inductive Cell {η : Type u_η} [DecidableEq η] (name : η) (τ : Type u) : Typ
 def Cell.toOption {η nm τ} [dec_η : DecidableEq η] : @Cell η dec_η nm τ → Option τ
 | Cell.emp => Option.none
 | Cell.val x => Option.some x
+
+-- Lingering question: should rows have a built-in indexing scheme? (Probably.)
+-- Should tables contain their number of rows and columns at type level? (Also
+-- probably.)
 
 inductive Row {η : Type u_η} [DecidableEq η] : Schema → Type (max u_η (u + 1))
 | nil : Row []
@@ -40,13 +46,17 @@ def Row.singleCell {name τ} (x : τ) :=
 def List.prod {α β} (xs : List α) (ys : List β) : List (α × β) :=
   List.foldl List.append [] (List.map (λ x => List.map (λ y => (x, y)) ys) xs)
 
-inductive Schema.HasCol {η : Type u_η} : η → @Schema η → Prop
-| hd {c : η} {τ : Type u₁} {rs : Schema} : HasCol c ((c, τ) :: rs)
-| tl {c r rs} : HasCol c rs → HasCol c (r::rs)
+-- inductive Schema.HasCol {η : Type u_η} : η → @Schema η → Prop
+-- | hd {c : η} {τ : Type u} {rs : Schema} : HasCol c ((c, τ) :: rs)
+-- | tl {r c rs} : HasCol c rs → HasCol c (r::rs)
 
-inductive List.In {α} : α → List α → Prop
-| hd {e xs} : In e (e::xs)
-| tl {x y xs} : In y xs → In y (x::xs)
+inductive Schema.HasCol {η : Type u_η} : @Header η → @Schema η → Prop
+| hd {c : η} {τ : Type u} {rs : Schema} : HasCol (c, τ) ((c, τ) :: rs)
+| tl {r c τ rs} : HasCol (c, τ) rs → HasCol (c, τ) (r::rs)
+
+-- inductive List.In {α} : α → List α → Prop
+-- | hd {e xs} : In e (e::xs)
+-- | tl {x y xs} : In y xs → In y (x::xs)
 
 -----------------------------------TESTING--------------------------------------
 def Row.repr {η} [ToString η] [DecidableEq η]: {xs : @Schema η} → Row xs → String
@@ -92,7 +102,7 @@ def crossJoin {schema₁ schema₂}
   {rows := List.map (λ (c1, c2) => Row.append c1 c2)
                         (List.prod t1.rows t2.rows)}
 
-def leftJoin : False := sorry -- TODO
+def leftJoin : False := sorry -- TODO:
 
 def nrows (t : Table schema) : Nat := List.length t.rows
 
@@ -112,26 +122,43 @@ def getRow : (t : Table schema) → Nat → (n < nrows t) → Row schema
 | {rows := r::rs}, 0, h => r
 | {rows := r::rs}, Nat.succ n, h => getRow {rows := rs} n (by sorry : n < nrows {rows := rs})
 
--- Given a schema, returns the type associated with a given header therein
-def typeForHeader : (s : @Schema η) → (header : η) → List.In header (Schema.names s) → Type u
-| [], header, h => absurd h (λ nh => by cases h)
-| (nm, τ)::s₂, header, h => dite (nm = header)
-                                 (λ _ => τ) 
-                                 (λ nh => typeForHeader s₂ header (by
-                                     cases h with
-                                     | hd => contradiction
-                                     | tl h => exact h
-                                 ))
+--------------------------------------------------------------------------------
+-- MAYHEM HENCEFORTH ENSUES:
 
--- TODO: this is a nightmare... -- uniqueness might help?
+-- Given a schema, returns the type associated with a given header therein
+-- TODO: I just want the match to work...see how Haskell does it...
+def typeForHeader : (s : @Schema η) → (header : η) → s.HasCol header → Type u
+| (nm, τ)::s₂, header, Schema.HasCol.hd => τ
+| (nm, τ)::s₂, header, h => typeForHeader s₂ header (by cases h with
+                                                         | hd => contradiction
+                                                         | tl h => exact h)
+
+-- def getValue_test3 {nm τ}: Row ((nm, τ) :: schema) → (c : η) → (h : Schema.HasCol c ((nm, τ) :: schema)) → Option (
+--   match h with
+--   | Schema.HasCol.hd => τ
+--   | Schema.HasCol.tl hs => sorry
+-- )
+-- | @Row.cons _ _ nm _ _ cell cells, c => if nm = c then cell.toOption else getValue_test3 cells c
+
+-- | (nm, τ)::s₂, header, h => dite (nm = header)
+--                                  (λ _ => τ) 
+--                                  (λ nh => typeForHeader s₂ header (by
+--                                      cases h with
+--                                      | hd => contradiction
+--                                      | tl h => exact h
+--                                  ))
+
+-- TODO: this is a nightmare... -- uniqueness might help? --> Haskell example
+-- seems to case on the proof itself (i.e., to determine if we're at the matching
+-- element --- may also obviate the need for equality checking?)?...
 -- TODO: eliminate sorry
 def getValue_test : Row schema → (c : η) → Option (typeForHeader schema c sorry)
 | Row.nil, _ => Option.none
-| @Row.cons _ _ nm _ _ cell cells, c => if nm = c then cell.toOption else getValue cells c
+| @Row.cons _ _ nm _ _ cell cells, c => if nm = c then cell.toOption else getValue_test cells c
 
-def getValue_test2 : Row schema → (c : η) → List.In c (Schema.names schema) → Option (typeForHeader schema c sorry)
-| Row.nil, _ => Option.none
-| @Row.cons _ _ nm _ _ cell cells, c => if nm = c then cell.toOption else getValue cells c
+def getValue_test2 : Row schema → (c : η) → schema.HasCol c → Option (typeForHeader schema c sorry)
+| Row.nil, _, _ => Option.none
+| @Row.cons _ _ nm _ _ cell cells, c, _ => if nm = c then cell.toOption else getValue_test2 cells c
 
 #check @Row.cons
 
@@ -143,6 +170,50 @@ def getValue : {nm : η} → {τ : Type u} → {xs : @Schema η} → Row ((nm, �
                                               | [] => Option.none
                                               | (nm₂, τ₂)::ys => @getValue nm₂ τ₂ ys cells c
 
+-- This seems really promising! But no...
+def getValue_test4 {schema₁ : @Schema η} {τ : Type u} : Row schema₁ → (c : η) → schema.HasCol (c, τ) → Option τ
+| Row.cons cell _, _, Schema.HasCol.hd => cell.toOption
+| Row.cons cell cells, c, Schema.HasCol.tl h => getValue_test4 cells c h
+
+-- THIS WILL NEVER WORK! YOU CAN'T ASSUME IT'S THE FIRST THING IN THE SCHEMA!
+def getValue_test5 {nm : η} {τ : Type u} {xs : @Schema η} : Row ((nm, τ)::xs) → (c : η) → schema.HasCol (c, τ) → Option τ
+| Row.cons cell _, _, Schema.HasCol.hd => cell.toOption
+| Row.cons cell cells, c, Schema.HasCol.tl h => match cells with
+                                                | Row.nil => Option.none  -- TODO: this is an impossible case
+                                                | @Row.cons _ _ nm₂ τ₂ s₂ _ ys => @getValue_test5 nm₂ τ₂ _ ys cells c
+
+-- Emulating Stephanie Weirich's approach:
+class Gettable {c τ} (h : Schema.HasCol (c, τ) schema) where
+  getp : Row schema → Option τ
+
+@[instance] def gettableHd {c τ}: @Gettable η dec_η ((c,τ)::schema) c τ (@Schema.HasCol.hd η c τ schema) :=
+  {getp := λ (Row.cons c _) => c.toOption}
+
+-- TODO: I hate typeclasses, but maybe this will work...
+@[instance] def gettableTl {c τ h r} [cls : Gettable h] : @Gettable η dec_η (r::schema) c τ (Schema.HasCol.tl h) :=
+  {getp := λ (Row.cons c cs) => cls.getp h cs}
+
+def getValue_class_inst (r : Row schema) (c : η) {τ} (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : Option τ := inst.getp h r
+
+def getValue_class (r : Row schema) (c : η) {τ} (h : @Schema.HasCol η (c, τ) schema) :=
+  match h with
+  | Schema.HasCol.hd => Schema.HasCol.hd.getp r
+  | Schema.HasCol.tl h => (Schema.HasCol.tl h).getp r
+
+-- THIS SHOULD WORK!!! Right...?
+def get_from_proof {schema} {c : η} {τ : Type u} : Schema.HasCol (c, τ) schema → Row schema → Option τ
+| Schema.HasCol.hd, Row.cons cell cells => cell.toOption
+| Schema.HasCol.tl h, Row.cons cell cells => get_from_proof h cells
+
+-------------------------------------------------------------------------------
+
 -- Testing, etc.
 
 #reduce addRows (addColumn emptyTable "name" []) [Row.singleCell "hello"]
+#reduce getValue_class_inst (Row.append
+        (@Row.singleCell String _ "pi" (List Nat) [3,1,4,1,5])
+        (@Row.singleCell String _ "age" Nat 20))
+        "age" (by
+        apply Schema.HasCol.tl
+        apply Schema.HasCol.hd
+        )
