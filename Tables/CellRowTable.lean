@@ -227,15 +227,19 @@ instance {η nm τ} {xs : @Schema η} [ToString τ] [DecidableEq η] [ToString (
 
 def Row.repr [ToString (Row schema)] (r : Row schema) := toString r
 
-def Table.repr {η} {schema : @Schema η} [ToString η] [DecidableEq η] [inst : ToString (Row schema)] (t : Table schema) : String :=
+instance {η} {schema : @Schema η} [ToString η] [DecidableEq η] [inst : ToString (Row schema)] : ToString (Table schema) where
+  toString := λ t =>
   List.foldr (λ (nm, _) acc => ToString.toString nm ++ (if acc = "" then "" else "\t|\t") ++ acc) "" schema
     ++ "\n"
     ++ List.foldr (λ r acc => inst.toString r ++ "\n" ++ acc) "" t.rows
+
+def Table.repr [ToString (Table schema)] (t : Table schema) := toString t
 
 #eval Row.repr (Row.cons x (Row.cons x Row.nil))
 
 -- This could probably use some syntactic sugar...
 def t1 : Table [("prof", String), ("course", Nat), ("taught", Bool)] :=
+  -- Can simplify this by just using Table.mk
   addRows
     (emptyTable |> (λ t => addColumn t "prof" [])
                 |> (λ t => addColumn t "course" [])
@@ -248,13 +252,17 @@ def t1 : Table [("prof", String), ("course", Nat), ("taught", Bool)] :=
 #eval Table.repr t1
 #reduce t1
 
+infixr:50 "|" => Row.cons
+notation "**|" => Row.nil
+notation "/[" elem "]/" => Cell.val elem
+notation "/[_]/" => Cell.emp
+
 def t2 : Table [("prof", String), ("course", Nat), ("taught", Bool)] :=
-  addRows
-    (emptyTable |> (λ t => addColumn t "prof" [])
-                |> (λ t => addColumn t "course" [])
-                |> (λ t => addColumn t "taught" []))
-    [Row.cons (Cell.val "Lewis") (Row.cons (Cell.emp) (Row.cons (Cell.val true) Row.nil)),
-      Row.cons (Cell.val "Krishnamurthi") (Row.cons (Cell.val 1730) (Row.cons (Cell.val false) Row.nil))]
+  Table.mk
+    [
+      /[ "Lewis" ]/         | /[_]/      | /[ true ]/  | **|,
+      /[ "Krishnamurthi" ]/ | /[ 1730 ]/ | /[ false ]/ | **|
+      ]
 
 def joined := vcat t1 t2
 #eval Table.repr joined
@@ -263,11 +271,62 @@ def joined := vcat t1 t2
 def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown", "Brown"]
 #check schoolIded
 
+#reduce selectRowsIndices schoolIded [⟨3, _⟩, ⟨4, _⟩]
+#reduce schoolIded |> (λ t => selectRowsIndices t [⟨1, _⟩, ⟨4, _⟩])
+                   |> (λ t => selectColumns t [true, false, false, true])
+
 -- Testing, etc.
 #reduce addRows (addColumn emptyTable "name" []) [Row.singleCell "hello"]
 #reduce getValue (Row.append
         (@Row.singleCell String _ "pi" (List Nat) [3,1,4,1,5])
         (@Row.singleCell String _ "age" Nat 20))
         "age" (by header)
+
+def departments : Table [("Department ID", Nat),
+                         ("Department Name", String)] :=
+Table.mk [
+  /[31]/ | /["Sales"]/       | **|,
+  /[33]/ | /["Engineering"]/ | **|,
+  /[34]/ | /["Clerical"]/    | **|,
+  /[35]/ | /["Marketing"]/   | **|
+]
+
+def gradebookTable : Table [("name", ULift String),
+                            ("age", ULift Nat),
+                            ("quizzes", Table [("quiz#", {n : Nat // 1 ≤ n ∧ n ≤ 4}),
+                                               ("grade", Nat)]),
+                            ("midterm", ULift Nat),
+                            ("final", ULift Nat)] :=
+Table.mk [
+  /[ULift.up "Bob"]/ |
+  /[ULift.up 12]/ |
+  /[Table.mk [/[⟨1, by simp⟩]/ | /[8]/ | **|,
+              /[⟨2, by simp⟩]/ | /[9]/ | **|,
+              /[⟨3, by simp⟩]/ | /[7]/ | **|,
+              /[⟨4, by simp⟩]/ | /[9]/ | **|]]/ |
+  /[ULift.up 77]/ |
+  /[ULift.up 87]/ | **|,
+
+  /[ULift.up "Alice"]/ |
+  /[ULift.up 17]/ |
+  /[Table.mk [/[⟨1, by simp⟩]/ | /[6]/ | **|,
+              /[⟨2, by simp⟩]/ | /[8]/ | **|,
+              /[⟨3, by simp⟩]/ | /[8]/ | **|,
+              /[⟨4, by simp⟩]/ | /[7]/ | **|]]/ |
+  /[ULift.up 88]/ |
+  /[ULift.up 85]/ | **|,
+
+  /[ULift.up "Eve"]/ |
+  /[ULift.up 13]/ |
+  /[Table.mk [/[⟨1, by simp⟩]/ | /[7]/ | **|,
+              /[⟨2, by simp⟩]/ | /[9]/ | **|,
+              /[⟨3, by simp⟩]/ | /[8]/ | **|,
+              /[⟨4, by simp⟩]/ | /[8]/ | **|]]/ |
+  /[ULift.up 84]/ |
+  /[ULift.up 77]/ | **|
+  
+]
+
+#eval Table.repr gradebookTable
 
 end table_testing
