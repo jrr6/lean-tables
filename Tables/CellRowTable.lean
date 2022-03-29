@@ -50,21 +50,24 @@ inductive Schema.HasName : η → @Schema η → Prop
 -- Schema functions
 def Schema.names {η : Type u_η} := List.map (@Prod.fst η (Type u))
 
-def Schema.pick {η : Type u_η} [DecidableEq η]: (s : Schema) → List {c : η // Schema.HasName c s} → @Schema η
+-- Returns the schema entry with the specified name
+def Schema.lookup {η : Type u_η} [DecidableEq η] : (s : Schema) → {c : η // Schema.HasName c s} → @Header η
+| [], ⟨c, hc⟩ => absurd hc (by cases hc)
+| (nm, τ)::hs, ⟨c, hc⟩ => dite (nm = c)
+                               (λ _ => (nm, τ))
+                               (λ h => lookup hs ⟨c, by
+                                  cases hc with
+                                  | hd => contradiction
+                                  | tl in_hs => exact in_hs
+                                  ⟩)
+
+-- Returns a list of the elements of the schema s whose names are contained in
+-- cs in the order in which they appear in cs
+def Schema.pick {η : Type u_η} [DecidableEq η] : (s : Schema) → List {c : η // Schema.HasName c s} → @Schema η
 | [], _ => []
 | _, [] => []
-| (nm, τ)::hs, [⟨c, hc⟩] => dite (nm = c) (λ _ => [(nm, τ)]) (λ h => pick hs [⟨c, by
-  cases hc with
-  | hd => contradiction
-  | tl in_hs => exact in_hs
-  ⟩])
-| hs, c1::c2::cs =>
-  -- Help out the termination checker
-  have _ : List.length hs + Nat.succ 0 < List.length hs + Nat.succ (Nat.succ (List.length cs)) := by
-    apply Nat.add_lt_add_left
-    exact @Nat.succ_lt_succ 0 (Nat.succ (List.length cs)) (Nat.zero_lt_succ (List.length cs));
-  List.append (pick hs [c1]) (pick hs (c2::cs))
-termination_by pick s cs => List.length s + List.length cs
+| hs, c1::cs => lookup hs c1 :: pick hs cs
+termination_by pick s cs => List.length cs
 
 -- List utilities
 inductive List.All {α} (p : α → Prop) : List α → Prop
@@ -194,25 +197,25 @@ def getRow : (t : Table schema) → (n : Nat) → (n < nrows t) → Row schema
 | {rows := r::rs}, 0, h => r
 | {rows := r::rs}, Nat.succ n, h => getRow {rows := rs} n (by sorry : n < nrows {rows := rs})
 
--- Emulating Stephanie Weirich's approach:
+-- Class for getting a cell from a row
 class Gettable {c τ} (h : Schema.HasCol (c, τ) schema) where
-  getp : Row schema → Option τ
+  getp : Row schema → Cell c τ
 
 @[instance] def gettableHd {c τ}: @Gettable η dec_η ((c,τ)::schema) c τ (@Schema.HasCol.hd η c τ schema) :=
-  {getp := λ (Row.cons c _) => c.toOption}
+  {getp := λ (Row.cons c _) => c}
 
 @[instance] def gettableTl {c τ h r} [cls : Gettable h] : @Gettable η dec_η (r::schema) c τ (Schema.HasCol.tl h) :=
   {getp := λ (Row.cons c cs) => cls.getp h cs}
 
 -- TODO: it would be nice not to have to provide a proof...
-def getValue {τ} (r : Row schema) (c : η) (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : Option τ := inst.getp h r
+def getValue {τ} (r : Row schema) (c : η) (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : Option τ := Cell.toOption (inst.getp h r)
 
 -- ...but in the meantime, here's a tactic to make the proof trivial
 macro "header" : tactic => `(repeat ((try apply Schema.HasCol.hd) <;> (apply Schema.HasCol.tl)))
 
 def getColumnIndex (t : Table schema) (n : Nat) (h : n < ncols t) := List.map (λr => List.nth _ n h) t.rows
 
-def getColumn {τ} (t : Table schema) (c : η) (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : List (Option τ) := List.map (λ r => inst.getp h r) t.rows
+def getColumn {τ} (t : Table schema) (c : η) (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : List (Option τ) := List.map (λ r => getValue r c h) t.rows
 
 -- TODO: get rid of sorry!
 def selectRowsIndices (t : Table schema) (ns : List {n : Nat // n < nrows t}) : Table schema :=
@@ -252,16 +255,25 @@ def Row.pick {schema : @Schema η} : (cs : List {c : η // Schema.HasName c sche
 | (c1::c2::cs), rs =>
   -- have h : List.append (Schema.pick schema [c]) (Schema.pick schema cs) = Schema.pick schema (c::cs) := sorry;
   Row.append (pick [c1] rs) (pick (c2::cs) rs)
+  -- FIXME: maybe rely on get(p) here and then just recursively call pick
   -- dite (List.contains cs ⟨cell.name, _⟩)
   --      (λ _ => Row.cons cell (pick cs rs))
   --      (λ _ => pick cs rs)
 
 -- This really ought to be trivial...
+-- theorem t {x : @Schema η}
+--           {c1 c2 : {c : η // Schema.HasName c x}}
+--           {cs : List {c : η // Schema.HasName c x}}
+-- : Schema.pick x (c1 :: c2 :: cs) = List.append (Schema.pick x [c1]) (Schema.pick x (c2 :: cs)) :=
+--   by simp [Schema.pick]
 theorem t {x : @Schema η}
           {c1 c2 : {c : η // Schema.HasName c x}}
           {cs : List {c : η // Schema.HasName c x}}
-: Schema.pick x (c1 :: c2 :: cs) = List.append (Schema.pick x [c1]) (Schema.pick x (c2 :: cs)) :=
-  by simp [Schema.pick]
+: Schema.pick x (c1 :: cs) = (Schema.lookup x c1) :: (Schema.pick x cs) :=
+  rfl
+
+theorem l {c hc} : @Schema.lookup η dec_η [] ⟨c, hc⟩ = absurd hc (by cases hc) := rfl
+theorem l2 {c τ hc} : @Schema.lookup η dec_η [(c, τ)] ⟨c, hc⟩ = (c, τ) := by simp [Schema.lookup]
 
 -- FIXME: WIP
 def selectColumnsH (t : Table schema) (cs : List {c : η // schema.HasName c}) : Table (Schema.pick schema cs) :=
