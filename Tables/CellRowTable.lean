@@ -21,6 +21,11 @@ def Cell.toOption {η nm τ} [dec_η : DecidableEq η] : @Cell η dec_η nm τ �
 
 def Cell.name {η nm τ} [dec_η : DecidableEq η] (_ : @Cell η dec_η nm τ) : η := nm
 
+-- Variant on orElse that's useful for de-option-ifying cell values
+def Option.orDefault {α} [Inhabited α] : Option α → α
+| some x => x
+| none => default
+
 -- Lingering question: should rows have a built-in indexing scheme? (Probably.)
 -- Should tables contain their number of rows and columns at type level? (Also
 -- probably.)
@@ -108,6 +113,11 @@ def Row.append {schema₁ schema₂} :
 def Row.map {schema} (f : ∀ n α, Cell n α → @Cell η dec_η n α) : Row schema → @Row η dec_η schema
 | Row.nil => Row.nil
 | @Row.cons _ _ n τ _ r₁ rs₁ => Row.cons (f n τ r₁) (map f rs₁)
+
+-- Not sure if we'll ever need this...
+def Row.toList {schema : @Schema η} {α} (f : ∀ {n β}, @Cell η dec_η n β → α) : Row schema → List α
+| Row.nil => []
+| Row.cons c rs => f c :: toList f rs
 
 -- TODO: probably makes more sense to move this to some general "collection"
 -- interface rather than reimplementing for every type -- wonder if this is
@@ -230,7 +240,14 @@ def selectColumns (t : Table schema) (bs : List Bool) (h : List.length bs = ncol
 def selectColumnsN (t : Table schema) (ns : List {n : Nat // n < ncols t}) : Table (List.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 
--- TODO: pivotLonger and pivotWider
+-- TODO: pivotLonger
+
+def pivotWider {η} [DecidableEq η] [inst : Inhabited η] {schema : @Schema η}
+               (t : Table schema) (c1 c2 : {c : η // Schema.HasCol (c, η) schema})
+               [Gettable c1.property]  -- TODO: This really shouldn't be necessary
+    : Table (List.append schema (t.rows.map (λ r =>
+              (Option.orDefault (getValue r c1.val c1.property), η)
+            ))) := sorry
 
 -------------------------------------------------------------------------------
 
