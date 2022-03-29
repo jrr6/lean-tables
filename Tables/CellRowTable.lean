@@ -230,6 +230,43 @@ def selectColumns (t : Table schema) (bs : List Bool) (h : List.length bs = ncol
 def selectColumnsN (t : Table schema) (ns : List {n : Nat // n < ncols t}) : Table (List.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 
+
+--------------------------------------------------------------------------------
+--- Work on last columns override
+
+-- class Pickable (r : Row schema) where
+--   pick : (cs : List {c : η // Schema.HasName c schema}) → @Row η dec_η schema → Row (Schema.pick schema cs)
+
+-- instance {c} : Pickable ((c, τ) :: schema) where
+--   pick := λr => 
+
+-- FIXME: make this mirror Schema.pick
+-- Order should match the order of cs, not rs
+def Row.pick {schema : @Schema η} : (cs : List {c : η // Schema.HasName c schema}) → (rs : @Row η dec_η schema) → Row (Schema.pick schema cs)
+| [], Row.nil => Row.nil
+| [], Row.cons _ _ => Row.nil
+| [⟨c, h⟩], Row.cons cell rs => dite (cell.name = c)
+                                     (λ _ => Row.cons cell Row.nil)
+                                     (λnh => pick [⟨c,h⟩] rs)
+-- | (⟨c, h⟩)::cs, Row.nil => absurd h (by cases h)  -- Shouldn't need this case
+| (c1::c2::cs), rs =>
+  -- have h : List.append (Schema.pick schema [c]) (Schema.pick schema cs) = Schema.pick schema (c::cs) := sorry;
+  Row.append (pick [c1] rs) (pick (c2::cs) rs)
+  -- dite (List.contains cs ⟨cell.name, _⟩)
+  --      (λ _ => Row.cons cell (pick cs rs))
+  --      (λ _ => pick cs rs)
+
+-- This really ought to be trivial...
+theorem t {x : @Schema η}
+          {c1 c2 : {c : η // Schema.HasName c x}}
+          {cs : List {c : η // Schema.HasName c x}}
+: Schema.pick x (c1 :: c2 :: cs) = List.append (Schema.pick x [c1]) (Schema.pick x (c2 :: cs)) :=
+  by simp [Schema.pick]
+
+-- FIXME: WIP
+def selectColumnsH (t : Table schema) (cs : List {c : η // schema.HasName c}) : Table (Schema.pick schema cs) :=
+  {rows := t.rows.map (λ r => r.pick cs)}
+
 -- TODO: pivotLonger and pivotWider
 
 -------------------------------------------------------------------------------
