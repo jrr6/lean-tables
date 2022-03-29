@@ -11,8 +11,6 @@ def Stringable (τ : Type u) [inst : ToString τ] : Type u × ToString τ := (τ
 def Header {η} := (η × Type u)
 def Schema {η} := List (@Header η)
 
-def Schema.names {η : Type u_η} := List.map (@Prod.fst η (Type u))
-
 inductive Cell {η : Type u_η} [DecidableEq η] (name : η) (τ : Type u) : Type (max u u_η)
 | emp : Cell name τ
 | val : τ → Cell name τ
@@ -21,10 +19,14 @@ def Cell.toOption {η nm τ} [dec_η : DecidableEq η] : @Cell η dec_η nm τ �
 | Cell.emp => Option.none
 | Cell.val x => Option.some x
 
+def Cell.name {η nm τ} [dec_η : DecidableEq η] (_ : @Cell η dec_η nm τ) : η := nm
+
 -- Lingering question: should rows have a built-in indexing scheme? (Probably.)
 -- Should tables contain their number of rows and columns at type level? (Also
 -- probably.)
 -- Also, we still need to enforce distinct column names somehow...
+--  --> we could quotient over lists to restrict to lists that don't contain
+--      duplicates, but I could imagine that causing a lot of headaches
 
 inductive Row {η : Type u_η} [DecidableEq η] : Schema → Type (max u_η (u + 1))
 | nil : Row []
@@ -36,10 +38,33 @@ structure Table {η : Type u_η} [DecidableEq η] (hs : @Schema η) where
 
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
--- Schema column predicate
+-- Schema column predicates
 inductive Schema.HasCol {η : Type u_η} : @Header η → @Schema η → Prop
 | hd {c : η} {τ : Type u} {rs : Schema} : HasCol (c, τ) ((c, τ) :: rs)
 | tl {r c τ rs} : HasCol (c, τ) rs → HasCol (c, τ) (r::rs)
+
+inductive Schema.HasName : η → @Schema η → Prop
+| hd {c : η} {rs : Schema} {τ : Type u} : HasName c ((c, τ) :: rs)
+| tl {r c rs} : HasName c rs → HasName c (r::rs)
+
+-- Schema functions
+def Schema.names {η : Type u_η} := List.map (@Prod.fst η (Type u))
+
+def Schema.pick {η : Type u_η} [DecidableEq η]: (s : Schema) → List {c : η // Schema.HasName c s} → @Schema η
+| [], _ => []
+| _, [] => []
+| (nm, τ)::hs, [⟨c, hc⟩] => dite (nm = c) (λ _ => [(nm, τ)]) (λ h => pick hs [⟨c, by
+  cases hc with
+  | hd => contradiction
+  | tl in_hs => exact in_hs
+  ⟩])
+| hs, c1::c2::cs =>
+  -- Help out the termination checker
+  have _ : List.length hs + Nat.succ 0 < List.length hs + Nat.succ (Nat.succ (List.length cs)) := by
+    apply Nat.add_lt_add_left
+    exact @Nat.succ_lt_succ 0 (Nat.succ (List.length cs)) (Nat.zero_lt_succ (List.length cs));
+  List.append (pick hs [c1]) (pick hs (c2::cs))
+termination_by pick s cs => List.length s + List.length cs
 
 -- List utilities
 inductive List.All {α} (p : α → Prop) : List α → Prop
@@ -50,6 +75,8 @@ inductive List.All {α} (p : α → Prop) : List α → Prop
 def List.prod {α β} (xs : List α) (ys : List β) : List (α × β) :=
   List.foldl List.append [] (List.map (λ x => List.map (λ y => (x, y)) ys) xs)
 
+-- TODO: So List.nth *does* still exist in the prelude -- they just changed
+-- the name to `List.get`...
 def List.nth {α} : (xs : List α) → (n : Nat) → (n < List.length xs) → α
 | [], _, h => absurd h (by intro nh; cases nh)
 | x::xs, 0, h => x
@@ -203,6 +230,7 @@ def selectColumns (t : Table schema) (bs : List Bool) (h : List.length bs = ncol
 def selectColumnsN (t : Table schema) (ns : List {n : Nat // n < ncols t}) : Table (List.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 
+-- TODO: pivotLonger and pivotWider
 
 -------------------------------------------------------------------------------
 
