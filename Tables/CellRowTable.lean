@@ -61,15 +61,6 @@ def Schema.lookup {η : Type u_η} [DecidableEq η] : (s : Schema) → {c : η /
                                   | tl in_hs => exact in_hs
                                   ⟩)
 
--- Returns a list of the elements of the schema s whose names are contained in
--- cs in the order in which they appear in cs
--- TODO: maybe use recursor directly?
--- def Schema.pick {η : Type u_η} [DecidableEq η] : (s : Schema) → List {c : η // Schema.HasName c s} → @Schema η
--- | [], _ => []
--- | _, [] => []
--- | hs, c1::cs => lookup hs c1 :: pick hs cs
--- termination_by pick s cs => List.length cs
-
 def Schema.pick {η : Type u_η} [DecidableEq η] (s : Schema) : List {c : η // Schema.HasName c s} → @Schema η
 | [] => []
 | c::cs => lookup s c :: pick s cs
@@ -240,10 +231,6 @@ def selectColumns (t : Table schema) (bs : List Bool) (h : List.length bs = ncol
 def selectColumnsN (t : Table schema) (ns : List {n : Nat // n < ncols t}) : Table (List.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 
-
---------------------------------------------------------------------------------
---- Work on last columns override
-
 -- TODO: This is a very, very hideous implementation of Row.pick. It feels like
 -- we shouldn't need typeclasses -- the reason they arise is because we're
 -- trying to avoid actually taking types/HasCols as args to pick
@@ -264,55 +251,10 @@ def Row.pick (cs : List {c : η // Schema.HasName c schema})
     : Row (Schema.pick schema cs) :=
   inst.pick rs
 
-
--- FIXME: make this mirror Schema.pick
--- Order should match the order of cs, not rs
--- def Row.pick : {schema : @Schema η} → (cs : List {c : η // Schema.HasName c schema}) → (rs : @Row η dec_η schema) → Row (Schema.pick schema cs)
--- | _, [], Row.nil => Row.nil
--- | _, [], Row.cons _ _ => Row.nil
-
--- | _, [⟨c, h⟩], Row.cons cell rs => sorry -- dite (cell.name = c)
--- --                                      (λ _ => Row.cons cell Row.nil)
--- --                                      (λnh => pick [⟨c,h⟩] rs)
-                                     
--- -- | (⟨c, h⟩)::cs, Row.nil => absurd h (by cases h)  -- Shouldn't need this case
--- -- | (c1::c2::cs), rs =>
--- --   Row.append (pick [c1] rs) (pick (c2::cs) rs)
--- | s, c::cs, rs =>  Row.cons (getCell rs (s.lookup c).1 _) (pick cs rs)
--- --(@getCell η dec_η schema (Schema.lookup schema c).2 rs (Schema.lookup schema c).1 _ _) (pick cs rs)
--- --Row.cons (getCell rs c.val _) (pick cs rs)
---   -- FIXME: maybe rely on get(p) here and then just recursively call pick
---   -- dite (List.contains cs ⟨cell.name, _⟩)
---   --      (λ _ => Row.cons cell (pick cs rs))
---   --      (λ _ => pick cs rs)
-
--- def Row.pick2 {schema : @Schema η} {τs : List (Type u)} : (cs : List {c : η // Schema.HasName c schema}) → (rs : @Row η dec_η schema) → Row (List.prod cs τs)
--- | [], Row.nil => Row.nil
--- | [], Row.cons _ _ => Row.nil
--- | c::cs, rs => Row.cons (getCell rs c.val _) (pick cs rs)
-
--- This really ought to be trivial...
--- theorem t {x : @Schema η}
---           {c1 c2 : {c : η // Schema.HasName c x}}
---           {cs : List {c : η // Schema.HasName c x}}
--- : Schema.pick x (c1 :: c2 :: cs) = List.append (Schema.pick x [c1]) (Schema.pick x (c2 :: cs)) :=
---   by simp [Schema.pick]
-theorem t {x : @Schema η}
-          {c1 c2 : {c : η // Schema.HasName c x}}
-          {cs : List {c : η // Schema.HasName c x}}
-: Schema.pick x (c1 :: cs) = (Schema.lookup x c1) :: (Schema.pick x cs) :=
-  rfl
-
-theorem l {c hc} : @Schema.lookup η dec_η [] ⟨c, hc⟩ = absurd hc (by cases hc) := rfl
-theorem l2 {c τ hc} : @Schema.lookup η dec_η [(c, τ)] ⟨c, hc⟩ = (c, τ) := by simp [Schema.lookup]
-
--- FIXME: WIP
 def selectColumnsH (t : Table schema) (cs : List {c : η // schema.HasName c}) [Pickable cs] : Table (Schema.pick schema cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
 -- TODO: pivotLonger and pivotWider
-
--------------------------------------------------------------------------------
 
 section table_testing
 
