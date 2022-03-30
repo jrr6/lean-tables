@@ -63,11 +63,16 @@ def Schema.lookup {η : Type u_η} [DecidableEq η] : (s : Schema) → {c : η /
 
 -- Returns a list of the elements of the schema s whose names are contained in
 -- cs in the order in which they appear in cs
-def Schema.pick {η : Type u_η} [DecidableEq η] : (s : Schema) → List {c : η // Schema.HasName c s} → @Schema η
-| [], _ => []
-| _, [] => []
-| hs, c1::cs => lookup hs c1 :: pick hs cs
-termination_by pick s cs => List.length cs
+-- TODO: maybe use recursor directly?
+-- def Schema.pick {η : Type u_η} [DecidableEq η] : (s : Schema) → List {c : η // Schema.HasName c s} → @Schema η
+-- | [], _ => []
+-- | _, [] => []
+-- | hs, c1::cs => lookup hs c1 :: pick hs cs
+-- termination_by pick s cs => List.length cs
+
+def Schema.pick {η : Type u_η} [DecidableEq η] (s : Schema) : List {c : η // Schema.HasName c s} → @Schema η
+| [] => []
+| c::cs => lookup s c :: pick s cs
 
 -- List utilities
 inductive List.All {α} (p : α → Prop) : List α → Prop
@@ -207,8 +212,10 @@ class Gettable {c τ} (h : Schema.HasCol (c, τ) schema) where
 @[instance] def gettableTl {c τ h r} [cls : Gettable h] : @Gettable η dec_η (r::schema) c τ (Schema.HasCol.tl h) :=
   {getp := λ (Row.cons c cs) => cls.getp h cs}
 
+def getCell {τ} (r : Row schema) (c : η) (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : Cell c τ := inst.getp h r
+
 -- TODO: it would be nice not to have to provide a proof...
-def getValue {τ} (r : Row schema) (c : η) (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : Option τ := Cell.toOption (inst.getp h r)
+def getValue {τ} (r : Row schema) (c : η) (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : Option τ := Cell.toOption (getCell r c h)
 
 -- ...but in the meantime, here's a tactic to make the proof trivial
 macro "header" : tactic => `(repeat ((try apply Schema.HasCol.hd) <;> (apply Schema.HasCol.tl)))
@@ -237,28 +244,52 @@ def selectColumnsN (t : Table schema) (ns : List {n : Nat // n < ncols t}) : Tab
 --------------------------------------------------------------------------------
 --- Work on last columns override
 
--- class Pickable (r : Row schema) where
---   pick : (cs : List {c : η // Schema.HasName c schema}) → @Row η dec_η schema → Row (Schema.pick schema cs)
+-- TODO: This is a very, very hideous implementation of Row.pick. It feels like
+-- we shouldn't need typeclasses -- the reason they arise is because we're
+-- trying to avoid actually taking types/HasCols as args to pick
+class Pickable (cs : List {c : η // Schema.HasName c schema}) where
+  pick : @Row η dec_η schema → Row (Schema.pick schema cs)
 
--- instance {c} : Pickable ((c, τ) :: schema) where
---   pick := λr => 
+instance : Pickable ([] : List {c : η // Schema.HasName c schema}) where
+  pick := λ _ => Row.nil
+
+instance {c} {cs : List {c : η // Schema.HasName c schema}} [inst : Pickable cs] 
+         {h : Schema.HasCol ((Schema.lookup schema c).fst, (Schema.lookup schema c).snd) schema}
+         [Gettable h]
+    : Pickable (c :: cs) where
+  pick := λ rs => Row.cons (getCell rs (Schema.lookup schema c).fst h) (inst.pick rs)
+
+def Row.pick (cs : List {c : η // Schema.HasName c schema})
+             [inst : Pickable cs] (rs : @Row η dec_η schema)
+    : Row (Schema.pick schema cs) :=
+  inst.pick rs
+
 
 -- FIXME: make this mirror Schema.pick
 -- Order should match the order of cs, not rs
-def Row.pick {schema : @Schema η} : (cs : List {c : η // Schema.HasName c schema}) → (rs : @Row η dec_η schema) → Row (Schema.pick schema cs)
-| [], Row.nil => Row.nil
-| [], Row.cons _ _ => Row.nil
-| [⟨c, h⟩], Row.cons cell rs => dite (cell.name = c)
-                                     (λ _ => Row.cons cell Row.nil)
-                                     (λnh => pick [⟨c,h⟩] rs)
--- | (⟨c, h⟩)::cs, Row.nil => absurd h (by cases h)  -- Shouldn't need this case
-| (c1::c2::cs), rs =>
-  -- have h : List.append (Schema.pick schema [c]) (Schema.pick schema cs) = Schema.pick schema (c::cs) := sorry;
-  Row.append (pick [c1] rs) (pick (c2::cs) rs)
-  -- FIXME: maybe rely on get(p) here and then just recursively call pick
-  -- dite (List.contains cs ⟨cell.name, _⟩)
-  --      (λ _ => Row.cons cell (pick cs rs))
-  --      (λ _ => pick cs rs)
+-- def Row.pick : {schema : @Schema η} → (cs : List {c : η // Schema.HasName c schema}) → (rs : @Row η dec_η schema) → Row (Schema.pick schema cs)
+-- | _, [], Row.nil => Row.nil
+-- | _, [], Row.cons _ _ => Row.nil
+
+-- | _, [⟨c, h⟩], Row.cons cell rs => sorry -- dite (cell.name = c)
+-- --                                      (λ _ => Row.cons cell Row.nil)
+-- --                                      (λnh => pick [⟨c,h⟩] rs)
+                                     
+-- -- | (⟨c, h⟩)::cs, Row.nil => absurd h (by cases h)  -- Shouldn't need this case
+-- -- | (c1::c2::cs), rs =>
+-- --   Row.append (pick [c1] rs) (pick (c2::cs) rs)
+-- | s, c::cs, rs =>  Row.cons (getCell rs (s.lookup c).1 _) (pick cs rs)
+-- --(@getCell η dec_η schema (Schema.lookup schema c).2 rs (Schema.lookup schema c).1 _ _) (pick cs rs)
+-- --Row.cons (getCell rs c.val _) (pick cs rs)
+--   -- FIXME: maybe rely on get(p) here and then just recursively call pick
+--   -- dite (List.contains cs ⟨cell.name, _⟩)
+--   --      (λ _ => Row.cons cell (pick cs rs))
+--   --      (λ _ => pick cs rs)
+
+-- def Row.pick2 {schema : @Schema η} {τs : List (Type u)} : (cs : List {c : η // Schema.HasName c schema}) → (rs : @Row η dec_η schema) → Row (List.prod cs τs)
+-- | [], Row.nil => Row.nil
+-- | [], Row.cons _ _ => Row.nil
+-- | c::cs, rs => Row.cons (getCell rs c.val _) (pick cs rs)
 
 -- This really ought to be trivial...
 -- theorem t {x : @Schema η}
@@ -276,7 +307,7 @@ theorem l {c hc} : @Schema.lookup η dec_η [] ⟨c, hc⟩ = absurd hc (by cases
 theorem l2 {c τ hc} : @Schema.lookup η dec_η [(c, τ)] ⟨c, hc⟩ = (c, τ) := by simp [Schema.lookup]
 
 -- FIXME: WIP
-def selectColumnsH (t : Table schema) (cs : List {c : η // schema.HasName c}) : Table (Schema.pick schema cs) :=
+def selectColumnsH (t : Table schema) (cs : List {c : η // schema.HasName c}) [Pickable cs] : Table (Schema.pick schema cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
 -- TODO: pivotLonger and pivotWider
@@ -344,6 +375,8 @@ def t2 : Table [("prof", String), ("course", Nat), ("taught", Bool)] :=
 def joined := vcat t1 t2
 #eval Table.repr joined
 #reduce joined
+
+#reduce selectColumnsH t2 [⟨"prof", _⟩, ⟨"course", _⟩]
 
 def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown", "Brown"]
 #check schoolIded
