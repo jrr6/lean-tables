@@ -55,6 +55,24 @@ inductive Schema.HasName : η → @Schema η → Prop
 -- Schema functions
 def Schema.names {η : Type u_η} := List.map (@Prod.fst η (Type u))
 
+def Schema.removeName :
+    (s : @Schema η) → {c : η // s.HasName c} → @Schema η
+| [], _ => []
+| (nm, τ)::xs, ⟨c, h⟩ =>
+  dite (c = nm)
+       (λ _ => xs)
+       (λ nh => (nm, τ) :: removeName xs ⟨c, by
+        cases h with
+        | hd => simp at nh
+        | tl tl_h => apply tl_h
+        ⟩)
+
+-- TODO: Uniqueness is evil...
+def Schema.removeNames {η : Type u_η} [DecidableEq η] :
+    (s : @Schema η) → List {c : η // s.HasName c} → @Schema η
+| ss, [] => ss
+| ss, (y::ys) => removeNames (removeName ss y) ys
+
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η] : (s : Schema) → {c : η // Schema.HasName c s} → @Header η
 | [], ⟨c, hc⟩ => absurd hc (by cases hc)
@@ -99,6 +117,45 @@ def List.sieve {α} : List Bool → List α → List α
 | _, [] => []
 | true :: bs, x :: xs => x :: sieve bs xs
 | false :: bs, _ :: xs => sieve bs xs
+
+-- TODO: Haven't actually done the big-O analysis, but it's probably more
+-- efficient to make the recursive case x :: flatten (xs :: ys). Unfortunately,
+-- the termination checker doesn't like that implementation.
+-- Initial attempt was:
+-- termination_by flatten xs => 
+--   List.foldl (λ acc xs => acc + List.length xs + 1) 0 xs)
+-- TODO: After all that, I don't think we even need this function after all...
+def List.flatten {α} : List (List α) → List α
+| [] => []
+| [] :: ys => flatten ys
+| (x :: xs) :: ys => (x :: xs) ++ flatten ys
+
+def List.flatMap {α β} (f : α → List β) : List α → List β
+| [] => []
+| x :: xs => f x ++ flatMap f xs
+
+-- TODO: I refuse to believe there isn't a simpler way to do this
+def List.verifiedEnum : (xs : List α) → List ({n : Nat // n < xs.length} × α)
+| [] => []
+| z :: zs =>
+  let xs := z :: zs;
+  let rec vEnumFrom : (ys : {ys : List α // ys.length ≤ xs.length})
+                      → {n : Nat // n < ys.val.length}
+                      → List ({n : Nat // n < xs.length} × α)
+                      → List ({n : Nat // n < xs.length} × α)
+    | ⟨[], h⟩, n, acc => acc
+    | ⟨y :: ys, hys⟩, ⟨0, hn⟩, acc => ((⟨0, @Nat.lt_of_lt_of_le 0 (length ys + 1) (length xs) (Nat.zero_lt_succ (length ys)) hys⟩, y) :: acc)
+    | ⟨y :: ys, hys⟩, ⟨Nat.succ n, hn⟩, acc => vEnumFrom ⟨ys, @Nat.le_trans (length ys) (length ys + 1) (length xs) (Nat.le_succ (length ys)) hys⟩
+                                        ⟨n, Nat.lt_of_succ_lt_succ hn⟩
+                                        ((⟨Nat.succ n, Nat.lt_of_lt_of_le hn hys⟩, y) :: acc)
+    vEnumFrom ⟨xs, Nat.le_refl (length xs)⟩ ⟨length xs - 1, by apply Nat.sub_succ_lt_self; apply Nat.zero_lt_succ⟩ []
+termination_by vEnumFrom ys n acc => ys.val.length
+-- | [] => []
+-- | x :: xs => verifiedEnumFrom x :: xs ⟨length xs - 1, by
+--   simp [length]
+--   calc length xs - 1 ≤ length xs := by apply Nat.sub_le
+--                    _ < length xs + 1 := by constructor
+--   ⟩
 
 -- Row utilities
 def Row.singleCell {name τ} (x : τ) :=
@@ -216,6 +273,9 @@ class Gettable {c τ} (h : Schema.HasCol (c, τ) schema) where
 def getCell {τ} (r : Row schema) (c : η) (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : Cell c τ := inst.getp h r
 
 -- TODO: it would be nice not to have to provide a proof...
+-- (Also, we now have Schema.lookup -- do we still need the implicit τ arg?
+-- Careful if trying to make this change, though -- might, e.g., mess up the η
+-- requirement we use in pivotWider to ensure we're getting a valid header!)
 def getValue {τ} (r : Row schema) (c : η) (h : Schema.HasCol (c, τ) schema) [inst : Gettable h] : Option τ := Cell.toOption (getCell r c h)
 
 -- ...but in the meantime, here's a tactic to make the proof trivial
@@ -244,6 +304,14 @@ def selectColumnsN (t : Table schema) (ns : List {n : Nat // n < ncols t}) : Tab
 -- TODO: This is a very, very hideous implementation of Row.pick. It feels like
 -- we shouldn't need typeclasses -- the reason they arise is because we're
 -- trying to avoid actually taking types/HasCols as args to pick
+-- (Also, this generates terrible errors -- passing an invalid name fails via
+-- typeclass resolution timeout, which is ridiculous and unhelpful.
+-- EDIT: this isn't always true...it only happens if the first list element is
+-- invalid or if there's a duplicate entry in `cs`. More generally, the issue
+-- looks like the proof generation is part of typeclass resolution, so we don't
+-- get to see the underlying issue in the error message.)
+-- FIXME: Also, it fails when `cs` has duplicates -- granted this is ruled out
+-- by the precondition, but should investigate why nonetheless.
 class Pickable (cs : List {c : η // Schema.HasName c schema}) where
   pick : @Row η dec_η schema → Row (Schema.pick schema cs)
 
@@ -264,14 +332,43 @@ def Row.pick (cs : List {c : η // Schema.HasName c schema})
 def selectColumnsH (t : Table schema) (cs : List {c : η // schema.HasName c}) [Pickable cs] : Table (Schema.pick schema cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
--- TODO: pivotLonger
+def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
+               {schema₂ : @Schema ζ} {schema₃ : @Schema θ}
+               (t : Table schema)
+               (project : Row schema → {n : Nat // n < nrows t} → Table schema₂)
+               (result : Row schema → Row schema₂ → Row schema₃)
+    : Table schema₃ :=
+{rows :=
+  t.rows.verifiedEnum.flatMap (λ (n, r) =>
+    (List.zip t.rows (project r n).rows).map (λ (r1, r2) => result r1 r2)
+  )
+}
 
-def pivotWider {η} [DecidableEq η] [inst : Inhabited η] {schema : @Schema η}
-               (t : Table schema) (c1 c2 : {c : η // Schema.HasCol (c, η) schema})
+-- def flatten (t : Table schema) (cs : List {c : η // schema.HasName c}) : Table _ := sorry
+
+-- TODO: require that c1, c2 
+def pivotLonger {τ}
+                (t : Table schema)
+                (cs : List {c : η // Schema.HasCol (c, τ) schema})
+                (c1 : η)
+                (c2 : η)
+    -- FIXME: need to remove the old columns from schema!!!
+    : Table (List.append (schema) [(c1, η), (c2, τ)]) :=
+  selectMany t
+    (λ r _ =>
+      values (cs.map (λ (c : {c : η // Schema.HasCol (c, τ) schema}) =>
+        have _ : Gettable c.property := _;
+        getCell r c.val c.property)))
+    (λ (r₁ : Row schema) r₂ => r₁ ++ r₂)
+
+def pivotWider [inst : Inhabited η]
+               (t : Table schema)
+               (c1 c2 : {c : η // Schema.HasCol (c, η) schema})
                [Gettable c1.property]  -- TODO: This really shouldn't be necessary
     : Table (List.append schema (t.rows.map (λ r =>
               (Option.orDefault (getValue r c1.val c1.property), η)
             ))) := sorry
+
 
 section table_testing
 
@@ -335,7 +432,7 @@ def joined := vcat t1 t2
 #eval Table.repr joined
 #reduce joined
 
-#reduce selectColumnsH t2 [⟨"prof", _⟩, ⟨"course", _⟩]
+#check selectColumnsH t2 [⟨"prof", _⟩, ⟨"course", _⟩]
 
 def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown", "Brown"]
 #check schoolIded
