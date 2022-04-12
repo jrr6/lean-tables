@@ -33,7 +33,7 @@ def Option.orDefault {α} [Inhabited α] : Option α → α
 --  --> we could quotient over lists to restrict to lists that don't contain
 --      duplicates, but I could imagine that causing a lot of headaches
 
-inductive Row {η : Type u_η} [DecidableEq η] : Schema → Type (max u_η (u + 1))
+inductive Row {η : Type u_η} [DecidableEq η] : @Schema η → Type (max u_η (u + 1))
 | nil : Row []
 | cons {name : η} {τ : Type u} {hs : Schema} :
     Cell name τ → Row hs → Row ((name, τ) :: hs)
