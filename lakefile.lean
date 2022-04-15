@@ -1,6 +1,6 @@
 import Lake
 open Lake DSL
 
-package tables {
+package table {
   -- add configuration options here
 }

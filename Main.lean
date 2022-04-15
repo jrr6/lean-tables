@@ -1,4 +1,4 @@
-import Tables.Table_parametrized
+import Table.misc.DepList
 
 def main : IO Unit :=
-  IO.println s!"Hello, {hello}!"
+  IO.println s!"Hello, hello!"
