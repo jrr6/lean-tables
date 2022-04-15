@@ -1,213 +1,13 @@
+import Table.CoreTypes
+import Table.CoreFunctions
+import Table.BuiltinExtensions
+
 universe u_η
 universe u
 
-def Stringable (τ : Type u) [inst : ToString τ] : Type u × ToString τ := (τ, inst)
-
--- Row/Cell setup based on Stephanie Weirich, "Dependent Types in Haskell,"
--- https://www.youtube.com/watch?v=wNa3MMbhwS4
--- Code!:
--- https://github.com/sweirich/dth/blob/master/regexp/src/OccDict.hs
-
-def Header {η} := (η × Type u)
-def Schema {η} := List (@Header η)
-
-inductive Cell {η : Type u_η} [DecidableEq η] (name : η) (τ : Type u) : Type (max u u_η)
-| emp : Cell name τ
-| val : τ → Cell name τ
-
-def Cell.toOption {η nm τ} [dec_η : DecidableEq η] : @Cell η dec_η nm τ → Option τ
-| Cell.emp => Option.none
-| Cell.val x => Option.some x
-
-def Cell.name {η nm τ} [dec_η : DecidableEq η] (_ : @Cell η dec_η nm τ) : η := nm
-
--- Variant on orElse that's useful for de-option-ifying cell values
-def Option.orDefault {α} [Inhabited α] : Option α → α
-| some x => x
-| none => default
-
--- Lingering question: should rows have a built-in indexing scheme? (Probably.)
--- Should tables contain their number of rows and columns at type level? (Also
--- probably.)
--- Also, we still need to enforce distinct column names somehow...
---  --> we could quotient over lists to restrict to lists that don't contain
---      duplicates, but I could imagine that causing a lot of headaches
-
-inductive Row {η : Type u_η} [DecidableEq η] : @Schema η → Type (max u_η (u + 1))
-| nil : Row []
-| cons {name : η} {τ : Type u} {hs : Schema} :
-    Cell name τ → Row hs → Row ((name, τ) :: hs)
-
-structure Table {η : Type u_η} [DecidableEq η] (hs : @Schema η) where
-  rows : List (Row hs)
-
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
--- Schema column predicates
-inductive Schema.HasCol {η : Type u_η} : @Header η → @Schema η → Prop
-| hd {c : η} {τ : Type u} {rs : Schema} : HasCol (c, τ) ((c, τ) :: rs)
-| tl {r c τ rs} : HasCol (c, τ) rs → HasCol (c, τ) (r::rs)
-
-inductive Schema.HasName : η → @Schema η → Prop
-| hd {c : η} {rs : Schema} {τ : Type u} : HasName c ((c, τ) :: rs)
-| tl {r c rs} : HasName c rs → HasName c (r::rs)
-
--- Schema functions
-def Schema.names {η : Type u_η} := List.map (@Prod.fst η (Type u))
-
-def Schema.removeName :
-    (s : @Schema η) → {c : η // s.HasName c} → @Schema η
-| [], _ => []
-| (nm, τ)::xs, ⟨c, h⟩ =>
-  dite (c = nm)
-       (λ _ => xs)
-       (λ nh => (nm, τ) :: removeName xs ⟨c, by
-        cases h with
-        | hd => simp at nh
-        | tl tl_h => apply tl_h
-        ⟩)
-
--- TODO: Uniqueness is evil...
-def Schema.removeNames {η : Type u_η} [DecidableEq η] :
-    (s : @Schema η) → List {c : η // s.HasName c} → @Schema η
-| ss, [] => ss
-| ss, (y::ys) => removeNames (removeName ss y) ys
-
--- Returns the schema entry with the specified name
-def Schema.lookup {η : Type u_η} [DecidableEq η] : (s : Schema) → {c : η // Schema.HasName c s} → @Header η
-| [], ⟨c, hc⟩ => absurd hc (by cases hc)
-| (nm, τ)::hs, ⟨c, hc⟩ => dite (nm = c)
-                               (λ _ => (nm, τ))
-                               (λ h => lookup hs ⟨c, by
-                                  cases hc with
-                                  | hd => contradiction
-                                  | tl in_hs => exact in_hs
-                                  ⟩)
-
-def Schema.pick {η : Type u_η} [DecidableEq η] (s : Schema) : List {c : η // Schema.HasName c s} → @Schema η
-| [] => []
-| c::cs => lookup s c :: pick s cs
-
--- List utilities
-inductive List.All {α} (p : α → Prop) : List α → Prop
-| vac      : All p []
-| sing {x} : p x → All p [x]
-| cons {x xs} : p x → All p xs → All p (x::xs)
-
-def List.prod {α β} (xs : List α) (ys : List β) : List (α × β) :=
-  List.foldl List.append [] (List.map (λ x => List.map (λ y => (x, y)) ys) xs)
-
--- TODO: So List.nth *does* still exist in the prelude -- they just changed
--- the name to `List.get`...
-def List.nth {α} : (xs : List α) → (n : Nat) → (n < List.length xs) → α
-| [], _, h => absurd h (by intro nh; cases nh)
-| x::xs, 0, h => x
-| x::xs, Nat.succ n, h => nth xs n (Nat.le_of_succ_le_succ h)
-
-def List.nths {α} (xs : List α) (ns : List {n : Nat // n < List.length xs}): List α :=
-  List.map (λ n => List.nth xs n.val n.property) ns
-
--- This is slick, but unfortunately, it breaks type inference
--- def List.sieve {α} (bs : List Bool) (xs : List α) : List α :=
---   List.zip bs xs |> List.filter Prod.fst
---                  |> List.map Prod.snd
-
-def List.sieve {α} : List Bool → List α → List α
-| [], xs => xs
-| _, [] => []
-| true :: bs, x :: xs => x :: sieve bs xs
-| false :: bs, _ :: xs => sieve bs xs
-
--- TODO: Haven't actually done the big-O analysis, but it's probably more
--- efficient to make the recursive case x :: flatten (xs :: ys). Unfortunately,
--- the termination checker doesn't like that implementation.
--- Initial attempt was:
--- termination_by flatten xs => 
---   List.foldl (λ acc xs => acc + List.length xs + 1) 0 xs)
--- TODO: After all that, I don't think we even need this function after all...
-def List.flatten {α} : List (List α) → List α
-| [] => []
-| [] :: ys => flatten ys
-| (x :: xs) :: ys => (x :: xs) ++ flatten ys
-
-def List.flatMap {α β} (f : α → List β) : List α → List β
-| [] => []
-| x :: xs => f x ++ flatMap f xs
-
--- TODO: I refuse to believe there isn't a simpler way to do this
-def List.verifiedEnum : (xs : List α) → List ({n : Nat // n < xs.length} × α)
-| [] => []
-| z :: zs =>
-  let xs := z :: zs;
-  let rec vEnumFrom : (ys : {ys : List α // ys.length ≤ xs.length})
-                      → {n : Nat // n < ys.val.length}
-                      → List ({n : Nat // n < xs.length} × α)
-                      → List ({n : Nat // n < xs.length} × α)
-    | ⟨[], h⟩, n, acc => acc
-    | ⟨y :: ys, hys⟩, ⟨0, hn⟩, acc => ((⟨0, @Nat.lt_of_lt_of_le 0 (length ys + 1) (length xs) (Nat.zero_lt_succ (length ys)) hys⟩, y) :: acc)
-    | ⟨y :: ys, hys⟩, ⟨Nat.succ n, hn⟩, acc => vEnumFrom ⟨ys, @Nat.le_trans (length ys) (length ys + 1) (length xs) (Nat.le_succ (length ys)) hys⟩
-                                        ⟨n, Nat.lt_of_succ_lt_succ hn⟩
-                                        ((⟨Nat.succ n, Nat.lt_of_lt_of_le hn hys⟩, y) :: acc)
-    vEnumFrom ⟨xs, Nat.le_refl (length xs)⟩ ⟨length xs - 1, by apply Nat.sub_succ_lt_self; apply Nat.zero_lt_succ⟩ []
-termination_by vEnumFrom ys n acc => ys.val.length
--- | [] => []
--- | x :: xs => verifiedEnumFrom x :: xs ⟨length xs - 1, by
---   simp [length]
---   calc length xs - 1 ≤ length xs := by apply Nat.sub_le
---                    _ < length xs + 1 := by constructor
---   ⟩
-
--- Row utilities
-def Row.singleCell {name τ} (x : τ) :=
-  @Row.cons η dec_η name τ [] (Cell.val x) Row.nil
-
-def Row.append {schema₁ schema₂} :
-    @Row η _ schema₁ → Row schema₂ → Row (List.append schema₁ schema₂)
-| Row.nil, rs₂ => rs₂
-| Row.cons r₁ rs₁, rs₂ => Row.cons r₁ (append rs₁ rs₂)
-
-def Row.map {schema} (f : ∀ n α, Cell n α → @Cell η dec_η n α) : Row schema → @Row η dec_η schema
-| Row.nil => Row.nil
-| @Row.cons _ _ n τ _ r₁ rs₁ => Row.cons (f n τ r₁) (map f rs₁)
-
--- Not sure if we'll ever need this...
-def Row.toList {schema : @Schema η} {α} (f : ∀ {n β}, @Cell η dec_η n β → α) : Row schema → List α
-| Row.nil => []
-| Row.cons c rs => f c :: toList f rs
-
--- TODO: probably makes more sense to move this to some general "collection"
--- interface rather than reimplementing for every type -- wonder if this is
--- something James is working on
--- It would also be nice if we could make this function less verbose.
--- Unfortunately, Lean's type-checker needs some help...
-def Row.sieve {schema} : (bs : List Bool) → Row schema → @Row η dec_η (List.sieve bs schema)
-| [], Row.nil => Row.nil
-| [], Row.cons r rs => Row.cons r rs
-| true :: bs, Row.nil => Row.nil
-| false :: bs, Row.nil => Row.nil
-| true :: bs, Row.cons r rs => Row.cons r (sieve bs rs)
-| false :: bs, Row.cons r rs => sieve bs rs
-
-def Row.nth {schema} : (rs : @Row η dec_η schema) → (n : Nat) → (h : n < List.length schema) →
-    let (nm, τ) := List.nth schema n h;
-    @Cell η dec_η nm τ
-| Row.nil, _, h => absurd h (by intro nh; cases nh)
-| Row.cons r rs, 0, h => r
-| Row.cons r rs, Nat.succ n, h => nth rs n (Nat.le_of_succ_le_succ h)
-
--- It would be nice if Lean could figure out that we're structurally recursing,
--- but in the meantime, we have to provide a manual termination relation
-def Row.nths {schema} :
-    (ns : List {n : Nat // n < List.length schema})
-      → Row schema
-      → @Row η dec_η (List.nths schema ns)
-| [], Row.nil => Row.nil
-| [], Row.cons x xs => Row.nil
-| n::ns, Row.nil => absurd n.property
-                          (by intro nh; simp [List.length] at nh; contradiction)
-| n::ns, r => Row.cons (Row.nth r n.val n.property) (nths ns r)
-  termination_by nths ns r => List.length ns
-
+-- Constructors
 def emptyTable {α : Type u₁} [hα : DecidableEq α] : @Table α hα [] :=
   Table.mk []
 
@@ -242,6 +42,8 @@ def crossJoin {schema₁ schema₂}
 
 def leftJoin : False := sorry -- TODO:
 
+-- Properties
+-- TODO: Use Fin instead of ad-hoc quotients
 def nrows (t : Table schema) : Nat := List.length t.rows
 
 def ncols (t : Table schema) : Nat := List.length schema
@@ -280,6 +82,7 @@ def getValue {τ} (r : Row schema) (c : η) (h : Schema.HasCol (c, τ) schema) [
 
 -- ...but in the meantime, here's a tactic to make the proof trivial
 macro "header" : tactic => `(repeat ((try apply Schema.HasCol.hd) <;> (apply Schema.HasCol.tl)))
+macro "name" : tactic => `(repeat ((try apply Schema.HasName.hd) <;> (apply Schema.HasName.tl)))
 
 def getColumnIndex (t : Table schema) (n : Nat) (h : n < ncols t) := List.map (λr => List.nth _ n h) t.rows
 
@@ -312,25 +115,139 @@ def selectColumnsN (t : Table schema) (ns : List {n : Nat // n < ncols t}) : Tab
 -- get to see the underlying issue in the error message.)
 -- FIXME: Also, it fails when `cs` has duplicates -- granted this is ruled out
 -- by the precondition, but should investigate why nonetheless.
-class Pickable (cs : List {c : η // Schema.HasName c schema}) where
+class Pickable (cs : List (CertifiedName schema)) where
   pick : @Row η dec_η schema → Row (Schema.pick schema cs)
 
-instance : Pickable ([] : List {c : η // Schema.HasName c schema}) where
+instance : Pickable ([] : List (CertifiedName schema)) where
   pick := λ _ => Row.nil
 
-instance {c} {cs : List {c : η // Schema.HasName c schema}} [inst : Pickable cs] 
+instance {c : CertifiedName schema} {cs : List (CertifiedName schema)} [inst : Pickable cs] 
+         -- TODO: This is a really bad part of an already bad implementation
+         -- (would not be surprised if this is what's failing elsewhere)
          {h : Schema.HasCol ((Schema.lookup schema c).fst, (Schema.lookup schema c).snd) schema}
          [Gettable h]
     : Pickable (c :: cs) where
-  pick := λ rs => Row.cons (getCell rs (Schema.lookup schema c).fst h) (inst.pick rs)
+  pick := λ rs =>
+  have h : Schema.HasCol ((Schema.lookup schema c).fst, (Schema.lookup schema c).snd) schema := sorry;
+  Row.cons (getCell rs (Schema.lookup schema c).fst h) (inst.pick rs)
 
-def Row.pick (cs : List {c : η // Schema.HasName c schema})
+def Row.pick (cs : List (CertifiedName schema))
              [inst : Pickable cs] (rs : @Row η dec_η schema)
     : Row (Schema.pick schema cs) :=
   inst.pick rs
 
+theorem schemaHasLookup (schema : @Schema η) (c : CertifiedName schema)
+    : schema.HasCol ((schema.lookup c).fst, (schema.lookup c).snd) := by
+  induction schema with
+  | nil => cases c with | mk val prop => cases prop
+  -- TODO: Is there a better syntax?
+  | cons s ss ih => cases c with | mk val prop => cases s with | mk c τ =>
+    simp [Schema.lookup]
+    cases (Decidable.em (c = val)) with
+    | inl h => simp [ite, h]; apply Schema.HasCol.hd
+    | inr h =>
+      simp [ite, h, Prod.fst, Prod.snd]
+      apply Schema.HasCol.tl
+      apply ih
+
+-- TODO: I really think we should be able to do this without typeclasses...
+def Row.pick2 : {schema : @Schema η} → (cs : List (CertifiedName schema)) → Row schema → Row (Schema.pick schema cs)
+| _, [], Row.nil => Row.nil
+| _, (⟨c, h⟩::cs), Row.nil => absurd h (by cases h)
+| _, [], Row.cons cell rs => Row.nil
+| (s::ss), (c::cs), Row.cons cell rs =>
+  -- have h : Schema.HasCol ((Schema.lookup (s::ss) c).fst, (Schema.lookup (s::ss) c).snd) ss := by
+  -- simp [Schema.lookup, Prod.fst, Prod.snd]
+  -- cases c with
+  -- | mk val property =>
+  -- ;
+  -- -- TODO: how do we tell Lean to just "go look it up!"?? (We can't require the gettable instance in the col header --
+  -- -- if we could figure this out, we could do away with a bunch of this typeclass nonsense!)
+  -- have _ : Gettable h := _;
+  Row.cons (@getCell _ _ (s::ss)
+                     (Schema.lookup (s::ss) c).snd
+                     (Row.cons cell rs)
+                     (Schema.lookup (s::ss) c).fst (schemaHasLookup (s::ss) c)
+                     _)
+           (pick2 cs (Row.cons cell rs))
+
 def selectColumnsH (t : Table schema) (cs : List {c : η // schema.HasName c}) [Pickable cs] : Table (Schema.pick schema cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
+
+def completeCases {τ} (t : Table schema) (c : {c : η // schema.HasCol (c, τ)}) [Gettable c.property] :=
+  List.map (λ v => Option.isSome v) (getColumn t c.val c.property)
+
+def Row.hasEmpty {schema : @Schema η} : Row schema → Bool
+| Row.nil => false
+| Row.cons Cell.emp _ => true
+| Row.cons _ r' => hasEmpty r'
+
+def dropna (t : Table schema) : Table schema :=
+  {rows := t.rows.filter (λ r => r.hasEmpty)}
+
+-- TODO: this should work, but type class resolution is failing for some reason
+-- def dropna' (t : Table schema) : Table schema :=
+--   {rows := (schema.certify.map (λ ⟨(c, τ), h⟩ =>
+--     @completeCases _ _ _ τ t ⟨c, h⟩ _)).foldl (λ l acc => sorry)
+--   }
+
+-- TODO: any way to avoid type classes?
+class Settable {c τ} (h : Schema.HasCol (c, τ) schema) where
+  setp : Row schema → (Cell c τ) → Row schema
+
+-- Head instance
+instance {c τ}: @Settable η dec_η ((c,τ)::schema) c τ (@Schema.HasCol.hd η c τ schema) :=
+  {setp := λ (Row.cons _ rs) cell => Row.cons cell rs}
+
+-- Tail instance
+instance {c τ h r} [cls : Settable h] : @Settable η dec_η (r::schema) c τ (Schema.HasCol.tl h) :=
+  {setp := λ (Row.cons c rs) newCell => Row.cons c (cls.setp h rs newCell)}
+
+def get_from_proof {schema : @Schema η} {c : η} {τ : Type u}
+    : Schema.HasCol (c, τ) schema → Row schema → Option τ
+| Schema.HasCol.hd, Row.cons cell cells => cell.toOption
+| Schema.HasCol.tl h, Row.cons cell cells => get_from_proof h cells
+
+theorem get_with_lookup_should_work {c : η} {τ : Type u} {xs : List (@Header η)}
+  {h : Schema.HasName c ((c, τ) :: xs)} : (Schema.lookup ((c, τ) :: xs) ⟨c, h⟩).snd = τ := by
+  simp [Schema.lookup, Prod.snd]
+
+def get_with_lookup {schema : @Schema η} {c : η}
+    : (h : Schema.HasName c schema) → (r : Row schema) → Option (schema.lookup ⟨c, h⟩).snd
+| Schema.HasName.hd, Row.cons cell cells => cell.toOption
+| Schema.HasName.tl h, Row.cons cell cells => get_with_lookup h cells
+
+def set_from_proof {schema : @Schema η} {c : η} {τ : Type u}
+    : Schema.HasCol (c, τ) schema → Row schema → Cell c τ → Row schema
+| Schema.HasCol.hd, Row.cons cell cells, newCell => Row.cons newCell cells
+| Schema.HasCol.tl h, Row.cons cell cells, newCell => Row.cons cell (set_from_proof h cells newCell)
+
+def setCell {τ}
+            (r : Row schema)
+            (c : η)
+            (h : schema.HasCol (c, τ))
+            (cell : Cell c τ)
+            [inst : Settable h]
+    : Row schema := inst.setp h r cell
+
+-- FIXME: finish
+def update {schema₁ : @Schema η}
+           {schema₂ : Subschema schema₁}
+           (t : Table schema₁)
+           (f : Row schema₁ → Row schema₂.toSchema) : Table schema₁ :=
+  {rows := t.rows.map (λ r =>
+    let newCells := f r;
+    newCells.foldr (λ c (acc : Row schema₁) => @setCell _ _ _ c.type acc c.name sorry c _) r
+  )}
+
+-- FIXME: finish - dep = update
+def fillna {τ}
+           (t : Table schema)
+           (c : {c : η // schema.HasCol (c, τ)})
+           (v : τ)
+    : Table schema :=
+  {rows := update t (λ r => match getCell r c with
+                            | Cell.emp => _) }
 
 def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
                {schema₂ : @Schema ζ} {schema₃ : @Schema θ}
@@ -346,6 +263,52 @@ def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
 
 -- def flatten (t : Table schema) (cs : List {c : η // schema.HasName c}) : Table _ := sorry
 
+theorem test {τ} {cs : List {c : η // Schema.HasCol (c, τ) schema}} {remainingNames : List (CertifiedName schema)}
+  (hdef : remainingNames = (schema.certify.filter
+                      (λ (⟨(c, τ), h⟩ : CertifiedHeader schema) => not ((cs.map Subtype.val).elem c))
+                  ).map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) => ⟨c, Schema.colImpliesName h⟩))
+:
+  Schema.pick schema remainingNames = Schema.removeNames schema (List.map (fun c => Subtype.val c) cs) := by
+  rw [hdef];
+  induction schema;
+  . induction cs with
+    | nil => simp [Schema.pick, Schema.removeNames, List.map]
+    | cons s ss ih => apply ih
+                      simp [Schema.pick, Schema.removeNames, List.map, ih]
+
+def Row.removeNamedCols (r : Row schema) (cs : List (CertifiedName schema)) :
+  Row (schema.removeNames (cs.map Subtype.val)) :=
+  let cnames : List η := cs.map Subtype.val;
+  let remainingHeaders := (schema.certify.filter
+                  (λ (⟨(c, τ), h⟩ : CertifiedHeader schema) => not (cnames.elem c))
+              );
+  let remainingNames : List (CertifiedName schema) := remainingHeaders.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) => ⟨c, Schema.colImpliesName h⟩);
+  have _ : Pickable remainingNames := _;
+  -- TODO: maybe we could have some sort of "Row.removeColumns" that
+  -- produces a row with the correct schema type by construction?
+  r.pick remainingNames
+
+def Row.removeNamedCol : {schema : @Schema η} → (c : CertifiedName schema) → Row schema → Row (schema.removeName c.val)
+| _, c, Row.nil => Row.nil
+| (nm, τ)::ss, ⟨c, h⟩, Row.cons cell r => dite (c = nm)
+                          (λ ht => r)
+                          (λ _ => Row.cons cell (@removeNamedCol ss ⟨c, by
+                          cases h with
+                          | hd => contradiction
+                          | tl hss => exact hss
+                          ⟩ r))
+
+def Row.removeNamedCols2 : {schema : @Schema η} → (cs : List (CertifiedName schema)) → Row schema → Row (schema.removeNames (cs.map Subtype.val))
+| _, [], Row.nil => Row.nil
+| _, (⟨c, h⟩::cs), Row.nil => absurd h (by cases h)
+| _, [], Row.cons cell rs => Row.cons cell rs
+| (s::ss), (c::cs), Row.cons cell rs =>
+  have h : Schema.HasCol ((Schema.lookup (s::ss) c).fst, (Schema.lookup (s::ss) c).snd) ss := _;
+  -- TODO: how do we tell Lean to just "go look it up!"??
+  have _ : Gettable h := _;
+  @removeNamedCols2 (schema.removeName c.val) cs (removeNamedCol c (Row.cons cell rs))
+  -- Row.cons (getCell rs (Schema.lookup (s::ss) c).fst h) (pick2 cs (Row.cons cell rs))
+
 -- TODO: require that c1, c2 
 def pivotLonger {τ}
                 (t : Table schema)
@@ -353,17 +316,32 @@ def pivotLonger {τ}
                 (c1 : η)
                 (c2 : η)
     -- FIXME: need to remove the old columns from schema!!!
-    : Table (List.append (schema) [(c1, η), (c2, τ)]) :=
+    : Table (List.append (schema.removeNames (cs.map (λc => c.val))) [(c1, η), (c2, τ)]) :=
   selectMany t
     (λ r _ =>
       values (cs.map (λ (c : {c : η // Schema.HasCol (c, τ) schema}) =>
         have _ : Gettable c.property := _;
-        getCell r c.val c.property)))
-    (λ (r₁ : Row schema) r₂ => r₁ ++ r₂)
+        Row.cons (Cell.val c)
+          (Row.cons (getCell r c.val c.property) Row.nil)
+      )))
+    (λ (r₁ : Row schema) (r₂ : Row [(c1, η), (c2, τ)]) =>
+      -- TODO: what?
+      have _ : Pickable _ := _;
+      -- have cnames : List {c : η // Schema.HasName c schema} := cs.map (λ (⟨c, h⟩ : {c : η // Schema.HasCol (c, τ) schema})
+        -- => ⟨c, schema.colImpliesName h⟩);
+      let cnames : List η := cs.map Subtype.val;
+      let remainingHeaders := (schema.certify.filter
+                      (λ (⟨(c, τ), h⟩ : CertifiedHeader schema) => not (cnames.elem c))
+                  );
+      let remainingNames : List (CertifiedName schema) := remainingHeaders.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) => ⟨c, Schema.colImpliesName h⟩);
+      -- TODO: maybe we could have some sort of "Row.removeColumns" that
+      -- produces a row with the correct schema type by construction?
+      let remainingCells := r₁.pick remainingNames;
+      Row.append remainingCells r₂)
 
 def pivotWider [inst : Inhabited η]
                (t : Table schema)
-               (c1 c2 : {c : η // Schema.HasCol (c, η) schema})
+               (c1 c2 : CertifiedHeader schema)
                [Gettable c1.property]  -- TODO: This really shouldn't be necessary
     : Table (List.append schema (t.rows.map (λ r =>
               (Option.orDefault (getValue r c1.val c1.property), η)
@@ -432,10 +410,13 @@ def joined := vcat t1 t2
 #eval Table.repr joined
 #reduce joined
 
-#check selectColumnsH t2 [⟨"prof", _⟩, ⟨"course", _⟩]
+-- FIXME: what happened here? I swear this was working.
+#eval selectColumnsH t2 [⟨"prof", (by name)⟩, ⟨"course", (by name)⟩]
 
 def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown", "Brown"]
 #check schoolIded
+
+#reduce getValue (List.head schoolIded.rows _) "course" (by header)
 
 #reduce selectRowsIndices schoolIded [⟨3, _⟩, ⟨4, _⟩]
 #reduce schoolIded |> (λ t => selectRowsIndices t [⟨1, _⟩, ⟨4, _⟩])
@@ -443,7 +424,9 @@ def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown"
 
 -- Testing, etc.
 #reduce addRows (addColumn emptyTable "name" []) [Row.singleCell "hello"]
-#reduce getValue (Row.append
+-- FIXME: the Lean update broke this (used to be no need for explicit args)
+-- More generally, type-class resolution seems to be kind of broken right now.
+#reduce @getValue _ _ _ Nat (Row.append
         (@Row.singleCell String _ "pi" (List Nat) [3,1,4,1,5])
         (@Row.singleCell String _ "age" Nat 20))
         "age" (by header)
