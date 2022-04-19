@@ -241,12 +241,12 @@ theorem get_with_lookup_should_work {c : η} {τ : Type u} {xs : List (@Header �
   {h : Schema.HasName c ((c, τ) :: xs)} : (Schema.lookup ((c, τ) :: xs) ⟨c, h⟩).snd = τ := by
   simp [Schema.lookup, Prod.snd]
 
--- def get_with_lookup {schema : @Schema η} {c : η}
---     : (h : Schema.HasName c schema) → (r : Row schema) → Option (schema.lookup ⟨c, h⟩).snd
--- | Schema.HasName.hd, @Row.cons _ _ _ τ _ cell cells =>
---     have _ : (Schema.lookup ((c, τ) :: _) ⟨c, _⟩).snd = τ := by apply get_with_lookup_should_work;
---     (cell.toOption : Option τ)
--- | Schema.HasName.tl h, Row.cons cell cells => get_with_lookup h cells
+def get_with_lookup {schema : @Schema η} {c : η}
+    : (h : Schema.HasName c schema) → (r : Row schema) → Option (schema.lookup ⟨c, h⟩).snd
+| Schema.HasName.hd, @Row.cons _ _ _ τ rest cell cells =>
+    have _ : (Schema.lookup ((c, τ) :: rest) ⟨c, _⟩).snd = τ := by apply get_with_lookup_should_work;
+    (cell.toOption : Option τ)
+| Schema.HasName.tl h, Row.cons cell cells => get_with_lookup h cells
 
 -- def set_from_proof {schema : @Schema η} {c : η} {τ : Type u}
 --     : Schema.HasCol (c, τ) schema → Row schema → Cell c τ → Row schema
