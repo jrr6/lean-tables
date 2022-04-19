@@ -6,6 +6,12 @@ universe u
 
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
+-- For ease of refactoring, makes these products act like subtypes
+def CertifiedName.val (n : CertifiedName schema) := Sigma.fst n
+def CertifiedName.property (n : CertifiedName schema) := Sigma.snd n
+def CertifiedHeader.val (h : CertifiedHeader schema) := Sigma.fst h
+def CertifiedHeader.property (h : CertifiedHeader schema) := Sigma.snd h
+
 -- Cell accessor and conversion functions
 def Cell.toOption {nm τ} : @Cell η dec_η nm τ → Option τ
 | Cell.emp => Option.none
@@ -16,7 +22,7 @@ def Cell.name {nm τ} (_ : @Cell η dec_η nm τ) : η :=
 def Cell.type {nm τ} (_ : @Cell η dec_η nm τ) := τ
 
 def Subschema.toSchema {schm : @Schema η} (s : Subschema schm) : @Schema η := 
-  s.map (λ x => x.val)
+  s.map (λ x => x.fst)
 
 -- Schema proof generation/manipulation functions
 def Schema.certify (schema : @Schema η) : List (CertifiedHeader schema) :=
@@ -28,15 +34,17 @@ def Schema.certify (schema : @Schema η) : List (CertifiedHeader schema) :=
       ⟨(c, τ), Schema.HasCol.hd⟩ :: (certify_elts hs).map map_subproof;
   certify_elts schema
 
-def Schema.colImpliesName {c : η} {τ : Type u} (p : schema.HasCol (c, τ))
-    : schema.HasName c :=
-by
-  induction schema with
-  | nil => contradiction
-  | cons h hs ih =>
+-- TODO: Lean 4 bug: can't do `induction schema` in tactic mode
+def Schema.colImpliesName :
+      {schema : @Schema η} →
+      {c : η} →
+      {τ : Type u} →
+      (p : schema.HasCol (c, τ)) → schema.HasName c
+| [], c, τ, p => by contradiction
+| h :: hs, c, τ, p => by
     cases p with
     | hd => apply HasName.hd
-    | tl a => apply HasName.tl (ih a)
+    | tl a => apply HasName.tl (colImpliesName a)
 
 def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
   schema.certify.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) =>
@@ -71,7 +79,7 @@ def Schema.removeNames {η : Type u_η} [DecidableEq η] :
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η]
     : (s : @Schema η) → CertifiedName s → @Header η
-| [], ⟨c, hc⟩ => absurd hc (by cases hc)
+| [], ⟨c, hc⟩ => by cases hc
 | (nm, τ)::hs, ⟨c, hc⟩ => dite (nm = c)
                                (λ _ => (nm, τ))
                                (λ h => lookup hs ⟨c, by

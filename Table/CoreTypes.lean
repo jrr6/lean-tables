@@ -33,18 +33,18 @@ structure Table {η : Type u_η} [DecidableEq η] (hs : @Schema η) where
   rows : List (Row hs)
 
 -- Schema column predicates
-inductive Schema.HasCol {η : Type u_η} : @Header η → @Schema η → Prop
+inductive Schema.HasCol {η : Type u_η} : @Header η → @Schema η → Type (max (u + 1) u_η)
 | hd {c : η} {τ : Type u} {rs : Schema} : HasCol (c, τ) ((c, τ) :: rs)
 | tl {r c τ rs} : HasCol (c, τ) rs → HasCol (c, τ) (r::rs)
 
-inductive Schema.HasName {η : Type u_η} : η → @Schema η → Prop
+inductive Schema.HasName {η : Type u_η} : η → @Schema η → Type (max (u + 1) u_η)
 | hd {c : η} {rs : Schema} {τ : Type u} : HasName c ((c, τ) :: rs)
 | tl {r c rs} : HasName c rs → HasName c (r::rs)
 
 -- Schema-related convenience types
 def Subschema {η : Type u_η} (schm : @Schema η) :=
-  List {h : Header // schm.HasCol (h.fst, h.snd)}
+  List ((h : Header) × schm.HasCol (h.fst, h.snd))
 
-def CertifiedName (schema : @Schema η) := {c : η // Schema.HasName c schema}
+def CertifiedName (schema : @Schema η) := ((c : η) × Schema.HasName c schema)
 def CertifiedHeader (schema : @Schema η) :=
-  {h : Header // Schema.HasCol h schema}
+  ((h : Header) × Schema.HasCol h schema)
