@@ -66,7 +66,7 @@ def getCell {schema : @Schema η} {c : η} {τ : Type u}
 | Row.cons cell cells, Schema.HasCol.hd => cell
 | Row.cons cell cells, Schema.HasCol.tl h => getCell cells h
 
-def setCell {schema : @Schema η} {c : η} {τ : Type u}
+def setCell {schema : @Schema η} {τ : Type u} {c : η}
     : Row schema → Schema.HasCol (c, τ) schema → Cell c τ → Row schema
 | Row.cons cell cells, Schema.HasCol.hd, newCell => Row.cons newCell cells
 | Row.cons cell cells, Schema.HasCol.tl h, newCell => Row.cons cell (setCell cells h newCell)
@@ -203,15 +203,74 @@ def dropna (t : Table schema) : Table schema :=
 --     @completeCases _ _ _ τ t ⟨c, h⟩ _)).foldl (λ l acc => sorry)
 --   }
 
+-- FIXME: without uniqueness of names, this can't be proven (schema₁ might have
+-- (nm, τ) and (nm, τ') too) -- I think...
+theorem schemaHasSubschema {nm τ}
+                           {schema₁ : @Schema η}
+                           {schema₂ : Subschema schema₁}
+                           (h : schema₂.toSchema.HasCol (nm, τ))
+    : schema₁.HasCol (nm, τ) := by
+  induction schema₂ with
+  | nil => cases h
+  | cons phdr phdrs ih =>
+    cases phdr with | mk hdr hdr_pf =>
+    cases hdr with | mk nm' τ' =>
+    simp only [Subschema.toSchema] at h
+    apply dite (nm = nm')
+    -- Head case (painful, terrible)
+    . intro heq
+      rw [←heq] at hdr_pf
+      simp only at hdr_pf
+      -- TODO: :(
+      -- DON'T want IH -- it's at the head (hdr_pf should be what we want)
+      induction schema₁ with
+      | nil => contradiction
+      | cons s ss ih₁ =>
+        cases s with | mk nm₁ τ₁ =>
+        apply dite (nm = nm₁)
+        -- Head case schema₁
+        . intro heq₁
+          simp at *
+          apply ih
+        -- Tail case schema₁
+        . intro hneq₁
+          cases h with
+          | hd => apply hdr_pf
+          | tl h' => apply ih h'
+    -- Tail case (easy)
+    . intro hneq
+      cases h with
+      | hd => apply hdr_pf
+      | tl h' => apply ih h'
+    
+
 -- FIXME: finish
--- def update {schema₁ : @Schema η}
---            {schema₂ : Subschema schema₁}
---            (t : Table schema₁)
---            (f : Row schema₁ → Row schema₂.toSchema) : Table schema₁ :=
---   {rows := t.rows.map (λ r =>
---     let newCells := f r;
---     newCells.foldr (λ c (acc : Row schema₁) => @setCell _ _ _ c.type acc c.name sorry c _) r
---   )}
+def update {schema₁ : @Schema η}
+           {schema₂ : Subschema schema₁}
+           (t : Table schema₁)
+           (f : Row schema₁ → Row schema₂.toSchema) : Table schema₁ :=
+  {rows := t.rows.map (λ r =>
+    let newCells : Row schema₂.toSchema := f r;
+    newCells.certifiedFoldr
+      (λ {nm τ}
+         (cell : Cell nm τ)
+         (h : schema₂.toSchema.HasCol (nm, τ))
+         (acc : Row schema₁) => @setCell _ _ _ cell.type cell.name acc (by
+          clear newCells f
+          simp [Cell.name, Cell.type]
+          simp [Subschema.toSchema] at h
+          induction schema₂ with
+          | nil => cases h
+          | cons phdr phdrs ih =>
+            cases phdr with
+            -- cases hdr_w_pf with | mk hdr hyp => cases hdr with | mk nm' τ' =>
+            simp [Subschema.toSchema, List.map] at h
+            let l := Decidable.em (hdr_w_pf.fst = nm)
+         ) cell)
+      r
+    -- newCells.certifiedFoldr (λ c (acc : Row schema₁) => @setCell _ _ _ c.type c.name acc sorry c) r
+    --@setCell _ _ _ c.type acc c.name sorry c _) r
+  )}
 
 -- -- FIXME: finish - dep = update
 -- def fillna {τ}

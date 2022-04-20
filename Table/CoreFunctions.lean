@@ -21,8 +21,13 @@ def Cell.name {nm τ} (_ : @Cell η dec_η nm τ) : η :=
   nm
 def Cell.type {nm τ} (_ : @Cell η dec_η nm τ) := τ
 
-def Subschema.toSchema {schm : @Schema η} (s : Subschema schm) : @Schema η := 
-  s.map (λ x => x.fst)
+-- This will make proofs difficult
+-- def Subschema.toSchema {schm : @Schema η} (s : Subschema schm) : @Schema η := 
+--   s.map (λ x => x.fst)
+
+def Subschema.toSchema {schm : @Schema η} : Subschema schm → @Schema η
+| [] => []
+| ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
 
 -- Schema proof generation/manipulation functions
 def Schema.certify (schema : @Schema η) : List (CertifiedHeader schema) :=
@@ -97,6 +102,10 @@ def Schema.pick {η : Type u_η} [DecidableEq η] (s : @Schema η)
 def Row.singleCell {name τ} (x : τ) :=
   @Row.cons η dec_η name τ [] (Cell.val x) Row.nil
 
+def Row.empty : (schema : @Schema η) → Row schema
+| [] => Row.nil
+| _ :: ss => Row.cons Cell.emp (empty ss)
+
 def Row.append {schema₁ schema₂} :
     @Row η _ schema₁ → Row schema₂ → Row (List.append schema₁ schema₂)
 | Row.nil, rs₂ => rs₂
@@ -113,6 +122,16 @@ def Row.foldr {β} {schema : @Schema η}
     : Row schema → β
 | Row.nil => z
 | Row.cons cell rs => f cell (foldr f z rs)
+
+def Row.certifiedFoldr {β} : {schema : @Schema η} →
+              (f : ∀ {nm α}, (@Cell η dec_η nm α) → (schema.HasCol (nm, α)) → β → β) →
+              (z  : β) →
+    Row schema → β
+| [], _, z, Row.nil => z
+| (c, τ)::ss, f, z, @Row.cons _ _ _ _ _ cell rs => 
+  f cell Schema.HasCol.hd (@certifiedFoldr β ss (λ {nm α} cell' h acc =>
+    f cell' (Schema.HasCol.tl h) acc
+  ) z rs)
 
 -- Not sure if we'll ever need this...
 def Row.toList {schema : @Schema η} {α} (f : ∀ {n β}, @Cell η dec_η n β → α)
