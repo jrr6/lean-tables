@@ -121,6 +121,11 @@ def selectColumnsN (t : Table schema)
     : Table (List.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 
+def schemaHasLookup' : (schema : @Schema η) → (c : CertifiedName schema)
+    → schema.HasCol (schema.lookup c)
+| _, ⟨_, Schema.HasName.hd⟩ => Schema.HasCol.hd
+| s, ⟨c, Schema.HasName.tl h⟩ => schemaHasLookup s ⟨c, h⟩
+
 def schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema)
     → schema.HasCol ((schema.lookup c).fst, (schema.lookup c).snd)
 | [], ⟨_, h⟩ => by cases h
