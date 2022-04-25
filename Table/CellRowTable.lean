@@ -121,61 +121,10 @@ def selectColumnsN (t : Table schema)
     : Table (List.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 
-def schemaHasLookup' : (schema : @Schema η) → (c : CertifiedName schema)
+def schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema)
     → schema.HasCol (schema.lookup c)
 | _, ⟨_, Schema.HasName.hd⟩ => Schema.HasCol.hd
-| s, ⟨c, Schema.HasName.tl h⟩ => schemaHasLookup s ⟨c, h⟩
-
-def schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema)
-    → schema.HasCol ((schema.lookup c).fst, (schema.lookup c).snd)
-| [], ⟨_, h⟩ => by cases h
-| (nm, τ) :: ss, ⟨n, h⟩ =>
-  let ih := schemaHasLookup ss;
-  dite (nm = n)
-       (λ htrue => by simp [Schema.lookup, htrue]; apply Schema.HasCol.hd)
-      --  (λ hfalse => sorry)
-      --  (λ htrue => @Schema.HasCol.hd _ (Eq.rec _ htrue) _ _)
-      --  (λ hfalse => Schema.HasCol.tl)
-      --  (λ htrue => by simp [Schema.lookup, htrue]
-      --                 apply Schema.HasCol.hd)
-
-      --  (λ hfalse => match ih ⟨n, (by cases h with
-      --                                | hd => contradiction
-      --                                | tl h' => exact h')⟩ with
-      --               | Schema.HasCol.hd => x)
-
-      (λ hfalse =>
-      --   -- This is the issue with not having proof-irrelevance -- it wants the
-      --   -- *same `h`!*
-      --   let ih := ih ⟨n, by cases h with
-      --                     | hd => contradiction
-      --                     | tl h' => exact h'⟩;
-      --   ih.rec sorry sorry)
-        by simp [Schema.lookup, hfalse, Prod.fst, Prod.snd]
-           apply Schema.HasCol.tl
-           apply ih
-        )
-    --  (λ hfalse => by simp [Schema.lookup, hfalse, Prod.fst, Prod.snd]
-    --  apply Schema.HasCol.tl
-    --  apply ih)
--- termination_by schemaHasLookup schema c => List.length schema
-#eval schemaHasLookup [("hi", Nat)] ⟨"hi", by name⟩
--- := by
---   intros schema c
---   induction schema with
---   | nil => cases c with | mk val prop => cases prop
---   -- TODO: Is there a better syntax?
---   | cons s ss ih => cases c with | mk val prop => cases s with | mk c τ =>
---     simp [Schema.lookup]
---     -- Can't use cases with Decidable.em because it doesn't like Type
---     apply dite (c = val)
---     . intro h
---       simp [ite, h]
---       apply Schema.HasCol.hd
---     . intro h
---       simp [ite, h, Prod.fst, Prod.snd]
---       apply Schema.HasCol.tl
---       apply ih
+| _ :: s', ⟨c, Schema.HasName.tl h⟩ => Schema.HasCol.tl (schemaHasLookup s' ⟨c, h⟩)
 
 def Row.pick : {schema : @Schema η} → Row schema → (cs : List (CertifiedName schema)) → Row (Schema.pick schema cs)
 | _, Row.nil, [] => Row.nil
@@ -208,46 +157,19 @@ def dropna (t : Table schema) : Table schema :=
 --     @completeCases _ _ _ τ t ⟨c, h⟩ _)).foldl (λ l acc => sorry)
 --   }
 
--- FIXME: without uniqueness of names, this can't be proven (schema₁ might have
--- (nm, τ) and (nm, τ') too) -- I think...
-theorem schemaHasSubschema {nm τ}
-                           {schema₁ : @Schema η}
-                           {schema₂ : Subschema schema₁}
-                           (h : schema₂.toSchema.HasCol (nm, τ))
-    : schema₁.HasCol (nm, τ) := by
-  induction schema₂ with
-  | nil => cases h
-  | cons phdr phdrs ih =>
-    cases phdr with | mk hdr hdr_pf =>
-    cases hdr with | mk nm' τ' =>
-    simp only [Subschema.toSchema] at h
-    apply dite (nm = nm')
-    -- Head case (painful, terrible)
-    . intro heq
-      rw [←heq] at hdr_pf
-      simp only at hdr_pf
-      -- TODO: :(
-      -- DON'T want IH -- it's at the head (hdr_pf should be what we want)
-      induction schema₁ with
-      | nil => contradiction
-      | cons s ss ih₁ =>
-        cases s with | mk nm₁ τ₁ =>
-        apply dite (nm = nm₁)
-        -- Head case schema₁
-        . intro heq₁
-          simp at *
-          apply ih
-        -- Tail case schema₁
-        . intro hneq₁
-          cases h with
-          | hd => apply hdr_pf
-          | tl h' => apply ih h'
-    -- Tail case (easy)
-    . intro hneq
-      cases h with
-      | hd => apply hdr_pf
-      | tl h' => apply ih h'
-    
+theorem schemaHasSubschema : {nm : η} → {τ : Type u} →
+                           {schema : @Schema η} →
+                           {subschema : Subschema schema} →
+                           (h : subschema.toSchema.HasCol (nm, τ)) →
+    schema.HasCol (nm, τ)
+| _, _, s₁ :: ss₁, ⟨hdr, pf⟩ :: ss₂, Schema.HasCol.hd => pf
+| nm, τ, schema₁, schema₂@(⟨hdr, pf⟩ :: ss), Schema.HasCol.tl h =>
+  have term_helper : sizeOf h < sizeOf (@Schema.HasCol.tl η hdr _ _ _ h) := by
+    simp
+    rw [Nat.add_comm]
+    apply Nat.lt.base;
+  schemaHasSubschema h
+termination_by schemaHasSubschema h => sizeOf h
 
 -- FIXME: finish
 def update {schema₁ : @Schema η}

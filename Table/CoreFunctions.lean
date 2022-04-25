@@ -81,18 +81,11 @@ def Schema.removeNames {η : Type u_η} [DecidableEq η] :
 | ss, [] => ss
 | ss, (y::ys) => removeNames (removeName ss y) ys
 
--- def Schema.lookup {η : Type u_η} [DecidableEq η]
---     : (s : @Schema η) → CertifiedName s → @Header η
--- | (nm, τ)::hs, ⟨c, hc⟩ =>
---   dite (nm = c)
---        (λ _ => (nm, τ))
---        (λ h => lookup hs ⟨c, match hc with | Schema.HasName.tl h' => h'⟩)
-
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η]
     : (s : @Schema η) → CertifiedName s → @Header η
-| (nm, τ)::_, ⟨_, Schema.HasName.hd⟩ => (nm, τ)
-| (nm, τ)::hs, ⟨c, Schema.HasName.tl h'⟩ => lookup hs ⟨c, h'⟩
+| hdr :: _, ⟨_, Schema.HasName.hd⟩ => hdr
+| _ :: hs, ⟨c, Schema.HasName.tl h'⟩ => lookup hs ⟨c, h'⟩
 
 def Schema.pick {η : Type u_η} [DecidableEq η] (s : @Schema η)
     : List (CertifiedName s) → @Schema η
