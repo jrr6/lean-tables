@@ -157,10 +157,15 @@ def dropna (t : Table schema) : Table schema :=
 --     @completeCases _ _ _ τ t ⟨c, h⟩ _)).foldl (λ l acc => sorry)
 --   }
 
-theorem schemaHasSubschema : {nm : η} → {τ : Type u} →
-                           {schema : @Schema η} →
-                           {subschema : Subschema schema} →
-                           (h : subschema.toSchema.HasCol (nm, τ)) →
+def Schema.HasCol.size : {schema : @Schema η} → {hdr : @Header η} → schema.HasCol hdr → Nat
+| _, _, Schema.HasCol.hd => 0
+| _, _, Schema.HasCol.tl h => 1 + size h
+
+
+def schemaHasSubschema : {nm : η} → {τ : Type u} →
+                         {schema : @Schema η} →
+                         {subschema : Subschema schema} →
+                         (h : subschema.toSchema.HasCol (nm, τ)) →
     schema.HasCol (nm, τ)
 | _, _, s₁ :: ss₁, ⟨hdr, pf⟩ :: ss₂, Schema.HasCol.hd => pf
 | nm, τ, schema₁, schema₂@(⟨hdr, pf⟩ :: ss), Schema.HasCol.tl h =>
@@ -171,7 +176,11 @@ theorem schemaHasSubschema : {nm : η} → {τ : Type u} →
   schemaHasSubschema h
 termination_by schemaHasSubschema h => sizeOf h
 
--- FIXME: finish
+-- FIXME: Lean can't infer the subschema because it's really trying to infer
+-- "subschema.toSchema," which isn't definitional
+-- Couple of options here. The best thing would be to figure out a way to let
+-- Lean infer the (sub)schema directly, just like it does for normal schemata.
+-- Alternatively, we can just make the subschema an explicit arg :(
 def update {schema₁ : @Schema η}
            {schema₂ : Subschema schema₁}
            (t : Table schema₁)
@@ -182,21 +191,9 @@ def update {schema₁ : @Schema η}
       (λ {nm τ}
          (cell : Cell nm τ)
          (h : schema₂.toSchema.HasCol (nm, τ))
-         (acc : Row schema₁) => @setCell _ _ _ cell.type cell.name acc (by
-          clear newCells f
-          simp [Cell.name, Cell.type]
-          simp [Subschema.toSchema] at h
-          induction schema₂ with
-          | nil => cases h
-          | cons phdr phdrs ih =>
-            cases phdr with
-            -- cases hdr_w_pf with | mk hdr hyp => cases hdr with | mk nm' τ' =>
-            simp [Subschema.toSchema, List.map] at h
-            let l := Decidable.em (hdr_w_pf.fst = nm)
-         ) cell)
+         (acc : Row schema₁) =>
+          @setCell _ _ _ cell.type cell.name acc (schemaHasSubschema h) cell)
       r
-    -- newCells.certifiedFoldr (λ c (acc : Row schema₁) => @setCell _ _ _ c.type c.name acc sorry c) r
-    --@setCell _ _ _ c.type acc c.name sorry c _) r
   )}
 
 -- -- FIXME: finish - dep = update

@@ -60,8 +60,10 @@ def t2 : Table [("prof", String), ("course", Nat), ("taught", Bool)] :=
       /[ "Krishnamurthi" ]/ | /[ 1730 ]/ | /[ false ]/ | **|
       ]
 
+def row1 := getRow t2 1 (by simp)
+
 def joined := vcat t1 t2
-#eval Table.repr joined
+#eval joined
 #reduce joined
 
 -- FIXME: what happened here? I swear this was working.
@@ -69,7 +71,6 @@ def joined := vcat t1 t2
 #reduce @selectColumnsH String
                         inferInstance
                         [("prof", String), ("course", Nat), ("taught", Bool)] t2 [⟨"prof", Schema.HasName.hd⟩]
-                        inferInstance
 #reduce Row.pick (Row.append
         (@Row.singleCell String _ "pi" (List Nat) [3,1,4,1,5])
         (@Row.singleCell String _ "age" Nat 20)) [⟨"pi", by name⟩]
@@ -91,6 +92,9 @@ def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown"
         (@Row.singleCell String _ "pi" (List Nat) [3,1,4,1,5])
         (@Row.singleCell String _ "age" Nat 20))
         "age" (by header)
+
+#eval @update _ _ _ [⟨("prof", String), by header⟩] t2 (λ r => @Row.singleCell _ _ "prof" String "Rob")
+#eval update t2 (λ r => @Row.singleCell _ _ "prof" String "Rob")
 
 def departments : Table [("Department ID", Nat),
                          ("Department Name", String)] :=
