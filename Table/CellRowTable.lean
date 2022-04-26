@@ -182,7 +182,7 @@ termination_by schemaHasSubschema h => sizeOf h
 -- Lean infer the (sub)schema directly, just like it does for normal schemata.
 -- Alternatively, we can just make the subschema an explicit arg :(
 def update {schema₁ : @Schema η}
-           {schema₂ : Subschema schema₁}
+           (schema₂ : Subschema schema₁)
            (t : Table schema₁)
            (f : Row schema₁ → Row schema₂.toSchema) : Table schema₁ :=
   {rows := t.rows.map (λ r =>
@@ -196,14 +196,15 @@ def update {schema₁ : @Schema η}
       r
   )}
 
--- -- FIXME: finish - dep = update
--- def fillna {τ}
---            (t : Table schema)
---            (c : {c : η // schema.HasCol (c, τ)})
---            (v : τ)
---     : Table schema :=
---   {rows := update t (λ r => match getCell r c with
---                             | Cell.emp => _) }
+def fillna {τ}
+           (t : Table schema)
+           (c : ((c : η) × schema.HasCol (c, τ)))
+           (v : τ)
+    : Table schema :=
+  update [⟨(c.fst, τ), c.snd⟩] t
+    (λ r => match getCell r c.snd with
+                | Cell.emp => Row.singleCell v
+                | Cell.val vOld => Row.singleCell vOld)
 
 def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
                {schema₂ : @Schema ζ} {schema₃ : @Schema θ}

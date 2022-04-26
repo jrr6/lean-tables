@@ -94,7 +94,9 @@ def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown"
         "age" (by header)
 
 #eval @update _ _ _ [⟨("prof", String), by header⟩] t2 (λ r => @Row.singleCell _ _ "prof" String "Rob")
-#eval update t2 (λ r => @Row.singleCell _ _ "prof" String "Rob")
+-- #eval update _ t2 (λ r => @Row.singleCell _ _ "prof" String "Rob")
+
+#eval fillna joined ⟨"course", (by header)⟩ 1951
 
 def departments : Table [("Department ID", Nat),
                          ("Department Name", String)] :=
