@@ -298,9 +298,9 @@ def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
 
 -- def pivotWider [inst : Inhabited η]
 --                (t : Table schema)
---                (c1 c2 : CertifiedHeader schema)
---                [Gettable c1.property]  -- TODO: This really shouldn't be necessary
---     : Table (List.append schema (t.rows.map (λ r =>
---               (Option.orDefault (getValue r c1.val c1.property), η)
+--                (c1 : (c : η) × Schema.HasCol (c, η) schema)
+--                (c2 : CertifiedHeader schema)
+--     : Table (List.append schema (t.rows.map (λ (r : Row schema) =>
+--               (Option.orDefault (getValue r c1.fst c1.snd), η)
 --             ))) := sorry
 
