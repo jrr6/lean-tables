@@ -86,8 +86,9 @@ def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown"
 
 -- Testing, etc.
 #reduce addRows (addColumn emptyTable "name" []) [Row.singleCell "hello"]
--- FIXME: the Lean m4 update broke this (used to be no need for explicit args)
+-- FIX?ME: the Lean m4 update broke this (used to be no need for explicit args)
 -- More generally, type-class resolution seems to be kind of broken right now.
+-- (Haven't checked this since moving away from type classes)
 #reduce getValue (Row.append
         (@Row.singleCell String _ "pi" (List Nat) [3,1,4,1,5])
         (@Row.singleCell String _ "age" Nat 20))

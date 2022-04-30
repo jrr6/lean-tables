@@ -17,6 +17,10 @@ def Cell.toOption {nm τ} : @Cell η dec_η nm τ → Option τ
 | Cell.emp => Option.none
 | Cell.val x => Option.some x
 
+def Cell.fromOption {nm τ} : Option τ → @Cell η dec_η nm τ
+| none => emp
+| some x => val x
+
 def Cell.name {nm τ} (_ : @Cell η dec_η nm τ) : η :=
   nm
 def Cell.type {nm τ} (_ : @Cell η dec_η nm τ) := τ
@@ -70,16 +74,33 @@ dite (c = nm)
         | tl tl_h => apply tl_h
         ⟩)
 -/
-def Schema.removeName :
-    (s : @Schema η) → η → @Schema η
-| [], _ => []
-| (nm, τ)::xs, c => if c = nm then xs else (nm, τ) :: removeName xs c
+
+-- Doesn't work b/c we can't definitionally equate conditionals with their
+-- evaluation, even when the equality is tautological
+-- def Schema.removeName :
+--     (s : @Schema η) → η → @Schema η
+-- | [], _ => []
+-- | (nm, τ)::xs, c => if c = nm then xs else (nm, τ) :: removeName xs c
+
+def Schema.removeName {c : η} :
+    (s : @Schema η) → (v_nm : s.HasName c) → @Schema η
+| _::s, Schema.HasName.hd => s
+| s::ss, Schema.HasName.tl h => removeName ss h
 
 -- TODO: Uniqueness is evil...
+-- TODO: new issue is that the input might have duplicate names...
 def Schema.removeNames {η : Type u_η} [DecidableEq η] :
-    (s : @Schema η) → List η → @Schema η
+    (s : @Schema η) → List (CertifiedName s) → @Schema η
 | ss, [] => ss
-| ss, (y::ys) => removeNames (removeName ss y) ys
+| ss, (y::ys) => sorry-- removeNames (removeName ss y.snd) ys
+/-
+`ys` gets changed to:
+(List.map (λ (x : ((c : CertifiedName ss) × (c.fst ≠ y.fst))) => ⟨x.fst.fst, by
+      induction ss with
+      | nil => cases x with | mk fst snd => cases snd
+      | cons x xs ih => _
+⟩) ys)
+-/
 
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η]
@@ -91,6 +112,24 @@ def Schema.pick {η : Type u_η} [DecidableEq η] (s : @Schema η)
     : List (CertifiedName s) → @Schema η
 | [] => []
 | c::cs => lookup s c :: pick s cs
+
+def Schema.retypeColumn {η : Type u_η} [DecidableEq η]
+    : {nm : η} → (s : @Schema η) → s.HasName nm → Type u → @Schema η
+| _, (nm, τ) :: cs, Schema.HasName.hd, τ' => (nm, τ') :: cs
+| _, c :: cs, Schema.HasName.tl h, τ' => c :: retypeColumn cs h τ'
+
+def Schema.renameColumn {η : Type u_η} [DecidableEq η]
+    : {nm : η} → (s : @Schema η) → s.HasName nm → η → @Schema η
+| _, (nm, τ) :: cs, Schema.HasName.hd, nm' => (nm', τ) :: cs
+| _, c :: cs, Schema.HasName.tl h, nm' => c :: renameColumn cs h nm'
+
+-- TODO: this issue again. Whenever our recursion looks like
+-- `f_list (f_el schema modifier_el) rest_of_modifier_list`
+-- bad things happen
+def Schema.renameColumns {η : Type u_η} [DecidableEq η]
+    : (s : @Schema η) → List (CertifiedName s × η) → @Schema η
+| s, [] => []
+| s, (oldPf, nm') :: ccs => sorry --renameColumns (renameColumn s oldPf.snd nm') ccs
 
 -- Row utilities
 def Row.singleCell {name τ} (x : τ) :=
@@ -168,3 +207,47 @@ def Row.nths {schema} :
                           (by intro nh; simp [List.length] at nh; contradiction)
 | n::ns, r => Row.cons (Row.nth r n.val n.property) (nths ns r)
   termination_by nths ns r => List.length ns
+
+
+/-------------------------------------------------------------------------------
+                          Decidable Equality Instances
+-------------------------------------------------------------------------------/
+-- TODO: make these way simpler
+instance {nm : η} {τ : Type u} [inst : DecidableEq τ] : DecidableEq (Cell nm τ)
+| Cell.emp, Cell.emp => by simp only; apply Decidable.isTrue; apply True.intro
+| Cell.emp, (Cell.val x) => by simp only; apply Decidable.isFalse; simp only
+| (Cell.val x), Cell.emp => by simp only; apply Decidable.isFalse; simp only
+| (Cell.val x), (Cell.val y) => by simp; apply inst
+
+-- TODO: simplify (no pun intended)
+instance : DecidableEq (@Row η _ []) :=
+  λ r₁ r₂ => by
+    cases r₁
+    cases r₂
+    simp only
+    apply Decidable.isTrue
+    apply True.intro
+
+-- TODO: again, simplify by de-simp-lifying
+-- TODO: do we explicitly need it, or will the lookup figure that out for us?
+instance {ss : @Schema η}
+         {nm : η}
+         {τ : Type u}
+         [it : DecidableEq τ]
+         [ic : DecidableEq (Cell nm τ)]
+         [ir : DecidableEq (Row ss)]
+    : DecidableEq (Row ((nm, τ) :: ss)) :=
+λ (Row.cons c₁ r₁) (Row.cons c₂ r₂) =>
+  have hc_dec : Decidable (c₁ = c₂) := by apply ic;
+  have hr_dec : Decidable (r₁ = r₂) := by apply ir;
+  -- TODO: this is copied straight from the prelude (l. 333) - figure out how
+  -- to just use that instance
+  have h_conj_dec : (Decidable (c₁ = c₂ ∧ r₁ = r₂)) :=
+    match hc_dec with
+    | isTrue hc =>
+      match hr_dec with
+      | isTrue hr  => isTrue ⟨hc, hr⟩
+      | isFalse hr => isFalse (fun h => hr (And.right h))
+    | isFalse hc =>
+      isFalse (fun h => hc (And.left h));
+  by simp; apply h_conj_dec
