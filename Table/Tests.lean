@@ -48,7 +48,7 @@ def t1 : Table [("prof", String), ("course", Nat), ("taught", Bool)] :=
 #eval Table.repr t1
 #reduce t1
 
-infixr:50 "|" => Row.cons
+infixr:50 "||" => Row.cons
 notation "**|" => Row.nil
 notation "/[" elem "]/" => Cell.val elem
 notation "/[_]/" => Cell.emp
@@ -56,8 +56,8 @@ notation "/[_]/" => Cell.emp
 def t2 : Table [("prof", String), ("course", Nat), ("taught", Bool)] :=
   Table.mk
     [
-      /[ "Lewis" ]/         | /[_]/      | /[ true ]/  | **|,
-      /[ "Krishnamurthi" ]/ | /[ 1730 ]/ | /[ false ]/ | **|
+      /[ "Lewis" ]/         || /[_]/      || /[ true ]/  || **|,
+      /[ "Krishnamurthi" ]/ || /[ 1730 ]/ || /[ false ]/ || **|
       ]
 
 def row1 := getRow t2 1 (by simp)
@@ -66,7 +66,6 @@ def joined := vcat t1 t2
 #eval joined
 #reduce joined
 
--- FIXME: what happened here? I swear this was working.
 #reduce selectColumnsH t2 [⟨"prof", (by name)⟩, ⟨"course", (by name)⟩]
 #reduce @selectColumnsH String
                         inferInstance
@@ -102,11 +101,38 @@ def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown"
 def departments : Table [("Department ID", Nat),
                          ("Department Name", String)] :=
 Table.mk [
-  /[31]/ | /["Sales"]/       | **|,
-  /[33]/ | /["Engineering"]/ | **|,
-  /[34]/ | /["Clerical"]/    | **|,
-  /[35]/ | /["Marketing"]/   | **|
+  /[31]/ || /["Sales"]/       || **|,
+  /[33]/ || /["Engineering"]/ || **|,
+  /[34]/ || /["Clerical"]/    || **|,
+  /[35]/ || /["Marketing"]/   || **|
 ]
+
+#eval head departments ⟨-400, sorry⟩
+#reduce dropColumn joined ⟨"taught", by name⟩
+#reduce tsort departments ⟨"Department Name", by header⟩
+#reduce (count joined ⟨"course", by header⟩)
+def merge : Option Nat → List (Option Nat) → Row [("Parity", Bool), ("Length", Nat)]
+| (some n), xs =>
+  let xs_sum := xs.foldl (λ | acc, none => acc
+                            | acc, (some n) => acc + n) 0
+  Row.cons (Cell.val (n = 1)) (Row.cons (Cell.val xs_sum) Row.nil)
+| none, _ => Row.cons Cell.emp (Row.cons Cell.emp Row.nil)
+
+#reduce groupBy departments (λ r => (getValue r "Department ID" (by header)).map (λ (x : Nat) => Nat.mod x 2))
+                            (λ r => (getValue r "Department Name" (by header)).map (λ (x : String) => x.length))
+  (λ | (some n), xs =>
+        let xs_sum := xs.foldl (λ | acc, none => acc
+                                  | acc, (some n) => acc + n) 0
+        Row.cons (Cell.val (decide (n = 1))) (Row.cons (Cell.val xs_sum) Row.nil)
+     | none, _ => Row.cons Cell.emp (Row.cons Cell.emp Row.nil))
+
+def listTable : Table [("Number", String), ("Digits", List Nat)] :=
+Table.mk [
+  /["pi"]/ || /[[3,1,4,1,5]]/ || **|,
+  /["e"]/  || /[[2,7,1,8,2]]/ || **|
+]
+
+#reduce flattenOne listTable ⟨"Digits", by header⟩
 
 def gradebookTable : Table [("name", ULift String),
                             ("age", ULift Nat),
@@ -115,32 +141,32 @@ def gradebookTable : Table [("name", ULift String),
                             ("midterm", ULift Nat),
                             ("final", ULift Nat)] :=
 Table.mk [
-  /[ULift.up "Bob"]/ |
-  /[ULift.up 12]/ |
-  /[Table.mk [/[⟨1, by simp⟩]/ | /[8]/ | **|,
-              /[⟨2, by simp⟩]/ | /[9]/ | **|,
-              /[⟨3, by simp⟩]/ | /[7]/ | **|,
-              /[⟨4, by simp⟩]/ | /[9]/ | **|]]/ |
-  /[ULift.up 77]/ |
-  /[ULift.up 87]/ | **|,
+  /[ULift.up "Bob"]/ ||
+  /[ULift.up 12]/ ||
+  /[Table.mk [/[⟨1, by simp⟩]/ || /[8]/ || **|,
+              /[⟨2, by simp⟩]/ || /[9]/ || **|,
+              /[⟨3, by simp⟩]/ || /[7]/ || **|,
+              /[⟨4, by simp⟩]/ || /[9]/ || **|]]/ ||
+  /[ULift.up 77]/ ||
+  /[ULift.up 87]/ || **|,
 
-  /[ULift.up "Alice"]/ |
-  /[ULift.up 17]/ |
-  /[Table.mk [/[⟨1, by simp⟩]/ | /[6]/ | **|,
-              /[⟨2, by simp⟩]/ | /[8]/ | **|,
-              /[⟨3, by simp⟩]/ | /[8]/ | **|,
-              /[⟨4, by simp⟩]/ | /[7]/ | **|]]/ |
-  /[ULift.up 88]/ |
-  /[ULift.up 85]/ | **|,
+  /[ULift.up "Alice"]/ ||
+  /[ULift.up 17]/ ||
+  /[Table.mk [/[⟨1, by simp⟩]/ || /[6]/ || **|,
+              /[⟨2, by simp⟩]/ || /[8]/ || **|,
+              /[⟨3, by simp⟩]/ || /[8]/ || **|,
+              /[⟨4, by simp⟩]/ || /[7]/ || **|]]/ ||
+  /[ULift.up 88]/ ||
+  /[ULift.up 85]/ || **|,
 
-  /[ULift.up "Eve"]/ |
-  /[ULift.up 13]/ |
-  /[Table.mk [/[⟨1, by simp⟩]/ | /[7]/ | **|,
-              /[⟨2, by simp⟩]/ | /[9]/ | **|,
-              /[⟨3, by simp⟩]/ | /[8]/ | **|,
-              /[⟨4, by simp⟩]/ | /[8]/ | **|]]/ |
-  /[ULift.up 84]/ |
-  /[ULift.up 77]/ | **|
+  /[ULift.up "Eve"]/ ||
+  /[ULift.up 13]/ ||
+  /[Table.mk [/[⟨1, by simp⟩]/ || /[7]/ || **|,
+              /[⟨2, by simp⟩]/ || /[9]/ || **|,
+              /[⟨3, by simp⟩]/ || /[8]/ || **|,
+              /[⟨4, by simp⟩]/ || /[8]/ || **|]]/ ||
+  /[ULift.up 84]/ ||
+  /[ULift.up 77]/ || **|
   
 ]
 

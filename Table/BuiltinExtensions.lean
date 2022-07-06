@@ -24,6 +24,12 @@ def List.nths {α}
               (ns : List {n : Nat // n < List.length xs}) : List α :=
   List.map (λ n => List.nth xs n.val n.property) ns
 
+-- TODO: Neither of these is going to play well with proofs
+def List.dropLastN {α} : Nat → List α → List α :=
+  (λn => λ xs => List.drop (List.length xs - n) xs)
+-- def List.dropLastN {α} : Nat → List α → List α :=
+--   (λn => reverse ∘ List.drop n ∘ reverse)
+
 -- This is slick, but unfortunately, it breaks type inference
 -- def List.sieve {α} (bs : List Bool) (xs : List α) : List α :=
 --   List.zip bs xs |> List.filter Prod.fst
@@ -73,3 +79,143 @@ termination_by vEnumFrom ys n acc => ys.val.length
 --   calc length xs - 1 ≤ length xs := by apply Nat.sub_le
 --                    _ < length xs + 1 := by constructor
 --   ⟩
+
+theorem List.filter_length_aux {α} (g : α → Bool) (xs : List α) :
+    ∀ rs : List α, List.length (List.filterAux g xs rs)
+                   <= List.length xs + List.length rs :=
+by
+  induction xs with
+  | nil =>
+    intro rs
+    simp only [filter, filterAux]
+    rw [List.length_reverse]
+    simp only [length, Nat.zero_add]
+    apply Nat.le.refl
+  | cons x xs ih =>
+    intro rs
+    simp only [filter, filterAux]
+    cases (g x) with
+    | true => simp only
+              apply Nat.le_trans (ih (x::rs))
+              simp only [length]
+              rw [Nat.add_comm (length rs), Nat.add_assoc]
+              apply Nat.le.refl
+    | false => simp only [length]
+               apply Nat.le_trans (ih rs)
+               rw [Nat.add_comm (length xs) 1,
+                   Nat.add_assoc 1,
+                   Nat.add_comm 1,
+                   Nat.add_one]
+               apply Nat.le.step
+               apply Nat.le.refl
+
+theorem List.filter_length {α} (g : α → Bool) (xs : List α) :
+    List.length (List.filter g xs) <= List.length xs :=
+  List.filter_length_aux g xs []
+
+-- Temporary merge sort algorithm until the full sorting library gets ported
+
+def List.split {α} : List α → List α × List α
+| [] => ([], [])
+| [x] => ([x], [])
+| x₁ :: x₂ :: xs =>
+  let (ys, zs) := split xs;
+  (x₁ :: ys, x₂ :: zs)
+
+theorem List.split_length_fst' {α} :
+    ∀ (xs : List α), (split xs).fst.length ≤ xs.length
+| [] => by simp only [length]
+| [x] => by simp only [length]
+| x₁ :: x₂ :: xs =>
+  have ih := split_length_fst' xs;
+  by simp only [split, length]
+     apply Nat.le.step
+     apply Nat.succ_le_succ
+     apply ih
+
+theorem List.split_length_fst {α} :
+    ∀ (xs : List α), xs.length ≤ 1 ∨ (split xs).fst.length < xs.length
+| [] => by simp only [length]
+| [x] => by simp only [length]
+| [x, y] => by simp only [length]
+| [x, y, z] => by simp only [length]
+| x₁ :: x₂ :: x :: x' :: xs =>
+  have ih := split_length_fst (x :: x' :: xs);
+  by simp only [split, length]
+     apply Or.intro_right
+     apply Nat.succ_lt_succ
+     simp [length, Nat.add] at ih
+     apply Nat.lt.step
+     cases ih with
+     | inl _ => contradiction
+     | inr h => apply h
+
+theorem List.split_length_snd {α} :
+    ∀ (xs : List α), xs = [] ∨ (split xs).snd.length < xs.length
+| [] => by simp only [length]
+| [x] => by simp only [length]
+| [x, y] => by simp only [length]
+| x₁ :: x₂ :: x :: xs =>
+  have ih := split_length_snd (x :: xs);
+  by simp only [split, length]
+     apply Or.intro_right
+     apply Nat.succ_lt_succ
+     simp at ih
+     apply Nat.lt.step
+     apply ih
+
+def List.merge_with {α} : (α → α → Ordering) → List α × List α → List α
+| _, ([], ys) => ys
+| _, (xs, []) => xs
+| cmp, (x :: xs, y :: ys) =>
+  have _ : xs.length + ys.length.succ < xs.length.succ + ys.length.succ := by
+    rw [←Nat.add_one,
+        ←Nat.add_one,
+        ←Nat.add_assoc (length xs) (length ys),
+        Nat.add_assoc (length xs) 1,
+        Nat.add_comm 1,
+        Nat.add_assoc (length ys),
+        ←Nat.add_assoc (length xs) (length ys) (1 + 1)
+        ]
+    apply Nat.lt.base
+  match cmp x y with
+  | Ordering.gt => y :: merge_with cmp (x :: xs, ys)
+  | _ => x :: merge_with cmp (xs, y :: ys)
+termination_by merge_with cmp prd => prd.fst.length + prd.snd.length
+
+def List.merge_sort_with {α} : (α → α → Ordering) → List α → List α
+| _, [] => []
+| _, [x] => [x]
+| cmp, x₁ :: x₂ :: xs =>
+  have _ : (split (x₁::x₂::xs)).fst.length < (x₁::x₂::xs).length :=
+    match xs with
+    | [] => by simp only [length]
+    | [xs] => by simp only [length]
+    | y :: y' :: ys =>
+      by cases split_length_fst (y :: y' :: ys) with
+      | inl _ => contradiction
+      | inr h =>
+        simp only [length] at *
+        apply Nat.lt.step
+        apply Nat.succ_lt_succ
+        exact h
+
+   have _ : (split (x₁::x₂::xs)).snd.length < (x₁::x₂::xs).length :=
+    match xs with
+    | [] => by simp only [length]
+    | [xs] => by simp only [length]
+    | y :: y' :: ys =>
+      by cases split_length_snd (y :: y' :: ys) with
+      | inl _ => contradiction
+      | inr h =>
+        simp only [length] at *
+        apply Nat.lt.step
+        apply Nat.succ_lt_succ
+        exact h 
+  
+  let xs_split := split (x₁ :: x₂ :: xs)
+  merge_with cmp (merge_sort_with cmp (xs_split.fst), merge_sort_with cmp (xs_split.snd))
+termination_by merge_sort_with cmp xs => xs.length
+
+-- I suspect this is probably built in somewhere, but I'm not finding it
+def Int.abs (z : Int) := if z < 0 then -z else z

@@ -85,14 +85,14 @@ dite (c = nm)
 def Schema.removeName {c : η} :
     (s : @Schema η) → (v_nm : s.HasName c) → @Schema η
 | _::s, Schema.HasName.hd => s
-| s::ss, Schema.HasName.tl h => removeName ss h
+| s::ss, Schema.HasName.tl h => s :: removeName ss h
 
 -- TODO: Uniqueness is evil...
 -- TODO: new issue is that the input might have duplicate names...
 def Schema.removeNames {η : Type u_η} [DecidableEq η] :
     (s : @Schema η) → List (CertifiedName s) → @Schema η
 | ss, [] => ss
-| ss, (y::ys) => sorry-- removeNames (removeName ss y.snd) ys
+| ss, (y::ys) => sorry -- removeNames (removeName ss y.snd) ys
 /-
 `ys` gets changed to:
 (List.map (λ (x : ((c : CertifiedName ss) × (c.fst ≠ y.fst))) => ⟨x.fst.fst, by
@@ -208,6 +208,10 @@ def Row.nths {schema} :
 | n::ns, r => Row.cons (Row.nth r n.val n.property) (nths ns r)
   termination_by nths ns r => List.length ns
 
+def Row.removeColumn {s : Schema} {c : η} :
+    (h : s.HasName c) → Row s → Row (s.removeName h)
+| Schema.HasName.hd, Row.cons r rs => rs
+| Schema.HasName.tl h', Row.cons r rs => Row.cons r (removeColumn h' rs)
 
 /-------------------------------------------------------------------------------
                           Decidable Equality Instances

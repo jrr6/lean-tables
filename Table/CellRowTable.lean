@@ -7,7 +7,7 @@ universe u
 
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
--- Constructors
+-- # Constructors
 def emptyTable {α : Type u₁} [hα : DecidableEq α] : @Table α hα [] :=
   Table.mk []
 
@@ -41,7 +41,7 @@ def crossJoin {schema₁ schema₂}
 
 def leftJoin : False := sorry -- TODO:
 
--- Properties
+-- # Properties
 -- TODO: Use Fin instead of ad-hoc quotients
 def nrows (t : Table schema) : Nat := List.length t.rows
 
@@ -49,9 +49,9 @@ def ncols (t : Table schema) : Nat := List.length schema
 
 def header (t : Table schema) : List η := Schema.names schema
 
+-- # Access Subcomponents
 -- TODO: might be nicer to build the row/column indexing into the Table type
 -- itself?
--- TODO: eliminate sorry
 def getRow : (t : Table schema) → (n : Nat) → (n < nrows t) → Row schema
 | {rows := []}, n, h => absurd h (by
       intro nh
@@ -59,7 +59,7 @@ def getRow : (t : Table schema) → (n : Nat) → (n < nrows t) → Row schema
       apply Nat.not_lt_zero _ nh
     )
 | {rows := r::rs}, 0, h => r
-| {rows := r::rs}, Nat.succ n, h => getRow {rows := rs} n (by sorry : n < nrows {rows := rs})
+| {rows := r::rs}, Nat.succ n, h => getRow {rows := rs} n (Nat.lt_of_succ_lt_succ h)
 
 def getCell {schema : @Schema η} {c : η} {τ : Type u}
     : Row schema → Schema.HasCol (c, τ) schema → Cell c τ
@@ -106,7 +106,7 @@ def getColumn {τ}
     : List (Option τ) :=
   List.map (λ r => getValue r c h) t.rows
 
--- TODO: get rid of sorry!
+-- # Subtable
 def selectRowsIndices (t : Table schema)
                       (ns : List {n : Nat // n < nrows t}) : Table schema :=
   {rows := List.map (λ n => getRow t n.val n.property) ns}
@@ -148,6 +148,128 @@ termination_by Row.pick r cs => List.length cs
 def selectColumnsH (t : Table schema) (cs : List (CertifiedName schema)) : Table (Schema.pick schema cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
+-- TODO: quotient or proof? (should standardize this for other functions, too)
+-- Once again, since drop/take doesn't require it, we don't strictly *need* the
+-- proof...
+def head (t : Table schema) (z : {z : Int // z.abs < nrows t}) : Table schema :=
+  {rows :=
+    if z.val < 0
+    then let n := (-z.val).toNat; t.rows.dropLastN n
+    else let n := z.val.toNat; t.rows.take n
+  }
+
+-- TODO: same decidability issues as `find` (not dealing with for now)
+def distinct [DecidableEq (Row schema)] : Table schema → Table schema 
+| {rows := []} => {rows := []}
+| {rows := r :: rs} =>
+  -- Help the termination checker
+  have _ : List.length (List.filter (λ r' => decide (r = r')) rs)
+           < Nat.succ (List.length rs) :=
+    Nat.lt_of_le_of_lt (List.filter_length (λ r' => decide (r = r')) rs)
+                       (Nat.lt.base (List.length rs))
+  {rows := (
+    r :: Table.rows (distinct ({rows :=
+      (rs.filter (λ r' => r = r'))
+    }))
+  )}
+termination_by distinct t => t.rows.length
+
+def dropColumn (t : Table schema) (c : CertifiedName schema)
+    : Table (schema.removeName c.property) :=
+{rows := t.rows.map (Row.removeColumn c.property)}
+
+-- FIXME: this issue again (see `removeNames`)...
+def dropColumns (t : Table schema) (cs : List (CertifiedName schema))
+    : Table (schema.removeNames cs) := sorry
+
+def tfilter (t : Table schema) (f : Row schema → Bool) : Table schema :=
+{rows := t.rows.filter f}
+
+-- # Ordering
+-- TODO: is it worth making an Option Ord typeclass instance?
+def tsort {τ} [Ord τ]
+          (t : Table schema)
+          (c : ((c : η) × schema.HasCol (c, τ)))
+          (asc : Bool)
+    : Table schema :=
+{rows :=
+  t.rows.merge_sort_with (λ r₁ r₂ => 
+    let ov₁ := getValue r₁ c.1 c.2
+    let ov₂ := getValue r₂ c.1 c.2
+    match (ov₁, ov₂) with
+    | (none, none) => Ordering.eq
+    | (_, none) => Ordering.gt
+    | (none, _) => Ordering.lt
+    | (some v₁, some v₂) => compare v₁ v₂
+  )
+}
+
+-- TODO: how do we handle lists with typeclass instances, again?
+-- def sortByColumns (t : Table schema) (cs)
+--- TODO: orderBy
+
+-- # Aggregate
+-- TODO: this "dictionary" implementation could use some improvement
+-- Should we enforce Ord instance so that we can get the speed-up of an RBT?
+def count {τ} [DecidableEq τ]
+          (t : Table schema)
+          (c : ((c : η) × schema.HasCol (c, τ)))
+    : Table [("value", τ), ("count", Nat)] :=
+  let rowListTp := List (Row [("value", τ), ("count", Nat)])
+  -- Helper function: increments the count in the row corresponding to v
+  let rec incr : rowListTp → τ → rowListTp :=
+    (λ | [], v => [Row.cons (Cell.val v) (Row.cons (Cell.val 1) Row.nil)]
+       | (r@(Row.cons (Cell.val t) (Row.cons (Cell.val n) Row.nil))::rs), v => 
+          if t = v
+          then Row.cons (Cell.val t) (Row.cons (Cell.val (n + 1)) Row.nil) :: rs
+          else r :: incr rs v
+       | rs, _ => rs) -- we ensure this case never arises
+  let col := getColumn t c.1 c.2
+  {rows :=
+    col.foldl (λ | acc, Option.none => acc
+                 | acc, Option.some v => incr acc v) []
+  }
+
+-- FIXME: termination...
+def bin [ToString η]
+        {τ} [Ord τ] [HAdd τ Nat $ outParam τ]
+        (t : Table schema)
+        (c : ((c : η) × schema.HasCol (c, τ)))
+        (n : Nat)
+    : Table [("group", String), ("count", Nat)] :=
+  let col := getColumn t c.1 c.2
+  let sorted := col |> List.filterMap id
+                    |> List.merge_sort_with compare
+  -- match sorted with
+  -- | [] => {rows := []}
+  -- | s :: ss =>
+  --   let max := List.getLast (s :: ss) (by simp)
+  --   let min := s
+
+  -- match sorted with
+  -- | [] => {rows := []}
+  -- | s :: ss =>
+    -- -- Fold doesn't work b/c we need to be able to "skip" bins
+    -- let qrty := sorted.foldr (λ x (acc : τ × List (τ × Nat)) =>
+    --   match compare x acc.1 with
+    --   | Ordering.lt => _
+    --   | _ => _
+    -- ) (s, [])
+  -- Generates counts of bin inhabitants for each bin with upper bound k
+  let rec mk_bins : τ → List τ → Nat → List (τ × Nat) := λ
+   | k, [], 0 => []
+   | k, [], cur => [(k, cur)]
+   | k, v :: vs, cur =>
+    match compare v k with
+    | Ordering.lt => mk_bins k vs (cur + 1)
+    | _ => sorry -- (k, cur) :: mk_bins (k + n) (v :: vs) cur
+  sorry
+termination_by mk_bins t vs cur => vs.length
+
+-- TODO: pivotTable
+
+-- # Mising Values
+
 def completeCases {τ} (t : Table schema) (c : ((c : η) × schema.HasCol (c, τ))) :=
   List.map (λ v => Option.isSome v) (getColumn t c.fst c.snd)
 
@@ -164,6 +286,11 @@ def dropna (t : Table schema) : Table schema :=
 --   {rows := (schema.certify.map (λ ⟨(c, τ), h⟩ =>
 --     @completeCases _ _ _ τ t ⟨c, h⟩ _)).foldl (λ l acc => sorry)
 --   }
+
+-- TODO: move `fillna` to the "Missing Values" section -- need to make sure
+-- utilities (specifically `update`) are previously declared
+
+-- # Utilities
 
 def Schema.HasCol.size : {schema : @Schema η} → {hdr : @Header η} → schema.HasCol hdr → Nat
 | _, _, Schema.HasCol.hd => 0
@@ -230,10 +357,7 @@ def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
   t.rows.verifiedEnum.flatMap (λ (n, r) =>
     (List.zip t.rows (project r n).rows).map (λ (r1, r2) => result r1 r2)
   )
-} 
-
-def tfilter (t : Table schema) (f : Row schema → Bool) : Table schema :=
-{rows := t.rows.filter f}
+}
 
 def groupJoin {κ : Type u_η} [DecidableEq κ]
               {schema₁ schema₂ schema₃ : @Schema η}
@@ -262,14 +386,77 @@ def join {κ : Type u_η} [DecidableEq κ]
                tfilter t₂ (λ r₂ => getKey₂ r₂ == k))
              combine
 
-def groupBy {schema' : @Schema η}
+-- TODO: figure out how to get these to work as local declarations in `groupBy`
+-- (Lean can't unfold `findMatches` when it's locally declared as a `let rec`)
+def findMatches {κ ν} [DecidableEq κ]
+    : List (κ × ν) → κ → List ν × List (κ × ν) := λ
+| [], _ => ([], [])
+| (k, v) :: kvs, x =>
+  let res := findMatches kvs x
+  if k = x
+  then (v :: res.1, res.2)
+  else (res.1, (k, v) :: res.2)
+
+theorem findMatches_snd_length {κ ν} [DecidableEq κ] :
+    ∀ (xs : List (κ × ν)) (k : κ), (findMatches xs k).2.length ≤ xs.length :=
+by intros xs k
+   induction xs with
+   | nil => simp [findMatches]
+   | cons x xs ih =>
+     simp only [findMatches]
+     split
+     . simp only [Prod.snd]
+       apply Nat.le_step
+       exact ih
+     . simp only [Prod.fst]
+       apply Nat.succ_le_succ
+       exact ih
+
+-- TODO: as with `count`, should we enforce some sort of constraint on κ to
+-- allow for optimizations (e.g, RBTs)?
+-- FIXME: we need to allow for schema' to have a different η, but this leads
+-- to annoying typeclass resolution errors.
+def groupBy {η'} [DecidableEq η']
+            {schema' : @Schema η'}
+            {κ ν} [DecidableEq κ]
             (t : Table schema)
             (key : Row schema → κ)
             (project : Row schema → ν)
             (aggregate : κ → List ν → Row schema')
-    : Table schema' := sorry
+    : Table schema' :=
+  let rec group : List (κ × ν) → List (κ × List ν) := λ
+    | [] => []
+    | (k, v) :: kvs =>
+      let fms := findMatches kvs k
+      have h_help : List.length (findMatches kvs k).snd
+                      < Nat.succ (List.length kvs) :=
+        by apply Nat.lt_of_succ_le
+           apply Nat.succ_le_succ
+           apply findMatches_snd_length
+      (k, v :: fms.1) :: group fms.2
+  let projected := t.rows.map (λ r => (key r, project r))
+  let grouped := group projected
+{rows :=
+  grouped.map (λ klv => aggregate klv.1 klv.2)}
+termination_by group xs => xs.length
 
--- def flatten (t : Table schema) (cs : List {c : η // schema.HasName c}) : Table _ := sorry
+-- TODO: probably a more elegant/functorial/monadic way to do this
+def flattenOne {τ}
+               (t : Table schema)
+               (c : ((c : η) × schema.HasCol (c, List τ)))
+    : Table (schema.retypeColumn (Schema.colImpliesName c.2) τ) :=
+{rows :=
+  t.rows.flatMap (λ (r : Row schema) =>
+      match getValue r c.1 c.2 with
+      | none => []
+      | some xs => xs.foldr (λ x acc => retypeCell r c.2 (Cell.val x) :: acc) []
+  )
+}
+
+-- def flatten (t : Table schema)
+--             (cs : List ((τ : Type u) × ((c : η) × schema.HasCol (c, List τ))))
+
+-- def flatten (t : Table schema) (cs : List (CertifiedName schema)) : Table _ := sorry
 
 def transformColumn {τ₁ τ₂}
                     (t : Table schema)
@@ -288,7 +475,7 @@ def renameColumns (t : Table schema) (ccs : List (CertifiedName schema × η))
 -- out for us?
 def find {nm : η} {τ : Type u} {ss : @Schema η}
          [DecidableEq τ] [DecidableEq (Row ((nm, τ) :: ss))]
-        : (t : Table ((nm, τ) :: ss)) → (r : Row ((nm, τ) :: ss)) → Option Nat
+        : Table ((nm, τ) :: ss) → Row ((nm, τ) :: ss) → Option Nat
 -- This ugliness is to help the termination checker realize that t.rows.length
 -- is decreasing
 | {rows := t_rows}, r =>
@@ -301,6 +488,29 @@ def find {nm : η} {τ : Type u} {ss : @Schema η}
          | some n => some (n + 1)
          | none => none
 termination_by find t r => t.rows.length
+
+def groupByRetentive {τ : Type u} [DecidableEq τ]
+                     (t : Table schema)
+                     (c : ((c : η) × schema.HasCol (c, τ)))
+    : Table [("key", ULift.{max (u+1) u_η} τ), ("groups", Table schema)] :=
+groupBy t (λ (r : Row schema) => getValue r c.1 c.2)
+          (λ (r : Row schema) => r)
+          (λ (k : Option τ) (vs : List (Row schema)) =>
+            Row.cons (Cell.fromOption (k.map ULift.up))
+              (Row.cons (Cell.val (Table.mk vs)) Row.nil))
+
+def groupBySubtractive {τ : Type u} [DecidableEq τ]
+                       (t : Table schema)
+                       (c : ((c : η) × schema.HasCol (c, τ)))
+    : Table [("key", ULift.{max (u+1) u_η} τ),
+             ("groups", Table (schema.removeName
+                                (Schema.colImpliesName c.2)))] :=
+groupBy t (λ r => getValue r c.1 c.2)
+          (λ r => r)
+          (λ k vs => Row.cons (Cell.fromOption (k.map ULift.up))
+                        (Row.cons (Cell.val (Table.mk (vs.map (λ r =>
+                            r.removeColumn (Schema.colImpliesName c.2)))))
+                          Row.nil))
 
 -- theorem test {τ} {cs : List {c : η // Schema.HasCol (c, τ) schema}} {remainingNames : List (CertifiedName schema)}
 --   (hdef : remainingNames = (schema.certify.filter
