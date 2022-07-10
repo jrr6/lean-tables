@@ -4,6 +4,10 @@ import Table.BuiltinExtensions
 universe u_η
 universe u
 
+-- Schema accessor -- need to declare before variable
+def Row.schema {η : Type u_η} [DecidableEq η] {schema : @Schema η}
+               (r : Row schema) := schema
+
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
 -- For ease of refactoring, makes these products act like subtypes

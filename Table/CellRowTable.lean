@@ -5,6 +5,11 @@ import Table.CoreTypes
 universe u_η
 universe u
 
+-- # Assumptions
+def schema {η : Type u_η} [DecidableEq η]
+           {sch : @Schema η}
+           (t : Table sch) : @Schema η := sch
+
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
 -- # Constructors
@@ -12,7 +17,7 @@ def emptyTable {α : Type u₁} [hα : DecidableEq α] : @Table α hα [] :=
   Table.mk []
 
 def addRows (t : Table schema) (r : List (Row schema)) : Table schema :=
-  {rows := List.append t.rows r}
+  {rows := t.rows ++ r}
 
 def addColumn {τ} (t : Table schema) (c : η) (vs : List τ) :
     Table (List.append schema [(c, τ)]) :=
@@ -94,15 +99,15 @@ def getValue {τ}
 macro "header" : tactic => `(repeat ((try apply Schema.HasCol.hd) <;> (apply Schema.HasCol.tl)))
 macro "name" : tactic => `(repeat ((try apply Schema.HasName.hd) <;> (apply Schema.HasName.tl)))
 
-def getColumnIndex (t : Table schema)
-                   (n : Nat)
-                   (h : n < ncols t) :=
+def getColumn1 (t : Table schema)
+               (n : Nat)
+               (h : n < ncols t) :=
   List.map (λr => List.nth _ n h) t.rows
 
-def getColumn {τ}
-              (t : Table schema)
-              (c : η)
-              (h : Schema.HasCol (c, τ) schema)
+def getColumn2 {τ}
+               (t : Table schema)
+               (c : η)
+               (h : Schema.HasCol (c, τ) schema)
     : List (Option τ) :=
   List.map (λ r => getValue r c h) t.rows
 
@@ -154,7 +159,7 @@ def selectColumnsH (t : Table schema) (cs : List (CertifiedName schema)) : Table
 def head (t : Table schema) (z : {z : Int // z.abs < nrows t}) : Table schema :=
   {rows :=
     if z.val < 0
-    then let n := (-z.val).toNat; t.rows.dropLastN n
+    then let n := z.val.abs; t.rows.dropLastN n
     else let n := z.val.toNat; t.rows.take n
   }
 
@@ -224,7 +229,7 @@ def count {τ} [DecidableEq τ]
           then Row.cons (Cell.val t) (Row.cons (Cell.val (n + 1)) Row.nil) :: rs
           else r :: incr rs v
        | rs, _ => rs) -- we ensure this case never arises
-  let col := getColumn t c.1 c.2
+  let col := getColumn2 t c.1 c.2
   {rows :=
     col.foldl (λ | acc, Option.none => acc
                  | acc, Option.some v => incr acc v) []
@@ -237,7 +242,7 @@ def bin [ToString η]
         (c : ((c : η) × schema.HasCol (c, τ)))
         (n : Nat)
     : Table [("group", String), ("count", Nat)] :=
-  let col := getColumn t c.1 c.2
+  let col := getColumn2 t c.1 c.2
   let sorted := col |> List.filterMap id
                     |> List.merge_sort_with compare
   -- match sorted with
@@ -271,7 +276,7 @@ termination_by mk_bins t vs cur => vs.length
 -- # Mising Values
 
 def completeCases {τ} (t : Table schema) (c : ((c : η) × schema.HasCol (c, τ))) :=
-  List.map (λ v => Option.isSome v) (getColumn t c.fst c.snd)
+  List.map (λ v => Option.isSome v) (getColumn2 t c.fst c.snd)
 
 def Row.hasEmpty {schema : @Schema η} : Row schema → Bool
 | Row.nil => false
@@ -415,7 +420,8 @@ by intros xs k
 -- TODO: as with `count`, should we enforce some sort of constraint on κ to
 -- allow for optimizations (e.g, RBTs)?
 -- FIXME: we need to allow for schema' to have a different η, but this leads
--- to annoying typeclass resolution errors.
+-- to annoying typeclass resolution errors. Also, we probably need a distinct η'
+-- in other functions where we can change schemata -- double-check!
 def groupBy {η'} [DecidableEq η']
             {schema' : @Schema η'}
             {κ ν} [DecidableEq κ]

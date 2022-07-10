@@ -107,7 +107,7 @@ Table.mk [
   /[35]/ || /["Marketing"]/   || **|
 ]
 
-#eval head departments ⟨-400, sorry⟩
+#eval head departments ⟨-2, sorry⟩
 #reduce dropColumn joined ⟨"taught", by name⟩
 #reduce tsort departments ⟨"Department Name", by header⟩
 #reduce (count joined ⟨"course", by header⟩)
@@ -118,6 +118,7 @@ def merge : Option Nat → List (Option Nat) → Row [("Parity", Bool), ("Length
   Row.cons (Cell.val (n = 1)) (Row.cons (Cell.val xs_sum) Row.nil)
 | none, _ => Row.cons Cell.emp (Row.cons Cell.emp Row.nil)
 
+-- FIXME: allowing different η' broke something
 #reduce groupBy departments (λ r => (getValue r "Department ID" (by header)).map (λ (x : Nat) => Nat.mod x 2))
                             (λ r => (getValue r "Department Name" (by header)).map (λ (x : String) => x.length))
   (λ | (some n), xs =>
