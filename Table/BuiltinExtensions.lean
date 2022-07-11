@@ -8,6 +8,11 @@ inductive List.All {α} (p : α → Prop) : List α → Prop
 | vac      : All p []
 | cons {x xs} : p x → All p xs → All p (x::xs)
 
+inductive List.Sublist {α} : List α → List α → Prop
+| nil : Sublist [] []
+| cons (x xs ys) : Sublist xs ys → Sublist xs (x :: ys)
+| cons2 (x xs ys) : Sublist xs ys → Sublist (x :: xs) (y :: ys)
+
 -- Nifty, but hard to write proofs over
 -- def List.prod {α β} (xs : List α) (ys : List β) : List (α × β) :=
 --   List.foldl List.append [] (List.map (λ x => List.map (λ y => (x, y)) ys) xs)
@@ -324,6 +329,10 @@ theorem List.length_take :
   have ih : length (take n xs) = n := length_take n xs (Nat.lt_of_succ_lt_succ h)
   by simp only [take, length]
      apply congrArg Nat.succ ih
+
+theorem List.sublist_self : ∀ (xs : List α), Sublist xs xs
+| [] => Sublist.nil
+| x :: xs => Sublist.cons2 x xs xs (sublist_self xs)
 
 -- I suspect this is probably built in somewhere, but I'm not finding it
 -- def Int.abs (z : Int) := if z < 0 then -z else z

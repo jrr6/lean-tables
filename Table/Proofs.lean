@@ -46,9 +46,8 @@ theorem addColumn_spec4 :
     vs.length = nrows t →
     nrows (addColumn t c vs) = nrows t := by
   intros τ inst t c vs h
-  simp [nrows, addColumn]
-  rw [List.length_map, List.zip_length_eq_of_length_eq]
-  simp only [nrows] at h
+  simp only [nrows, addColumn, List.length_map]
+  rw [List.zip_length_eq_of_length_eq]
   exact Eq.symm h
 
 -- theorem addColumn_spec1' :
@@ -107,7 +106,11 @@ theorem values_spec2 :
   ∀ (rs : List (Row sch)), nrows (values rs) = rs.length :=
 λ rs => rfl
 
--- TODO: crossJoin spec 1
+theorem crossJoin_spec1 :
+  ∀ {sch₁ : @Schema η} {sch₂ : @Schema η} (t₁ : Table sch₁) (t₂ : Table sch₂),
+    schema (crossJoin t₁ t₂) = List.append (schema t₁) (schema t₂) :=
+λ _ _ => rfl
+
 theorem crossJoin_spec2 :
   ∀ {sch₁ : @Schema η} {sch₂ : @Schema η} (t₁ : Table sch₁) (t₂ : Table sch₂),
     nrows (crossJoin t₁ t₂) = nrows t₁ * nrows t₂ :=
@@ -158,3 +161,15 @@ by intros t z h
    rw [List.length_reverse, List.length_drop, List.length_reverse]
    rw [List.length_reverse]
    exact prop
+
+theorem dropColumn_spec3 : ∀ (t : Table sch) (c : CertifiedName sch),
+  List.Sublist (schema (dropColumn t c)) (schema t) :=
+λ _ c => Schema.removeName_sublist sch c.val c.property
+
+-- FIXME: there must be a better way
+theorem ncols_eq_header_length : ∀ (t : Table sch), ncols t = (header t).length :=
+λ t => Eq.symm (List.length_map _ _)
+theorem selectColumns1_spec2 :
+  ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t) (i : Nat) (h' : i < ncols t),
+  (List.get (header t) ⟨i, (ncols_eq_header_length t).subst h'⟩) ∈ (header (selectColumns t bs h)) ↔
+   List.get bs ⟨i, Eq.subst h.symm h'⟩ = true := sorry

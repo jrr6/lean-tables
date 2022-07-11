@@ -91,6 +91,20 @@ def Schema.removeName {c : η} :
 | _::s, Schema.HasName.hd => s
 | s::ss, Schema.HasName.tl h => s :: removeName ss h
 
+theorem Schema.removeName_sublist :
+  ∀ (s : @Schema η) (c : η) (hc : HasName c s),
+    List.Sublist (s.removeName hc) s :=
+by intros s c hc
+   induction hc with
+   | hd =>
+     simp only [removeName]
+     apply List.Sublist.cons
+     apply List.sublist_self
+   | tl _ ih =>
+     simp only [removeName]
+     apply List.Sublist.cons2
+     exact ih
+
 -- TODO: Uniqueness is evil...
 -- TODO: new issue is that the input might have duplicate names...
 def Schema.removeNames {η : Type u_η} [DecidableEq η] :
