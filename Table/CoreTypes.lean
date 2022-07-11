@@ -17,7 +17,7 @@ inductive Cell {η : Type u_η}
 | emp : Cell name τ
 | val : τ → Cell name τ
 
-inductive Row {η : Type u_η} [DecidableEq η] : Schema → Type (max u_η (u + 1))
+inductive Row {η : Type u_η} [DecidableEq η] : @Schema η → Type (max u_η (u + 1))
 | nil : Row []
 | cons {name : η} {τ : Type u} {hs : Schema} :
     Cell name τ → Row hs → Row ((name, τ) :: hs)

@@ -251,10 +251,10 @@ def List.merge_sort_with {α} : (α → α → Ordering) → List α → List α
   merge_with cmp (merge_sort_with cmp (xs_split.fst), merge_sort_with cmp (xs_split.snd))
 termination_by merge_sort_with cmp xs => xs.length
 
-theorem List.length_map : ∀ (xs : List α) (f : α → β),
-    List.length (List.map f xs) = List.length xs
-| [], _ => rfl
-| (x :: xs), f => congrArg _ (length_map xs f)
+-- theorem List.length_map : ∀ (xs : List α) (f : α → β),
+--     List.length (List.map f xs) = List.length xs
+-- | [], _ => rfl
+-- | (x :: xs), f => congrArg _ (length_map xs f)
 
 theorem List.zip_length_eq_of_length_eq :
   ∀ (xs : List α) (ys : List β) (h : xs.length = ys.length),

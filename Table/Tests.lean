@@ -119,7 +119,7 @@ def merge : Option Nat → List (Option Nat) → Row [("Parity", Bool), ("Length
 | none, _ => Row.cons Cell.emp (Row.cons Cell.emp Row.nil)
 
 -- FIXME: allowing different η' broke something
-#reduce groupBy departments (λ r => (getValue r "Department ID" (by header)).map (λ (x : Nat) => Nat.mod x 2))
+#reduce @groupBy _ _ _ String _ _ _ _ _ departments (λ r => (getValue r "Department ID" (by header)).map (λ (x : Nat) => Nat.mod x 2))
                             (λ r => (getValue r "Department Name" (by header)).map (λ (x : String) => x.length))
   (λ | (some n), xs =>
         let xs_sum := xs.foldl (λ | acc, none => acc
