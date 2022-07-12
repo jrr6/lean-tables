@@ -11,7 +11,7 @@ inductive List.All {α} (p : α → Prop) : List α → Prop
 inductive List.Sublist {α} : List α → List α → Prop
 | nil : Sublist [] []
 | cons (x xs ys) : Sublist xs ys → Sublist xs (x :: ys)
-| cons2 (x xs ys) : Sublist xs ys → Sublist (x :: xs) (y :: ys)
+| cons2 (x xs ys) : Sublist xs ys → Sublist (x :: xs) (x :: ys)
 
 -- Nifty, but hard to write proofs over
 -- def List.prod {α β} (xs : List α) (ys : List β) : List (α × β) :=
@@ -333,6 +333,75 @@ theorem List.length_take :
 theorem List.sublist_self : ∀ (xs : List α), Sublist xs xs
 | [] => Sublist.nil
 | x :: xs => Sublist.cons2 x xs xs (sublist_self xs)
+
+theorem List.empty_sublist : ∀ (xs : List α), Sublist [] xs
+| [] => Sublist.nil
+| x :: xs => Sublist.cons x [] xs $ empty_sublist xs
+
+-- This shouldn't need to be this verbose -- is something up with the defeqs for
+-- `sieve`?
+theorem List.sieve_sublist : (bs : List Bool) → (xs : List α) →
+  Sublist (List.sieve bs xs) xs
+| [], [] => Sublist.nil
+| [], x :: xs => List.sublist_self (x :: xs)
+| true :: bs, [] => Sublist.nil
+| false :: bs, [] => Sublist.nil
+| true :: bs, x :: xs => Sublist.cons2 x (sieve bs xs) xs (sieve_sublist bs xs)
+| false :: bs, x :: xs => Sublist.cons x (sieve bs xs) xs (sieve_sublist bs xs)
+
+theorem List.sublist_of_map_sublist :
+  (xs : List α) → (ys : List α) → (f : α → β) → Sublist xs ys →
+    Sublist (xs.map f) (ys.map f)
+| [], ys, f, h => empty_sublist (map f ys)
+| xs, x :: ys, f, Sublist.cons _ _ _ h =>
+  have ih := sublist_of_map_sublist xs ys f h
+  Sublist.cons (f x) (map f xs) (map f ys) ih
+| x :: xs, _ :: ys, f, Sublist.cons2 _ _ _ h =>
+  have ih := sublist_of_map_sublist xs ys f h
+  Sublist.cons2 (f x) (map f xs) (map f ys) ih
+
+theorem List.removeAll_singleton_hd_eq [DecidableEq α] :
+  ∀ (x: α) (xs : List α), removeAll (x :: xs) [x] = removeAll xs [x] :=
+by intros x xs
+   simp [removeAll, filter, filterAux, notElem, elem]
+
+theorem List.filterAux_acc_eq_rev_append : ∀ (p : α → Bool) (xs as bs : List α),
+  filterAux p xs (bs ++ as) = reverse as ++ filterAux p xs bs
+| p, [], as, bs => by simp [filterAux]
+| p, xs, [], bs => by simp [filterAux]
+| p, x :: xs, a :: as, bs =>
+  have ih_true := filterAux_acc_eq_rev_append p xs (a :: as) (x :: bs)
+  have ih_false := filterAux_acc_eq_rev_append p xs (a :: as) bs
+  by simp only [filterAux]
+     cases p x with
+     | true => simp only; apply ih_true
+     | false => simp only; apply ih_false
+
+theorem List.removeAll_singleton_hd_neq {α : Type _} [BEq α] :
+  ∀ (x : α) (y : α) (xs : List α),
+    ((x == y) = false) → removeAll (x :: xs) [y] = x :: removeAll xs [y] :=
+by intros x y xs hneq
+   simp only [removeAll, filter, filterAux, notElem, elem, hneq]
+   exact filterAux_acc_eq_rev_append _ xs [x] []
+
+theorem List.sieve_remove_all : (bs : List Bool) → (xs : List α) →
+  length bs = length xs →
+    length (sieve bs xs) = length (removeAll bs [false])
+| [], [], h => rfl
+| b :: bs, [], h => by cases h
+| [], x :: xs, h => by cases h
+| true :: bs, x :: xs, h =>
+  have ih := sieve_remove_all bs xs (Nat.succ.inj h)
+  by rw [removeAll_singleton_hd_neq]
+     . simp only [length]
+       apply congrArg (λ x => x + 1)
+       exact ih
+     . simp only
+| false :: bs, x :: xs, h =>
+  have ih := sieve_remove_all bs xs (Nat.succ.inj h)
+  by rw [removeAll_singleton_hd_eq]
+     . simp only [length, sieve]
+       exact ih
 
 -- I suspect this is probably built in somewhere, but I'm not finding it
 -- def Int.abs (z : Int) := if z < 0 then -z else z

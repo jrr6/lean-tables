@@ -47,21 +47,30 @@ def Schema.certify (schema : @Schema η) : List (CertifiedHeader schema) :=
       ⟨(c, τ), Schema.HasCol.hd⟩ :: (certify_elts hs).map map_subproof;
   certify_elts schema
 
--- TODO: Lean 4 bug: can't do `induction schema` in tactic mode
 def Schema.colImpliesName :
       {schema : @Schema η} →
       {c : η} →
       {τ : Type u} →
-      (p : schema.HasCol (c, τ)) → schema.HasName c
-| [], c, τ, p => by contradiction
-| h :: hs, c, τ, p => by
-    cases p with
-    | hd => apply HasName.hd
-    | tl a => apply HasName.tl (colImpliesName a)
+      schema.HasCol (c, τ) → schema.HasName c
+| h :: hs, _, _, HasCol.hd => HasName.hd
+| h :: hs, c, τ, HasCol.tl p => HasName.tl (colImpliesName p)
+-- Can also be done in tactic mode:
+-- | h :: hs, c, τ, p => by
+--     cases p with
+--     | hd => apply HasName.hd
+--     | tl a => apply HasName.tl (colImpliesName a)
 
 def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
   schema.certify.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) =>
                         ⟨c, colImpliesName h⟩)
+
+def Schema.hasNameOfAppend : {sch : @Schema η} →
+                                 {nm : η} →
+                                 {hs : List Header} →
+                                 sch.HasName nm →
+  Schema.HasName nm (sch.append hs)
+| _, _, _, Schema.HasName.hd => Schema.HasName.hd
+| _, _, _, Schema.HasName.tl h => Schema.HasName.tl $ hasNameOfAppend h
 
 -- Schema functions
 def Schema.names {η : Type u_η} := List.map (@Prod.fst η (Type u))
@@ -189,6 +198,11 @@ def Row.toList {schema : @Schema η} {α} (f : ∀ {n β}, @Cell η dec_η n β 
     : Row schema → List α
 | Row.nil => []
 | Row.cons c rs => f c :: toList f rs
+
+def Row.hasEmpty {schema : @Schema η} : Row schema → Bool
+| Row.nil => false
+| Row.cons Cell.emp _ => true
+| Row.cons _ r' => hasEmpty r'
 
 -- TODO: probably makes more sense to move this to some general "collection"
 -- interface rather than reimplementing for every type -- wonder if this is

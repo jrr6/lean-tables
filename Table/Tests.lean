@@ -107,9 +107,19 @@ Table.mk [
   /[35]/ || /["Marketing"]/   || **|
 ]
 
+def dupDepts := addRows departments [/[31]/ || /["Information"]/ || **|,
+                                     /[33]/ || /["Security"]/ || **|,
+                                     /[34]/ || /["Parallelism"]/ || **|,
+                                     /[35]/ || /["Functionalism"]/ || **|]
+def dupDepts' := addColumn dupDepts "Number" [89, 7, 25, 25, 4, 3, 25, 1]
+
 #eval head departments ⟨-2, sorry⟩
 #reduce dropColumn joined ⟨"taught", by name⟩
-#reduce tsort departments ⟨"Department Name", by header⟩
+#eval tsort dupDepts' ⟨"Number", by header⟩ true  -- FIXME: instability!
+#eval sortByColumns dupDepts' [⟨("Department ID", _), by header, by infer_instance⟩,
+                               ⟨("Number", _), by header, by infer_instance⟩]
+
+
 #reduce (count joined ⟨"course", by header⟩)
 def merge : Option Nat → List (Option Nat) → Row [("Parity", Bool), ("Length", Nat)]
 | (some n), xs =>
@@ -134,6 +144,8 @@ Table.mk [
 ]
 
 #reduce flattenOne listTable ⟨"Digits", by header⟩
+
+#eval bin departments ⟨"Department ID", by header⟩ 2
 
 def gradebookTable : Table [("name", ULift String),
                             ("age", ULift Nat),

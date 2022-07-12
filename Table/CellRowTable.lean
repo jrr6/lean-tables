@@ -112,24 +112,24 @@ def getColumn2 {τ}
   List.map (λ r => getValue r c h) t.rows
 
 -- # Subtable
-def selectRowsIndices (t : Table schema)
+def selectRows1 (t : Table schema)
                       (ns : List {n : Nat // n < nrows t}) : Table schema :=
   {rows := List.map (λ n => getRow t n.val n.property) ns}
 
--- We don't strictly *need* the proof here, but if we want to be consistent
--- about enforcing preconditions through proof terms, we should probably leave
+-- TODO: We don't strictly *need* the proof here ; if we want to be consistent
+-- about enforcing preconditions through proof terms (do we‽), we should leave
 -- it...
-def selectRows (t : Table schema) (bs : List Bool) (h : List.length bs = nrows t)
+def selectRows2 (t : Table schema) (bs : List Bool) (h : List.length bs = nrows t)
     : Table schema :=
   {rows := List.sieve bs t.rows}
 
-def selectColumns (t : Table schema)
+def selectColumns1 (t : Table schema)
                   (bs : List Bool)
                   (h : List.length bs = ncols t)
     : Table (List.sieve bs schema) :=
   {rows := t.rows.map (λ r => Row.sieve bs r)}
 
-def selectColumnsN (t : Table schema)
+def selectColumns2 (t : Table schema)
                    (ns : List {n : Nat // n < ncols t})
     : Table (List.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
@@ -150,7 +150,7 @@ def Row.pick : {schema : @Schema η} → Row schema → (cs : List (CertifiedNam
            (pick (Row.cons cell rs) cs)
 termination_by Row.pick r cs => List.length cs
 
-def selectColumnsH (t : Table schema) (cs : List (CertifiedName schema)) : Table (Schema.pick schema cs) :=
+def selectColumns3 (t : Table schema) (cs : List (CertifiedName schema)) : Table (Schema.pick schema cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
 -- TODO: quotient or proof? (should standardize this for other functions, too)
@@ -209,9 +209,13 @@ def tsort {τ} [Ord τ]
   )
 }
 
--- TODO: how do we handle lists with typeclass instances, again?
--- def sortByColumns (t : Table schema) (cs)
---- TODO: orderBy
+-- TODO: Worth creating a `CertifiedOrdHeader` type? Also, would be nice if the
+-- τ in the header could be fully implicit (can still be inferred using `_`)
+-- FIXME: Not working! (Forgot that `merge_sort_with` is not actually stable!)
+def sortByColumns (t : Table schema)
+                  (cs : List ((h : Header) × Schema.HasCol h schema × Ord h.2))
+    : Table schema :=
+cs.foldr (λ ohdr acc => @tsort _ _ _ _ ohdr.2.2 acc ⟨ohdr.1.1, ohdr.2.1⟩ true) t
 
 -- # Aggregate
 -- TODO: this "dictionary" implementation could use some improvement
@@ -235,9 +239,10 @@ def count {τ} [DecidableEq τ]
                  | acc, Option.some v => incr acc v) []
   }
 
--- FIXME: termination...
+-- FIXME: the necessary instances don't seem to exist for, e.g., Int, so
+-- functionally we constrain τ = Nat, which is too restrictive
 def bin [ToString η]
-        {τ} [Ord τ] [HAdd τ Nat $ outParam τ]
+        {τ} [Ord τ] [HDiv τ Nat $ outParam τ] [OfNat (outParam τ) 1] [HMul (outParam τ) Nat τ] [Add (outParam τ)] [HSub τ Nat $ outParam τ] [DecidableEq τ] [ToString τ] -- [HAdd τ Nat $ outParam τ]
         (t : Table schema)
         (c : ((c : η) × schema.HasCol (c, τ)))
         (n : Nat)
@@ -260,16 +265,38 @@ def bin [ToString η]
     --   | Ordering.lt => _
     --   | _ => _
     -- ) (s, [])
+
+  let rec mk_bins : List τ → τ → List (τ × Nat) := λ
+   | [], k => []
+   | a :: as, k =>
+     let k := 
+      match compare a k with
+      | Ordering.lt => k
+      | _ => ((a / n) + 1) * n  -- TODO: may need to round for ℚ
+     match mk_bins as k with
+     | [] => [(k, 1)]
+     | (k', cnt) :: bs =>
+       if k = k'
+       then (k, cnt + 1) :: bs
+       else (k, 1) :: (k', cnt) :: bs
+  
+  match sorted with
+  | [] => Table.mk []
+  | s :: ss =>
+    let bins := mk_bins (s :: ss) s
+    {rows := bins.map (λ (k, cnt) => Row.cons (Cell.val $ toString (k - n) ++ " ≤ " ++ toString c.1 ++ " < " ++ toString k) (Row.singleCell cnt))}
+
   -- Generates counts of bin inhabitants for each bin with upper bound k
-  let rec mk_bins : τ → List τ → Nat → List (τ × Nat) := λ
-   | k, [], 0 => []
-   | k, [], cur => [(k, cur)]
-   | k, v :: vs, cur =>
-    match compare v k with
-    | Ordering.lt => mk_bins k vs (cur + 1)
-    | _ => sorry -- (k, cur) :: mk_bins (k + n) (v :: vs) cur
-  sorry
-termination_by mk_bins t vs cur => vs.length
+  -- let rec mk_bins : τ → List τ → Nat → List (τ × Nat) := λ
+  --  | k, [], 0 => []
+  --  | k, [], cur => [(k, cur)]
+  --  | k, v :: vs, cur =>
+  --   match compare v k with
+  --   | Ordering.lt => mk_bins k vs (cur + 1)
+  --   | _ => sorry -- (k, cur) :: mk_bins (k + n) (v :: vs) cur
+  -- sorry
+
+-- termination_by mk_bins t vs cur => vs.length
 
 -- TODO: pivotTable
 
@@ -277,11 +304,6 @@ termination_by mk_bins t vs cur => vs.length
 
 def completeCases {τ} (t : Table schema) (c : ((c : η) × schema.HasCol (c, τ))) :=
   List.map (λ v => Option.isSome v) (getColumn2 t c.fst c.snd)
-
-def Row.hasEmpty {schema : @Schema η} : Row schema → Bool
-| Row.nil => false
-| Row.cons Cell.emp _ => true
-| Row.cons _ r' => hasEmpty r'
 
 def dropna (t : Table schema) : Table schema :=
   {rows := t.rows.filter (λ r => r.hasEmpty)}
