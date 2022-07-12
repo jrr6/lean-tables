@@ -384,21 +384,21 @@ by intros x y xs hneq
    simp only [removeAll, filter, filterAux, notElem, elem, hneq]
    exact filterAux_acc_eq_rev_append _ xs [x] []
 
-theorem List.sieve_remove_all : (bs : List Bool) → (xs : List α) →
+theorem List.sieve_removeAll : (bs : List Bool) → (xs : List α) →
   length bs = length xs →
     length (sieve bs xs) = length (removeAll bs [false])
 | [], [], h => rfl
 | b :: bs, [], h => by cases h
 | [], x :: xs, h => by cases h
 | true :: bs, x :: xs, h =>
-  have ih := sieve_remove_all bs xs (Nat.succ.inj h)
+  have ih := sieve_removeAll bs xs (Nat.succ.inj h)
   by rw [removeAll_singleton_hd_neq]
      . simp only [length]
        apply congrArg (λ x => x + 1)
        exact ih
      . simp only
 | false :: bs, x :: xs, h =>
-  have ih := sieve_remove_all bs xs (Nat.succ.inj h)
+  have ih := sieve_removeAll bs xs (Nat.succ.inj h)
   by rw [removeAll_singleton_hd_eq]
      . simp only [length, sieve]
        exact ih

@@ -145,8 +145,7 @@ def Row.pick : {schema : @Schema η} → Row schema → (cs : List (CertifiedNam
 | _, Row.cons cell rs, [] => Row.nil
 | (s::ss), Row.cons cell rs, (c::cs) =>
   have h := schemaHasLookup (s::ss) c;
-  Row.cons (getCell (Row.cons cell rs)
-                     h)
+  Row.cons (getCell (Row.cons cell rs) h)
            (pick (Row.cons cell rs) cs)
 termination_by Row.pick r cs => List.length cs
 

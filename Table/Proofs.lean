@@ -51,7 +51,6 @@ theorem addColumn_spec1 :
 --     simp only [schema, addColumn] at ih
 -- ⟩
 
--- FIXME: come back to
 theorem addColumn_spec2 :
   ∀ {τ : Type u}
     (t : Table sch)
@@ -61,9 +60,8 @@ theorem addColumn_spec2 :
     (h' : sch.HasName c'),
     c ∈ header t →
       (schema t).lookup ⟨c', h'⟩ =
-      (schema (addColumn t c vs)).lookup ⟨c', Schema.hasNameOfAppend h'⟩ := by
-  intros τ t c vs c' h' hin
-  simp only [schema]
+      (schema (addColumn t c vs)).lookup ⟨c', Schema.hasNameOfAppend h'⟩ :=
+λ t c vs c' h' h => Schema.lookup_eq_lookup_append _ _ _ _
 
 -- FIXME: how to show c is certifed?
 -- theorem addColumn_spec3 :
@@ -197,7 +195,7 @@ theorem selectRows2_spec1 :
 theorem selectRows2_spec2 :
   ∀ (t : Table sch) (bs : List Bool) (h : bs.length = nrows t),
     nrows (selectRows2 t bs h) = (bs.removeAll [false]).length :=
-λ t bs h => List.sieve_remove_all _ _ h
+λ t bs h => List.sieve_removeAll _ _ h
 
 theorem selectColumns1_spec1 :
   ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t),
@@ -213,6 +211,47 @@ theorem selectColumns1_spec2 :
   (List.get (header t) ⟨i, (ncols_eq_header_length t).subst h'⟩) ∈ (header (selectColumns1 t bs h)) ↔
    List.get bs ⟨i, Eq.subst h.symm h'⟩ = true := sorry
 
+theorem selectColumns1_spec3 :
+  ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t),
+    List.Sublist (schema (selectColumns1 t bs h)) (schema t) :=
+λ t bs h => List.sieve_sublist _ _
+
+theorem selectColumns1_spec4 :
+  ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t),
+    nrows (selectColumns1 t bs h) = nrows t :=
+λ t bs h => List.length_map _ _
+
+theorem selectColumns2_spec1 :
+  ∀ (t : Table sch) (ns : List {n // n < ncols t}),
+    ncols (selectColumns2 t ns) = ns.length :=
+λ t ns => List.length_map _ _
+
+-- TODO: sc2 specs 2 and 3
+
+theorem selectColumns2_spec4 :
+  ∀ (t : Table sch) (ns : List {n // n < ncols t}),
+    nrows (selectColumns2 t ns) = nrows t :=
+λ t ns => List.length_map _ _
+
+theorem selectColumns3_spec1 :
+  ∀ (t : Table sch) (cs : List (CertifiedName sch)),
+    header (selectColumns3 t cs) = cs.map Sigma.fst :=
+by intros t cs
+   simp only [header, selectColumns3, Schema.names]
+   induction cs with
+   | nil => simp only [Schema.pick, List.map]
+   | cons c cs ih =>
+     simp only [Schema.pick, List.map, List.cons.injEq]
+     apply And.intro
+     . simp only [Schema.lookup_fst_eq_nm, CertifiedName.val]
+     . exact ih
+
+-- TODO: sc3 spec 2
+
+theorem selectColumns3_spec3 :
+  ∀ (t : Table sch) (cs : List (CertifiedName sch)),
+    nrows (selectColumns3 t cs) = nrows t :=
+λ t cs => List.length_map _ _
 
 -- Spec 1 is enforced by types
 theorem head_spec2 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
