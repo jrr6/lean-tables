@@ -203,6 +203,17 @@ theorem List.split_length_snd {α} :
      apply Nat.lt.step
      apply ih
 
+theorem List.split_length_snd' {α} :
+    ∀ (xs : List α), (split xs).snd.length ≤ xs.length
+| [] => by simp only [length]
+| [x] => by simp only [length]
+| x₁ :: x₂ :: xs =>
+  have ih := split_length_snd' xs;
+  by simp only [split, length]
+     apply Nat.le.step
+     apply Nat.succ_le_succ
+     apply ih
+
 def List.merge_with {α} : (α → α → Ordering) → List α × List α → List α
 | _, ([], ys) => ys
 | _, (xs, []) => xs
@@ -403,6 +414,81 @@ theorem List.sieve_removeAll : (bs : List Bool) → (xs : List α) →
      . simp only [length, sieve]
        exact ih
 
+theorem List.length_merge_with : ∀ (cmp : α → α → Ordering)
+                                   (xs ys : List α),
+  length (merge_with cmp (xs, ys)) = length xs + length ys
+| cmp, [], ys => by simp only [merge_with, length, Nat.zero_add]
+| cmp, x :: xs, [] => rfl
+| cmp, x :: xs, y :: ys =>
+have ih₁ := length_merge_with cmp xs (y :: ys)
+have ih₂ := length_merge_with cmp (x :: xs) ys
+by simp only [merge_with]
+   cases cmp x y with
+   | lt =>
+     simp only
+     have h₁ : length (x :: merge_with cmp (xs, y :: ys)) =
+               length (merge_with cmp (xs, y :: ys)) + 1 := rfl
+     have h₂ : length (x :: xs) = length xs + 1 := rfl
+     rw [h₁, h₂, Nat.add_comm (length xs + 1), ←Nat.add_assoc]
+     apply congrArg (λ x => x + 1)
+     rw [Nat.add_comm]
+     exact ih₁
+   | eq =>
+     simp only
+     have h₁ : length (x :: merge_with cmp (xs, y :: ys)) =
+               length (merge_with cmp (xs, y :: ys)) + 1 := rfl
+     have h₂ : length (x :: xs) = length xs + 1 := rfl
+     rw [h₁, h₂, Nat.add_comm (length xs + 1), ←Nat.add_assoc]
+     apply congrArg (λ x => x + 1)
+     rw [Nat.add_comm]
+     exact ih₁
+   | gt =>
+     simp only [length]
+     simp only [length] at ih₂
+     rw [←Nat.add_assoc]
+     apply congrArg (λ x => x + 1)
+     exact ih₂
+termination_by length_merge_with xs ys => xs.length + ys.length
+
+theorem List.length_split : ∀ (xs : List α),
+  length ((split xs).1) + length ((split xs).2) = length xs
+| [] => rfl
+| [x] => rfl
+| x :: y :: xs =>
+  have ih := length_split xs
+  by simp only [split, length]
+     rw [Nat.add_assoc (length xs),
+         Nat.add_assoc (length (split xs).1),
+         Nat.add_comm 1,
+         Nat.add_assoc (length (split xs).2),
+         ←Nat.add_assoc (length (split xs).1)]
+     apply congrArg (λ x => x + (1 + 1))
+     exact ih
+
+theorem List.length_merge_sort_with : ∀ (cmp : α → α → Ordering) (xs : List α) ,
+  length (merge_sort_with cmp xs) = length xs
+| _, [] => rfl
+| _, [x] => rfl
+| cmp, x :: y :: xs =>
+  have term₁ : Nat.succ (length (split xs).fst) < Nat.succ (Nat.succ (length xs)) :=
+    Nat.succ_le_succ (Nat.succ_le_succ $ split_length_fst' xs)
+  have term₂ : Nat.succ (length (split xs).snd) < Nat.succ (Nat.succ (length xs)) :=
+    Nat.succ_le_succ (Nat.succ_le_succ $ split_length_snd' xs)
+  have ih₁ := length_merge_sort_with cmp (x :: (split xs).1)
+  have ih₂ := length_merge_sort_with cmp (y :: (split xs).2)
+  -- TODO: we shouldn't need to do a "step" of length_split again here
+  by simp only [merge_sort_with, merge_with, split, length_merge_with, length]
+     rw [ih₁, ih₂]
+     simp only [length]
+     rw [Nat.add_assoc (length (split xs).1),
+         Nat.add_comm 1,
+         Nat.add_assoc (length (split xs).2),
+         ←Nat.add_assoc (length (split xs).1),
+         Nat.add_assoc (length xs)]
+     apply congrArg (λ x => x + (1 + 1))
+     apply length_split
+termination_by length_merge_sort_with cmp xs => xs.length
+
 -- I suspect this is probably built in somewhere, but I'm not finding it
 -- def Int.abs (z : Int) := if z < 0 then -z else z
 
@@ -421,3 +507,25 @@ by intros z h
    cases z with
    | ofNat n => simp [toNat, ofNat, abs]
    | negSucc n => contradiction
+
+theorem Int.neg_succ_eq_neg_ofNat_succ (n : Nat) :
+  Int.negSucc n = -(Int.ofNat n.succ) :=
+by unfold Neg.neg
+   unfold instNegInt
+   unfold Int.neg
+   simp only [negOfNat]
+
+theorem Int.add_neg_eq_sub (m n : Int) : n < 0 → m + n = m - n.abs :=
+by intros h
+   simp only at h
+   cases n with
+   | ofNat n => contradiction
+   | negSucc n =>
+     simp only [abs]
+     unfold HSub.hSub
+     unfold instHSub
+     unfold Sub.sub
+     unfold Int.instSubInt
+     unfold Int.sub
+     simp only
+     rw [neg_succ_eq_neg_ofNat_succ]

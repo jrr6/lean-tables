@@ -66,8 +66,8 @@ def joined := vcat t1 t2
 #eval joined
 #reduce joined
 
-#reduce selectColumnsH t2 [⟨"prof", (by name)⟩, ⟨"course", (by name)⟩]
-#reduce @selectColumnsH String
+#reduce selectColumns3 t2 [⟨"prof", (by name)⟩, ⟨"course", (by name)⟩]
+#reduce @selectColumns3 String
                         inferInstance
                         [("prof", String), ("course", Nat), ("taught", Bool)] t2 [⟨"prof", Schema.HasName.hd⟩]
 #reduce Row.pick (Row.append
@@ -79,9 +79,9 @@ def schoolIded := addColumn joined "school" ["CMU", "CMU", "CMU", "CMU", "Brown"
 
 #reduce getValue (List.head schoolIded.rows _) "course" (by header)
 
-#reduce selectRowsIndices schoolIded [⟨3, _⟩, ⟨4, _⟩]
-#reduce schoolIded |> (λ t => selectRowsIndices t [⟨1, _⟩, ⟨4, _⟩])
-                   |> (λ t => selectColumns t [true, false, false, true])
+#reduce selectRows1 schoolIded [⟨3, _⟩, ⟨4, _⟩]
+#reduce schoolIded |> (λ t => selectRows1 t [⟨1, _⟩, ⟨4, _⟩])
+                   |> (λ t => selectColumns1 t [true, false, false, true])
 
 -- Testing, etc.
 #reduce addRows (addColumn emptyTable "name" []) [Row.singleCell "hello"]
@@ -111,11 +111,11 @@ def dupDepts := addRows departments [/[31]/ || /["Information"]/ || **|,
                                      /[33]/ || /["Security"]/ || **|,
                                      /[34]/ || /["Parallelism"]/ || **|,
                                      /[35]/ || /["Functionalism"]/ || **|]
-def dupDepts' := addColumn dupDepts "Number" [89, 7, 25, 25, 4, 3, 25, 1]
+def dupDepts' := addColumn dupDepts "Number" [89, 7, 25, 27, 4, 3, 24, 1]
 
 #eval head departments ⟨-2, sorry⟩
 #reduce dropColumn joined ⟨"taught", by name⟩
-#eval tsort dupDepts' ⟨"Number", by header⟩ true  -- FIXME: instability!
+#eval tsort dupDepts' ⟨"Number", by header⟩ true
 #eval sortByColumns dupDepts' [⟨("Department ID", _), by header, by infer_instance⟩,
                                ⟨("Number", _), by header, by infer_instance⟩]
 

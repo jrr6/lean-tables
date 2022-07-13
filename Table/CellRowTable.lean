@@ -210,7 +210,7 @@ def tsort {τ} [Ord τ]
 
 -- TODO: Worth creating a `CertifiedOrdHeader` type? Also, would be nice if the
 -- τ in the header could be fully implicit (can still be inferred using `_`)
--- FIXME: Not working! (Forgot that `merge_sort_with` is not actually stable!)
+-- TODO: Appears to be working? Double-check stability of `merge_sort_with`.
 def sortByColumns (t : Table schema)
                   (cs : List ((h : Header) × Schema.HasCol h schema × Ord h.2))
     : Table schema :=

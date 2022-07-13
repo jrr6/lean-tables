@@ -248,8 +248,6 @@ def Row.nth {schema} : (rs : @Row η dec_η schema) →
 | Row.cons r rs, 0, h => r
 | Row.cons r rs, Nat.succ n, h => nth rs n (Nat.le_of_succ_le_succ h)
 
--- It would be nice if Lean could figure out that we're structurally recursing,
--- but in the meantime, we have to provide a manual termination relation
 def Row.nths {schema} :
     (ns : List {n : Nat // n < List.length schema})
       → Row schema
@@ -259,7 +257,6 @@ def Row.nths {schema} :
 | n::ns, Row.nil => absurd n.property
                           (by intro nh; simp [List.length] at nh; contradiction)
 | n::ns, r => Row.cons (Row.nth r n.val n.property) (nths ns r)
-  termination_by nths ns r => List.length ns
 
 def Row.removeColumn {s : Schema} {c : η} :
     (h : s.HasName c) → Row s → Row (s.removeName h)

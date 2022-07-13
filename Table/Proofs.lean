@@ -284,6 +284,72 @@ by intros t z h
    rw [List.length_reverse]
    exact prop
 
+-- theorem head_spec3' : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
+--   z.val < 0 → nrows (head t z) = nrows t + z.val :=
+-- by intros t z h
+--    rw [Int.add_neg_eq_sub]
+--    cases z with | mk z prop =>
+--    cases z with
+--    | ofNat n => contradiction
+--    | negSucc n =>
+--      simp only [Int.abs]
+
+theorem distinct_spec : ∀ (t : Table sch) [DecidableEq $ Row sch],
+  schema (distinct t) = schema t :=
+λ t => rfl
+
+theorem dropColumn_spec1 : ∀ (t : Table sch) (c : CertifiedName sch),
+  nrows (dropColumn t c) = nrows t :=
+λ t c => List.length_map _ _
+
+-- TODO: dC spec 2 (not currently true because of duplicate issues)
+
 theorem dropColumn_spec3 : ∀ (t : Table sch) (c : CertifiedName sch),
   List.Sublist (schema (dropColumn t c)) (schema t) :=
 λ _ c => Schema.removeName_sublist sch c.val c.property
+
+-- Spec 1 is enforced by types
+theorem tfilter_spec2 : ∀ (t : Table sch) (f : Row sch → Bool),
+  schema (tfilter t f) = schema t :=
+λ t f => rfl
+
+theorem tsort_spec1 : ∀ {τ : Type u} [Ord τ]
+                        (t : Table sch)
+                        (c : ((c : η) × sch.HasCol (c, τ)))
+                        (b : Bool),
+  nrows (tsort t c b) = nrows t :=
+λ t c b => List.length_merge_sort_with _ t.rows
+
+theorem tsort_spec2 : ∀ {τ : Type u} [Ord τ]
+                        (t : Table sch)
+                        (c : ((c : η) × sch.HasCol (c, τ)))
+                        (b : Bool),
+  schema (tsort t c b) = schema t :=
+λ t c b => rfl
+
+-- Slightly over-generalized "loop invariant" (we could make the preservation
+-- portion more specific, e.g., by providing `x ∈ xs` as an extra hypothesis)
+theorem List.foldr_invariant :
+  ∀ (p : β → Prop) (f : α → β → β) (z : β) (xs : List α),
+  p z → (∀ x a, p a → p (f x a)) → p (List.foldr f z xs)
+| _, _, _, [], h_init, _ => h_init
+| p, f, z, x :: xs, h_init, h_pres =>
+  h_pres x (foldr f z xs) (foldr_invariant p f z xs h_init h_pres)
+
+theorem sortByColumns_spec1 :
+  ∀ (t : Table sch) (hs : List ((h : Header) × sch.HasCol h × Ord h.snd)),
+    nrows (sortByColumns t hs) = nrows t :=
+by intros t hs
+   simp only [nrows, sortByColumns]
+   apply List.foldr_invariant (λ x => nrows x = nrows t)
+   -- Initialization
+   . rfl
+   -- Preservation
+   . intros x acc h
+     rw [←h]
+     apply @tsort_spec1 _ _ _ _ x.snd.snd
+
+theorem sortByColumns_spec2 :
+  ∀ (t : Table sch) (hs : List ((h : Header) × sch.HasCol h × Ord h.snd)),
+    schema (sortByColumns t hs) = schema t :=
+λ t hs => rfl
