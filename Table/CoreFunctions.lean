@@ -266,21 +266,16 @@ def Row.removeColumn {s : Schema} {c : η} :
 /-------------------------------------------------------------------------------
                           Decidable Equality Instances
 -------------------------------------------------------------------------------/
--- TODO: make these way simpler
 instance {nm : η} {τ : Type u} [inst : DecidableEq τ] : DecidableEq (Cell nm τ)
-| Cell.emp, Cell.emp => by simp only; apply Decidable.isTrue; apply True.intro
-| Cell.emp, (Cell.val x) => by simp only; apply Decidable.isFalse; simp only
-| (Cell.val x), Cell.emp => by simp only; apply Decidable.isFalse; simp only
-| (Cell.val x), (Cell.val y) => by simp; apply inst
+| Cell.emp, Cell.emp => isTrue rfl
+| Cell.emp, (Cell.val x) => isFalse (λ hneg => Cell.noConfusion hneg)
+| (Cell.val x), Cell.emp => isFalse (λ hneg => Cell.noConfusion hneg)
+| (Cell.val x), (Cell.val y) =>
+  Eq.mpr (congrArg Decidable $ Cell.val.injEq x y) (inst x y)
 
 -- TODO: simplify (no pun intended)
-instance : DecidableEq (@Row η _ []) :=
-  λ r₁ r₂ => by
-    cases r₁
-    cases r₂
-    simp only
-    apply Decidable.isTrue
-    apply True.intro
+instance : DecidableEq (@Row η _ [])
+| Row.nil, Row.nil => Decidable.isTrue rfl
 
 -- TODO: again, simplify by de-simp-lifying
 -- TODO: do we explicitly need it, or will the lookup figure that out for us?
@@ -305,3 +300,10 @@ instance {ss : @Schema η}
     | isFalse hc =>
       isFalse (fun h => hc (And.left h));
   by simp; apply h_conj_dec
+
+-- TODO: simplify a la case 4 of Cell instance?
+instance {sch : @Schema η} [DecidableEq (Row sch)] : DecidableEq (Table sch) :=
+λ {rows := r₁} {rows := r₂} =>
+dite (r₁ = r₂)
+     (λ htrue => isTrue $ congrArg Table.mk htrue)
+     (λ hfalse => isFalse (λ hneg => absurd (Table.mk.inj hneg) hfalse))

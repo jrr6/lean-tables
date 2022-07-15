@@ -15,7 +15,7 @@ inductive List.Sublist {α} : List α → List α → Prop
 
 -- Nifty, but hard to write proofs over
 -- def List.prod {α β} (xs : List α) (ys : List β) : List (α × β) :=
---   List.foldl List.append [] (List.map (λ x => List.map (λ y => (x, y)) ys) xs)
+-- List.foldl List.append [] (List.map (λ x => List.map (λ y => (x, y)) ys) xs)
 
 -- This goes the wrong way -- keep it around just in case...
 theorem Nat.lt_of_add_lt_add : ∀ (a m n : Nat), m + a < n + a → m < n
@@ -43,10 +43,12 @@ def List.prod {α β} : List α → List β → List (α × β)
 | _, [] => []
 | [x], y :: ys => (x, y) :: prod [x] ys
 | x :: x' :: xs, ys =>
-  have h₁ : Nat.succ 0 + length ys < Nat.succ (Nat.succ (length xs)) + length ys :=
+  have h₁ : Nat.succ 0 + length ys <  
+            Nat.succ (Nat.succ (length xs)) + length ys :=
     by apply Nat.add_lt_add_of_lt
        apply Nat.succ_lt_succ $ Nat.succ_pos (length xs)
-  have h₂ : Nat.succ (length xs) + length ys < Nat.succ (Nat.succ (length xs)) + length ys :=
+  have h₂ : Nat.succ (length xs) + length ys <
+            Nat.succ (Nat.succ (length xs)) + length ys :=
     by apply Nat.add_lt_add_of_lt
        apply Nat.succ_lt_succ
        apply Nat.lt.base
@@ -106,11 +108,18 @@ def List.verifiedEnum : (xs : List α) → List ({n : Nat // n < xs.length} × �
                       → List ({n : Nat // n < xs.length} × α)
                       → List ({n : Nat // n < xs.length} × α)
     | ⟨[], h⟩, n, acc => acc
-    | ⟨y :: ys, hys⟩, ⟨0, hn⟩, acc => ((⟨0, @Nat.lt_of_lt_of_le 0 (length ys + 1) (length xs) (Nat.zero_lt_succ (length ys)) hys⟩, y) :: acc)
-    | ⟨y :: ys, hys⟩, ⟨Nat.succ n, hn⟩, acc => vEnumFrom ⟨ys, @Nat.le_trans (length ys) (length ys + 1) (length xs) (Nat.le_succ (length ys)) hys⟩
-                                        ⟨n, Nat.lt_of_succ_lt_succ hn⟩
-                                        ((⟨Nat.succ n, Nat.lt_of_lt_of_le hn hys⟩, y) :: acc)
-    vEnumFrom ⟨xs, Nat.le_refl (length xs)⟩ ⟨length xs - 1, by apply Nat.sub_succ_lt_self; apply Nat.zero_lt_succ⟩ []
+    | ⟨y :: ys, hys⟩, ⟨0, hn⟩, acc =>
+      ((⟨0, @Nat.lt_of_lt_of_le 0 (length ys + 1) (length xs)
+                                (Nat.zero_lt_succ (length ys)) hys⟩, y) :: acc)
+    | ⟨y :: ys, hys⟩, ⟨Nat.succ n, hn⟩, acc =>
+      vEnumFrom ⟨ys, @Nat.le_trans (length ys) (length ys + 1) (length xs)
+                                   (Nat.le_succ (length ys)) hys⟩
+                ⟨n, Nat.lt_of_succ_lt_succ hn⟩
+                ((⟨Nat.succ n, Nat.lt_of_lt_of_le hn hys⟩, y) :: acc)
+  vEnumFrom ⟨xs, Nat.le_refl (length xs)⟩
+            ⟨length xs - 1,
+             by apply Nat.sub_succ_lt_self; apply Nat.zero_lt_succ⟩
+            []
 termination_by vEnumFrom ys n acc => ys.val.length
 -- | [] => []
 -- | x :: xs => verifiedEnumFrom x :: xs ⟨length xs - 1, by
@@ -264,7 +273,8 @@ def List.merge_sort_with {α} : (α → α → Ordering) → List α → List α
         exact h 
   
   let xs_split := split (x₁ :: x₂ :: xs)
-  merge_with cmp (merge_sort_with cmp (xs_split.fst), merge_sort_with cmp (xs_split.snd))
+  merge_with cmp (merge_sort_with cmp (xs_split.fst),
+                  merge_sort_with cmp (xs_split.snd))
 termination_by merge_sort_with cmp xs => xs.length
 
 -- theorem List.length_map : ∀ (xs : List α) (f : α → β),
@@ -306,10 +316,12 @@ theorem List.length_prod : ∀ (xs : List α) (ys : List β),
 | x :: x' :: xs, y :: ys =>
   -- TODO: could probably consolidate these with the List.prod helper lemmas
   -- (there are some slight discrepancies due to specifying `y :: ys`)
-  have h_term₁ : Nat.succ 0 + Nat.succ (length ys) < Nat.succ (Nat.succ (length xs)) + Nat.succ (length ys) :=
+  have h_term₁ : Nat.succ 0 + Nat.succ (length ys) <
+                 Nat.succ (Nat.succ (length xs)) + Nat.succ (length ys) :=
     by apply Nat.add_lt_add_of_lt
        apply Nat.succ_lt_succ $ Nat.succ_pos (length xs)
-  have h_term₂ : Nat.succ (length xs) + Nat.succ (length ys) < Nat.succ (Nat.succ (length xs)) + Nat.succ (length ys) :=
+  have h_term₂ : Nat.succ (length xs) + Nat.succ (length ys) <
+                 Nat.succ (Nat.succ (length xs)) + Nat.succ (length ys) :=
     by apply Nat.add_lt_add_of_lt
        apply Nat.succ_lt_succ
        apply Nat.lt.base
@@ -337,7 +349,8 @@ theorem List.length_take :
 | _, [], h => by cases h
 | 0, _, _ => by simp only [take, length]
 | Nat.succ n, x :: xs, h =>
-  have ih : length (take n xs) = n := length_take n xs (Nat.lt_of_succ_lt_succ h)
+  have ih : length (take n xs) = n :=
+    length_take n xs (Nat.lt_of_succ_lt_succ h)
   by simp only [take, length]
      apply congrArg Nat.succ ih
 
@@ -465,14 +478,16 @@ theorem List.length_split : ∀ (xs : List α),
      apply congrArg (λ x => x + (1 + 1))
      exact ih
 
-theorem List.length_merge_sort_with : ∀ (cmp : α → α → Ordering) (xs : List α) ,
+theorem List.length_merge_sort_with : ∀ (cmp : α → α → Ordering) (xs : List α),
   length (merge_sort_with cmp xs) = length xs
 | _, [] => rfl
 | _, [x] => rfl
 | cmp, x :: y :: xs =>
-  have term₁ : Nat.succ (length (split xs).fst) < Nat.succ (Nat.succ (length xs)) :=
+  have term₁ : Nat.succ (length (split xs).fst) <
+               Nat.succ (Nat.succ (length xs)) :=
     Nat.succ_le_succ (Nat.succ_le_succ $ split_length_fst' xs)
-  have term₂ : Nat.succ (length (split xs).snd) < Nat.succ (Nat.succ (length xs)) :=
+  have term₂ : Nat.succ (length (split xs).snd) <
+               Nat.succ (Nat.succ (length xs)) :=
     Nat.succ_le_succ (Nat.succ_le_succ $ split_length_snd' xs)
   have ih₁ := length_merge_sort_with cmp (x :: (split xs).1)
   have ih₂ := length_merge_sort_with cmp (y :: (split xs).2)

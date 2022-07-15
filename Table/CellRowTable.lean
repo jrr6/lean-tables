@@ -641,3 +641,22 @@ def pivotWider [inst : Inhabited η]
         (Option.orDefault (getValue r c1.fst c1.snd), η)
       ))) := sorry
 
+
+-- # Notation
+syntax "/[" term,* "]" : term
+-- TODO: there's got to be a better way to handle empty cells -- ideally, there
+-- should be some empty-cell syntax that's only valid within a `/[]` term
+notation "EMP" => termEMP  -- previously `()` -- actual value doesn't matter
+macro_rules
+  | `(/[ $elems,* ]) => do
+    let rec expandRowLit (i : Nat) (skip : Bool) (result : Lean.Syntax) : Lean.MacroM Lean.Syntax := do
+      match i, skip, result with
+      | 0,   _,     _     => pure result
+      | i+1, true,  _  => expandRowLit i false result
+      | i+1, false, _ =>
+        let elem := elems.elemsAndSeps[i]
+        if elem.getKind == `termEMP
+        then expandRowLit i true (← ``(Row.cons (Cell.emp) $result))
+        else expandRowLit i true (← ``(Row.cons (Cell.val $(elems.elemsAndSeps[i])) $result))
+    expandRowLit elems.elemsAndSeps.size false (← ``(Row.nil))
+
