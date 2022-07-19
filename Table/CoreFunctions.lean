@@ -37,6 +37,13 @@ def Subschema.toSchema {schm : @Schema η} : Subschema schm → @Schema η
 | [] => []
 | ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
 
+def Schema.HasCol.size : {schema : @Schema η} →
+                         {hdr : @Header η} →
+                         schema.HasCol hdr →
+                         Nat
+| _, _, Schema.HasCol.hd => 0
+| _, _, Schema.HasCol.tl h => 1 + size h
+
 -- Schema proof generation/manipulation functions
 def Schema.certify (schema : @Schema η) : List (CertifiedHeader schema) :=
   let rec certify_elts : (subschm : @Schema η) → List (CertifiedHeader subschm)
@@ -179,8 +186,30 @@ by intros s t c h
      rw [Schema.lookup_eq_2, Schema.lookup_eq_2]
      exact ih
 
+def Schema.schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema)
+    → schema.HasCol (schema.lookup c)
+| _, ⟨_, Schema.HasName.hd⟩ => Schema.HasCol.hd
+| _ :: s', ⟨c, Schema.HasName.tl h⟩ => Schema.HasCol.tl (schemaHasLookup s' ⟨c, h⟩)
+
+def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
+                                {schema : @Schema η} →
+                                {subschema : Subschema schema} →
+                                (h : subschema.toSchema.HasCol (nm, τ)) →
+    schema.HasCol (nm, τ)
+| _, _, s₁ :: ss₁, ⟨hdr, pf⟩ :: ss₂, Schema.HasCol.hd => pf
+| nm, τ, schema₁, schema₂@(⟨hdr, pf⟩ :: ss), Schema.HasCol.tl h =>
+  have term_helper : sizeOf h < sizeOf (@Schema.HasCol.tl η hdr _ _ _ h) := by
+    simp
+    rw [Nat.add_comm]
+    apply Nat.lt.base;
+  schemaHasSubschema h
+termination_by schemaHasSubschema h => sizeOf h
+
 -- Row utilities
-def Row.singleCell {name τ} (x : τ) :=
+def Row.singleCell {name : η} {τ} (c : Cell name τ) :=
+  @Row.cons η dec_η name τ [] c Row.nil
+
+def Row.singleValue {name τ} (x : τ) :=
   @Row.cons η dec_η name τ [] (Cell.val x) Row.nil
 
 def Row.empty : (schema : @Schema η) → Row schema
@@ -213,6 +242,13 @@ def Row.certifiedFoldr {β} : {schema : @Schema η} →
   f cell Schema.HasCol.hd (@certifiedFoldr β ss (λ {nm α} cell' h acc =>
     f cell' (Schema.HasCol.tl h) acc
   ) z rs)
+
+-- TODO: seems like B2T2 implicitly wants a bunch of row operations that just
+-- happen to be identical to table operations in their TS implementation
+def Row.addColumn {η} [DecidableEq η] {schema : @Schema η} {τ}
+                  (r : Row schema) (c : η) (v : Option τ) :
+    Row (List.append schema [(c, τ)]) :=
+Row.append r (Row.singleCell $ Cell.fromOption v)
 
 -- Not sure if we'll ever need this...
 def Row.toList {schema : @Schema η} {α} (f : ∀ {n β}, @Cell η dec_η n β → α)
@@ -257,6 +293,37 @@ def Row.nths {schema} :
 | n::ns, Row.nil => absurd n.property
                           (by intro nh; simp [List.length] at nh; contradiction)
 | n::ns, r => Row.cons (Row.nth r n.val n.property) (nths ns r)
+
+def Row.getCell {schema : @Schema η} {c : η} {τ : Type u}
+    : Row schema → Schema.HasCol (c, τ) schema → Cell c τ
+| Row.cons cell cells, Schema.HasCol.hd => cell
+| Row.cons cell cells, Schema.HasCol.tl h => getCell cells h
+
+def Row.setCell {schema : @Schema η} {τ : Type u} {c : η}
+    : Row schema → Schema.HasCol (c, τ) schema → Cell c τ → Row schema
+| Row.cons cell cells, Schema.HasCol.hd, newCell => Row.cons newCell cells
+| Row.cons cell cells, Schema.HasCol.tl h, newCell =>
+    Row.cons cell (setCell cells h newCell)
+
+def Row.retypeCell {schema : @Schema η} {τ₁ τ₂ : Type u} {c : η}
+    : Row schema → (h : Schema.HasCol (c, τ₁) schema) → Cell c τ₂
+      → Row (schema.retypeColumn (Schema.colImpliesName h) τ₂)
+| Row.cons cell cells, Schema.HasCol.hd, newCell => Row.cons newCell cells
+| Row.cons cell cells, Schema.HasCol.tl h, newCell =>
+    Row.cons cell (retypeCell cells h newCell)
+
+def Row.pick : {schema : @Schema η} →
+               Row schema →
+               (cs : List (CertifiedName schema)) →
+               Row (Schema.pick schema cs)
+| _, Row.nil, [] => Row.nil
+| _, Row.nil, (⟨c, h⟩::cs) => by cases h
+| _, Row.cons cell rs, [] => Row.nil
+| (s::ss), Row.cons cell rs, (c::cs) =>
+  have h := Schema.schemaHasLookup (s::ss) c;
+  Row.cons (Row.getCell (Row.cons cell rs) h)
+           (pick (Row.cons cell rs) cs)
+termination_by Row.pick r cs => List.length cs
 
 def Row.removeColumn {s : Schema} {c : η} :
     (h : s.HasName c) → Row s → Row (s.removeName h)

@@ -836,16 +836,9 @@ def getName :=
 λ {schema} (h : schema.HasCol ("name", String)) (r : Row schema) =>
   getValue r "name" h
 
--- TODO: seems like B2T2 implicitly wants a bunch of row operations that just
--- happen to be identical to table operations in their TS implementation
-def Row.addColumn {η} [DecidableEq η] {schema : @Schema η} {τ}
-                  (r : Row schema) (c : η) (v : τ) :
-    Row (List.append schema [(c, τ)]) :=
-Row.append r (Row.singleCell v)
-
 def averageFinal := λ (r : Row $ schema students) (t : Table $ schema gradebook) =>
   r.addColumn "final"
-              (average $ List.filterMap id (getColumn2 t "final" (by header)))
+              (some $ average $ List.filterMap id (getColumn2 t "final" (by header)))
 
 #test
 groupJoin students gradebook (getName (by header)) (getName (by header)) averageFinal
@@ -861,7 +854,7 @@ def nameLength' :=
   (getValue r "name" h).map String.length
 
 def tableNRows := λ (r : Row $ schema students) (t : Table $ schema gradebook) =>
-  Row.addColumn r "nrows" (nrows t)
+  Row.addColumn r "nrows" (some $ nrows t)
 
 #test
 groupJoin students gradebook (nameLength' (by header)) (nameLength' (by header)) tableNRows
@@ -877,10 +870,10 @@ def getName' :=
 λ {schema} (h : schema.HasCol ("name", String)) (r : Row schema) =>
   getValue r "name" h
 
--- TODO: handle empty cells!
 def addGradeColumn := λ (r₁ : Row $ schema students) (r₂ : Row $ schema gradebook) =>
-  Row.addColumn r₁ "grade" (getValue r₂ "final" (by header)).orDefault
+  Row.addColumn r₁ "grade" (getValue r₂ "final" (by header))
 
+#eval join students gradebook (getName' (by header)) (getName' (by header)) addGradeColumn
 #test
 join students gradebook (getName' (by header)) (getName' (by header)) addGradeColumn
 =
@@ -891,3 +884,9 @@ Table.mk [
   /[ "Eve"   , 13  , "red"          , 87    ],
   /[ "Eve"   , 13  , "red"          , 77    ]
 ]
+
+def nameLength'' :=
+λ {schema} (h : schema.HasCol ("name", String)) (r : Row schema) =>
+  (getValue r "name" h).map String.length
+
+#eval join students gradebook (nameLength'' $ by header) (nameLength'' $ by header) addGradeColumn

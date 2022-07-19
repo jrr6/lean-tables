@@ -19,13 +19,12 @@ def emptyTable {α : Type u₁} [hα : DecidableEq α] : @Table α hα [] :=
 def addRows (t : Table schema) (r : List (Row schema)) : Table schema :=
   {rows := t.rows ++ r}
 
-def addColumn {τ} (t : Table schema) (c : η) (vs : List τ) :
+def addColumn {τ} (t : Table schema) (c : η) (vs : List (Option τ)) :
     Table (List.append schema [(c, τ)]) :=
-  {rows := (List.map (λ (olds, new) =>
-                      Row.append olds (Row.singleCell new))
-                      (List.zip t.rows vs))}
+  {rows := (List.map (λ (olds, new) => olds.addColumn c new)
+                     (List.zip t.rows vs))}
 
-def buildColumn {τ} (t : Table schema) (c : η) (f : Row schema → τ) :=
+def buildColumn {τ} (t : Table schema) (c : η) (f : Row schema → Option τ) :=
   addColumn t c (List.map f t.rows)
 
 def vcat (t1 : Table schema) (t2 : Table schema) : Table schema :=
@@ -42,7 +41,7 @@ def crossJoin {schema₁ schema₂}
               (t1 : @Table η dec_η schema₁) (t2 : @Table η dec_η schema₂) :
                 @Table η dec_η (List.append schema₁ schema₂) :=
   {rows := List.map (λ (c1, c2) => Row.append c1 c2)
-                        (List.prod t1.rows t2.rows)}
+                    (List.prod t1.rows t2.rows)}
 
 def leftJoin : False := sorry -- TODO:
 
@@ -66,24 +65,6 @@ def getRow : (t : Table schema) → (n : Nat) → (n < nrows t) → Row schema
 | {rows := r::rs}, 0, h => r
 | {rows := r::rs}, Nat.succ n, h => getRow {rows := rs} n (Nat.lt_of_succ_lt_succ h)
 
-def getCell {schema : @Schema η} {c : η} {τ : Type u}
-    : Row schema → Schema.HasCol (c, τ) schema → Cell c τ
-| Row.cons cell cells, Schema.HasCol.hd => cell
-| Row.cons cell cells, Schema.HasCol.tl h => getCell cells h
-
-def setCell {schema : @Schema η} {τ : Type u} {c : η}
-    : Row schema → Schema.HasCol (c, τ) schema → Cell c τ → Row schema
-| Row.cons cell cells, Schema.HasCol.hd, newCell => Row.cons newCell cells
-| Row.cons cell cells, Schema.HasCol.tl h, newCell =>
-    Row.cons cell (setCell cells h newCell)
-
-def retypeCell {schema : @Schema η} {τ₁ τ₂ : Type u} {c : η}
-    : Row schema → (h : Schema.HasCol (c, τ₁) schema) → Cell c τ₂
-      → Row (schema.retypeColumn (Schema.colImpliesName h) τ₂)
-| Row.cons cell cells, Schema.HasCol.hd, newCell => Row.cons newCell cells
-| Row.cons cell cells, Schema.HasCol.tl h, newCell =>
-    Row.cons cell (retypeCell cells h newCell)
-
 -- TODO: it would be nice not to have to provide a proof...
 -- (Also, we now have Schema.lookup -- do we still need the implicit τ arg?
 -- Careful if trying to make this change, though -- might, e.g., mess up the η
@@ -93,7 +74,7 @@ def getValue {τ}
              (c : η)
              (h : Schema.HasCol (c, τ) schema)
     : Option τ :=
-  Cell.toOption (getCell r h)
+  Cell.toOption (r.getCell h)
 
 def getColumn1 (t : Table schema)
                (n : Nat)
@@ -131,24 +112,10 @@ def selectColumns2 (t : Table schema)
     : Table (List.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 
-def schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema)
-    → schema.HasCol (schema.lookup c)
-| _, ⟨_, Schema.HasName.hd⟩ => Schema.HasCol.hd
-| _ :: s', ⟨c, Schema.HasName.tl h⟩ => Schema.HasCol.tl (schemaHasLookup s' ⟨c, h⟩)
-
-def Row.pick : {schema : @Schema η} → Row schema → (cs : List (CertifiedName schema)) → Row (Schema.pick schema cs)
-| _, Row.nil, [] => Row.nil
-| _, Row.nil, (⟨c, h⟩::cs) => by cases h
-| _, Row.cons cell rs, [] => Row.nil
-| (s::ss), Row.cons cell rs, (c::cs) =>
-  have h := schemaHasLookup (s::ss) c;
-  Row.cons (getCell (Row.cons cell rs) h)
-           (pick (Row.cons cell rs) cs)
-termination_by Row.pick r cs => List.length cs
-
 -- FIXME: need to figure out a better way to handle the type -- this breaks
 -- (see `ExampleTests.lean`)
-def selectColumns3 (t : Table schema) (cs : List (CertifiedName schema)) : Table (Schema.pick schema cs) :=
+def selectColumns3 (t : Table schema) (cs : List (CertifiedName schema))
+    : Table (Schema.pick schema cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
 -- TODO: quotient or proof? (should standardize this for other functions, too)
@@ -252,7 +219,7 @@ def bin [ToString η]
         (n : Nat)
     : Table [("group", String), ("count", Nat)] :=
   let col := getColumn2 t c.1 c.2
-  let sorted := col |> List.filterMap id
+  let sorted := col |> List.filterMap id  -- get rid of empty cells
                     |> List.merge_sort_with compare
   -- match sorted with
   -- | [] => {rows := []}
@@ -288,7 +255,13 @@ def bin [ToString η]
   | [] => Table.mk []
   | s :: ss =>
     let bins := mk_bins (s :: ss) s
-    {rows := bins.map (λ (k, cnt) => Row.cons (Cell.val $ toString (k - n) ++ " <= " ++ toString c.1 ++ " < " ++ toString k) (Row.singleCell cnt))}
+    {rows := bins.map (λ (k, cnt) =>
+      Row.cons (Cell.val $
+        toString (k - n) ++ " <= "
+                         ++ toString c.1
+                         ++ " < "
+                         ++ toString k)
+       (Row.singleValue cnt))}
 
   -- Generates counts of bin inhabitants for each bin with upper bound k
   -- let rec mk_bins : τ → List τ → Nat → List (τ × Nat) := λ
@@ -323,25 +296,6 @@ def dropna (t : Table schema) : Table schema :=
 
 -- # Utilities
 
-def Schema.HasCol.size : {schema : @Schema η} → {hdr : @Header η} → schema.HasCol hdr → Nat
-| _, _, Schema.HasCol.hd => 0
-| _, _, Schema.HasCol.tl h => 1 + size h
-
-
-def schemaHasSubschema : {nm : η} → {τ : Type u} →
-                         {schema : @Schema η} →
-                         {subschema : Subschema schema} →
-                         (h : subschema.toSchema.HasCol (nm, τ)) →
-    schema.HasCol (nm, τ)
-| _, _, s₁ :: ss₁, ⟨hdr, pf⟩ :: ss₂, Schema.HasCol.hd => pf
-| nm, τ, schema₁, schema₂@(⟨hdr, pf⟩ :: ss), Schema.HasCol.tl h =>
-  have term_helper : sizeOf h < sizeOf (@Schema.HasCol.tl η hdr _ _ _ h) := by
-    simp
-    rw [Nat.add_comm]
-    apply Nat.lt.base;
-  schemaHasSubschema h
-termination_by schemaHasSubschema h => sizeOf h
-
 -- FIXME: Lean can't infer the subschema because it's really trying to infer
 -- "subschema.toSchema," which isn't definitional
 -- Couple of options here. The best thing would be to figure out a way to let
@@ -352,13 +306,13 @@ def update {schema₁ : @Schema η}
            (t : Table schema₁)
            (f : Row schema₁ → Row schema₂.toSchema) : Table schema₁ :=
   {rows := t.rows.map (λ r =>
-    let newCells : Row schema₂.toSchema := f r;
+    let newCells : Row schema₂.toSchema := f r
     newCells.certifiedFoldr
       (λ {nm τ}
          (cell : Cell nm τ)
          (h : schema₂.toSchema.HasCol (nm, τ))
          (acc : Row schema₁) =>
-          @setCell _ _ _ cell.type cell.name acc (schemaHasSubschema h) cell)
+          Row.setCell acc (Schema.schemaHasSubschema h) cell)
       r
   )}
 
@@ -368,18 +322,15 @@ def fillna {τ}
            (v : τ)
     : Table schema :=
   update [⟨(c.fst, τ), c.snd⟩] t
-    (λ r => match getCell r c.snd with
-                | Cell.emp => Row.singleCell v
-                | Cell.val vOld => Row.singleCell vOld)
+    (λ r => match Row.getCell r c.snd with
+                | Cell.emp => Row.singleValue v
+                | Cell.val vOld => Row.singleValue vOld)
 
 def select {schema' : @Schema η}
            (t : Table schema)
            (f : Row schema → {n : Nat // n < nrows t} → Row schema')
     : Table schema' :=
   {rows := t.rows.verifiedEnum.map (λ (n, r) => f r n)}
-
-#eval List.verifiedEnum [3,4,5]
-
 
 def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
                {schema₂ : @Schema ζ} {schema₃ : @Schema θ}
@@ -389,7 +340,8 @@ def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
     : Table schema₃ :=
 {rows :=
   t.rows.verifiedEnum.flatMap (λ (n, r) =>
-    (List.zip t.rows (project r n).rows).map (λ (r1, r2) => result r1 r2)
+    let projection := project r n
+    projection.rows.map (λ r' => result r r')
   )
 }
 
@@ -416,7 +368,7 @@ def join {κ : Type u_η} [DecidableEq κ]
     : Table schema₃ :=
   selectMany t₁
              (λ r₁ _ =>
-               let k := getKey₁ r₁;
+               let k := getKey₁ r₁
                tfilter t₂ (λ r₂ => getKey₂ r₂ == k))
              combine
 
@@ -471,8 +423,7 @@ def groupBy {η'} [DecidableEq η']
       (k, v :: fms.1) :: group fms.2
   let projected := t.rows.map (λ r => (key r, project r))
   let grouped := group projected
-{rows :=
-  grouped.map (λ klv => aggregate klv.1 klv.2)}
+{rows := grouped.map (λ klv => aggregate klv.1 klv.2)}
 termination_by group xs => xs.length
 
 -- TODO: probably a more elegant/functorial/monadic way to do this
@@ -484,7 +435,7 @@ def flattenOne {τ}
   t.rows.flatMap (λ (r : Row schema) =>
       match getValue r c.1 c.2 with
       | none => []
-      | some xs => xs.foldr (λ x acc => retypeCell r c.2 (Cell.val x) :: acc) []
+      | some xs => xs.foldr (λ x acc => r.retypeCell c.2 (Cell.val x) :: acc) []
   )
 }
 
@@ -499,7 +450,7 @@ def transformColumn {τ₁ τ₂}
                     (f : Option τ₁ → Option τ₂)
     : Table (schema.retypeColumn (Schema.colImpliesName c.snd) τ₂) :=
   {rows := t.rows.map (λ (r : Row schema) =>
-    retypeCell r c.snd (Cell.fromOption (f (getValue r c.fst c.snd)))
+    r.retypeCell c.snd (Cell.fromOption (f (getValue r c.fst c.snd)))
   )}
 
 -- TODO: same issue as with removing columns...
