@@ -98,11 +98,30 @@ def List.flatMap {α β} (f : α → List β) : List α → List β
 | [] => []
 | x :: xs => f x ++ flatMap f xs
 
+-- def List.verifiedEnum' : (xs : List α) → List ({n : Nat // n < xs.length} × α)
+-- | [] => []
+-- | x :: xs =>
+--   let zs := x :: xs
+--   have hzs : zs = x :: xs := rfl
+--   let rec vEnumFrom : (ys : {ys // ys.length < zs.length})
+--                       → {n : Nat // n < zs.length - ys.val.length}
+--                       → List ({n : Nat // n < zs.length} × α)
+--   | ⟨[], _⟩, _ => []
+--   | ⟨y :: ys, hys⟩, ⟨n, hn⟩ =>
+--     ⟨⟨n,
+--     by apply hn
+--     ⟩, y⟩ :: vEnumFrom ⟨ys, sorry⟩ ⟨n + 1, sorry⟩
+
+--   vEnumFrom ⟨zs, sorry⟩ ⟨0, sorry⟩
+  -- ⟨⟨0, Nat.lt_of_succ_le (Nat.le_add_left 1 (length xs))⟩, x⟩
+  --   :: vEnumFrom ⟨xs, _⟩ ⟨0, _⟩
+
 -- TODO: I refuse to believe there isn't a simpler way to do this
+-- TODO: using `reverse` makes the proofs easier, but could find a way to avoid?
 def List.verifiedEnum : (xs : List α) → List ({n : Nat // n < xs.length} × α)
 | [] => []
 | z :: zs =>
-  let xs := z :: zs;
+  let xs := z :: zs  -- `xs@(z :: zs)` doesn't work
   let rec vEnumFrom : (ys : {ys : List α // ys.length ≤ xs.length})
                       → {n : Nat // n < ys.val.length}
                       → List ({n : Nat // n < xs.length} × α)
@@ -116,9 +135,9 @@ def List.verifiedEnum : (xs : List α) → List ({n : Nat // n < xs.length} × �
                                    (Nat.le_succ (length ys)) hys⟩
                 ⟨n, Nat.lt_of_succ_lt_succ hn⟩
                 ((⟨Nat.succ n, Nat.lt_of_lt_of_le hn hys⟩, y) :: acc)
-  vEnumFrom ⟨xs, Nat.le_refl (length xs)⟩
+  vEnumFrom ⟨reverse xs, Nat.le_of_eq $ List.length_reverse xs⟩
             ⟨length xs - 1,
-             by apply Nat.sub_succ_lt_self; apply Nat.zero_lt_succ⟩
+             by rw [List.length_reverse]; apply Nat.sub_succ_lt_self; apply Nat.zero_lt_succ⟩
             []
 termination_by vEnumFrom ys n acc => ys.val.length
 -- | [] => []
@@ -503,6 +522,16 @@ theorem List.length_merge_sort_with : ∀ (cmp : α → α → Ordering) (xs : L
      apply congrArg (λ x => x + (1 + 1))
      apply length_split
 termination_by length_merge_sort_with cmp xs => xs.length
+
+-- Slightly over-generalized "loop invariant" (we could make the preservation
+-- portion more specific, e.g., by providing `x ∈ xs` as an extra hypothesis)
+theorem List.foldr_invariant :
+  ∀ (p : β → Prop) (f : α → β → β) (z : β) (xs : List α),
+  p z → (∀ x a, p a → p (f x a)) → p (List.foldr f z xs)
+| _, _, _, [], h_init, _ => h_init
+| p, f, z, x :: xs, h_init, h_pres =>
+  h_pres x (foldr f z xs) (foldr_invariant p f z xs h_init h_pres)
+
 
 -- I suspect this is probably built in somewhere, but I'm not finding it
 -- def Int.abs (z : Int) := if z < 0 then -z else z

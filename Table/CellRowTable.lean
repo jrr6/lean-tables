@@ -95,14 +95,11 @@ def getValue {τ}
     : Option τ :=
   Cell.toOption (getCell r h)
 
--- ...but in the meantime, here's a tactic to make the proof trivial
-macro "header" : tactic => `(repeat ((try apply Schema.HasCol.hd) <;> (apply Schema.HasCol.tl)))
-macro "name" : tactic => `(repeat ((try apply Schema.HasName.hd) <;> (apply Schema.HasName.tl)))
-
 def getColumn1 (t : Table schema)
                (n : Nat)
-               (h : n < ncols t) :=
-  List.map (λr => List.nth _ n h) t.rows
+               (h : n < ncols t)
+    : List (Option (List.nth schema n h).2) :=
+  List.map (λr => Cell.toOption $ Row.nth r n h) t.rows
 
 def getColumn2 {τ}
                (t : Table schema)
@@ -149,6 +146,8 @@ def Row.pick : {schema : @Schema η} → Row schema → (cs : List (CertifiedNam
            (pick (Row.cons cell rs) cs)
 termination_by Row.pick r cs => List.length cs
 
+-- FIXME: need to figure out a better way to handle the type -- this breaks
+-- (see `ExampleTests.lean`)
 def selectColumns3 (t : Table schema) (cs : List (CertifiedName schema)) : Table (Schema.pick schema cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
@@ -167,17 +166,18 @@ def distinct [DecidableEq (Row schema)] : Table schema → Table schema
 | {rows := []} => {rows := []}
 | {rows := r :: rs} =>
   -- Help the termination checker
-  have _ : List.length (List.filter (λ r' => decide (r = r')) rs)
+  have _ : List.length (List.filter (λ r' => !decide (r = r')) rs)
            < Nat.succ (List.length rs) :=
-    Nat.lt_of_le_of_lt (List.filter_length (λ r' => decide (r = r')) rs)
+    Nat.lt_of_le_of_lt (List.filter_length (λ r' => !decide (r = r')) rs)
                        (Nat.lt.base (List.length rs))
   {rows := (
     r :: Table.rows (distinct ({rows :=
-      (rs.filter (λ r' => r = r'))
+      (rs.filter (λ r' => r ≠ r'))
     }))
   )}
 termination_by distinct t => t.rows.length
 
+-- FIXME: same issue as `selectColumn3`
 def dropColumn (t : Table schema) (c : CertifiedName schema)
     : Table (schema.removeName c.property) :=
 {rows := t.rows.map (Row.removeColumn c.property)}
@@ -196,15 +196,19 @@ def tsort {τ} [Ord τ]
           (c : ((c : η) × schema.HasCol (c, τ)))
           (asc : Bool)
     : Table schema :=
+  let ascDesc
+  | false, Ordering.lt => Ordering.gt
+  | false, Ordering.gt => Ordering.lt
+  | _    , ordering    => ordering
 {rows :=
   t.rows.merge_sort_with (λ r₁ r₂ => 
     let ov₁ := getValue r₁ c.1 c.2
     let ov₂ := getValue r₂ c.1 c.2
     match (ov₁, ov₂) with
     | (none, none) => Ordering.eq
-    | (_, none) => Ordering.gt
-    | (none, _) => Ordering.lt
-    | (some v₁, some v₂) => compare v₁ v₂
+    | (_, none) => ascDesc asc Ordering.gt
+    | (none, _) => ascDesc asc Ordering.lt
+    | (some v₁, some v₂) => ascDesc asc $ compare v₁ v₂
   )
 }
 
@@ -240,6 +244,7 @@ def count {τ} [DecidableEq τ]
 
 -- FIXME: the necessary instances don't seem to exist for, e.g., Int, so
 -- functionally we constrain τ = Nat, which is too restrictive
+-- FIXME: this doesn't generate empty intermediate bins!
 def bin [ToString η]
         {τ} [Ord τ] [HDiv τ Nat $ outParam τ] [OfNat (outParam τ) 1] [HMul (outParam τ) Nat τ] [Add (outParam τ)] [HSub τ Nat $ outParam τ] [DecidableEq τ] [ToString τ] -- [HAdd τ Nat $ outParam τ]
         (t : Table schema)
@@ -283,7 +288,7 @@ def bin [ToString η]
   | [] => Table.mk []
   | s :: ss =>
     let bins := mk_bins (s :: ss) s
-    {rows := bins.map (λ (k, cnt) => Row.cons (Cell.val $ toString (k - n) ++ " ≤ " ++ toString c.1 ++ " < " ++ toString k) (Row.singleCell cnt))}
+    {rows := bins.map (λ (k, cnt) => Row.cons (Cell.val $ toString (k - n) ++ " <= " ++ toString c.1 ++ " < " ++ toString k) (Row.singleCell cnt))}
 
   -- Generates counts of bin inhabitants for each bin with upper bound k
   -- let rec mk_bins : τ → List τ → Nat → List (τ × Nat) := λ
@@ -305,7 +310,7 @@ def completeCases {τ} (t : Table schema) (c : ((c : η) × schema.HasCol (c, τ
   List.map (λ v => Option.isSome v) (getColumn2 t c.fst c.snd)
 
 def dropna (t : Table schema) : Table schema :=
-  {rows := t.rows.filter (λ r => r.hasEmpty)}
+  {rows := t.rows.filter (λ r => !r.hasEmpty)}
 
 -- TODO: this should work, but type class resolution is failing for some reason
 -- def dropna' (t : Table schema) : Table schema :=
@@ -372,6 +377,9 @@ def select {schema' : @Schema η}
            (f : Row schema → {n : Nat // n < nrows t} → Row schema')
     : Table schema' :=
   {rows := t.rows.verifiedEnum.map (λ (n, r) => f r n)}
+
+#eval List.verifiedEnum [3,4,5]
+
 
 def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
                {schema₂ : @Schema ζ} {schema₃ : @Schema θ}
@@ -516,6 +524,31 @@ def find {nm : η} {τ : Type u} {ss : @Schema η}
          | none => none
 termination_by find t r => t.rows.length
 
+-- FIXME: figure out how to properly handle `find`
+-- def isSubRow : {schema : @Schema η} →
+--                {subschema : Subschema schema} →
+--                [DecidableEq $ Row subschema.toSchema] →
+--                (sr : Row subschema.toSchema) →
+--                (r : Row schema) →
+--                Bool
+-- | _, [], _, Row.nil, _ => true
+-- | _, _ :: _, _, _, Row.nil => false
+-- | schema, ⟨(nm, _), pf⟩ :: subsch, inst, Row.cons sc scs, r =>
+--   if getCell r pf = sc
+--   then @isSubRow schema subsch inst scs r
+--   else false
+
+-- def find' {schema : @Schema η}
+--           (subschema : Subschema schema)
+--           [DecidableEq $ Row subschema.toSchema] :
+--           Table (schema) → Row (subschema.toSchema) → Option Nat
+-- | {rows := []}, r => none
+-- | {rows := r :: rs}, r' =>
+--   if isSubRow r' r
+--   then some 0
+--   else (find' subschema {rows := rs} r').map (λ n => n + 1)
+  
+
 def groupByRetentive {τ : Type u} [DecidableEq τ]
                      (t : Table schema)
                      (c : ((c : η) × schema.HasCol (c, τ)))
@@ -640,23 +673,3 @@ def pivotWider [inst : Inhabited η]
       (t.rows.map (λ (r : Row schema) =>
         (Option.orDefault (getValue r c1.fst c1.snd), η)
       ))) := sorry
-
-
--- # Notation
-syntax "/[" term,* "]" : term
--- TODO: there's got to be a better way to handle empty cells -- ideally, there
--- should be some empty-cell syntax that's only valid within a `/[]` term
-notation "EMP" => termEMP  -- previously `()` -- actual value doesn't matter
-macro_rules
-  | `(/[ $elems,* ]) => do
-    let rec expandRowLit (i : Nat) (skip : Bool) (result : Lean.Syntax) : Lean.MacroM Lean.Syntax := do
-      match i, skip, result with
-      | 0,   _,     _     => pure result
-      | i+1, true,  _  => expandRowLit i false result
-      | i+1, false, _ =>
-        let elem := elems.elemsAndSeps[i]
-        if elem.getKind == `termEMP
-        then expandRowLit i true (← ``(Row.cons (Cell.emp) $result))
-        else expandRowLit i true (← ``(Row.cons (Cell.val $(elems.elemsAndSeps[i])) $result))
-    expandRowLit elems.elemsAndSeps.size false (← ``(Row.nil))
-

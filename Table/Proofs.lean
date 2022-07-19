@@ -327,15 +327,6 @@ theorem tsort_spec2 : ∀ {τ : Type u} [Ord τ]
   schema (tsort t c b) = schema t :=
 λ t c b => rfl
 
--- Slightly over-generalized "loop invariant" (we could make the preservation
--- portion more specific, e.g., by providing `x ∈ xs` as an extra hypothesis)
-theorem List.foldr_invariant :
-  ∀ (p : β → Prop) (f : α → β → β) (z : β) (xs : List α),
-  p z → (∀ x a, p a → p (f x a)) → p (List.foldr f z xs)
-| _, _, _, [], h_init, _ => h_init
-| p, f, z, x :: xs, h_init, h_pres =>
-  h_pres x (foldr f z xs) (foldr_invariant p f z xs h_init h_pres)
-
 theorem sortByColumns_spec1 :
   ∀ (t : Table sch) (hs : List ((h : Header) × sch.HasCol h × Ord h.snd)),
     nrows (sortByColumns t hs) = nrows t :=

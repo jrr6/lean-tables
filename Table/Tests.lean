@@ -1,5 +1,8 @@
 import Table.CellRowTable
 
+macro "header" : tactic => `(repeat ((try apply Schema.HasCol.hd) <;> (apply Schema.HasCol.tl)))
+macro "name" : tactic => `(repeat ((try apply Schema.HasName.hd) <;> (apply Schema.HasName.tl)))
+
 universe u_η
 universe u
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
