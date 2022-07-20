@@ -6,13 +6,15 @@ macro "header" : tactic => `(repeat (first | apply Schema.HasCol.hd | apply Sche
 macro "name" : tactic => `(repeat (first | apply Schema.HasName.hd | apply Schema.HasName.tl))
 
 -- # Table Notation
-syntax (name := rowLiteralParser) "/[" term,* "]" : term
+declare_syntax_cat cell
+syntax (name := emptyCell) "EMP" : cell
+syntax (name := valueCell) term : cell
+elab_rules : term
+| `(emptyCell| EMP) => do Lean.Elab.Term.elabTerm (← `(Cell.emp)) none
+| `(valueCell| $x) => do Lean.Elab.Term.elabTerm (← `(Cell.val $x)) none
 
--- TODO: there's got to be a better way to handle empty cells -- ideally, there
--- should be some empty-cell syntax that's only valid within a `/[]` term
--- TODO: explore using a new syntax category for empty cells! Literals then take
--- *either* a term or an empty-cell cat. This seems like the real answer here.
-notation "EMP" => termEMP  -- previously `()` -- actual value doesn't matter
+syntax (name := rowLiteralParser) "/[" cell,* "]" : term
+
 macro_rules
   | `(/[ $elems,* ]) => do
     let rec expandRowLit (i : Nat) (skip : Bool) (result : Lean.Syntax) : Lean.MacroM Lean.Syntax := do
@@ -21,22 +23,16 @@ macro_rules
       | i+1, true,  _  => expandRowLit i false result
       | i+1, false, _ =>
         let elem := elems.elemsAndSeps[i]
-        if elem.getKind == `termEMP
-        then expandRowLit i true (← ``(Row.cons (Cell.emp) $result))
-        else expandRowLit i true (← ``(Row.cons (Cell.val $(elems.elemsAndSeps[i])) $result))
+        expandRowLit i true (← ``(Row.cons $elem $result))
     expandRowLit elems.elemsAndSeps.size false (← ``(Row.nil))
 
-syntax (name := namedRowLiteralParser) "/[" (term " := " term),* "]" : term
+syntax (name := namedRowLiteralParser) "/[" (term " := " cell),* "]" : term
 macro_rules
-  | `(/[ $[$nms:term := $vals:term],* ]) => do
-    let mkCell (nm val : Lean.Syntax) : Lean.MacroM Lean.Syntax :=
-      if val.getKind == `termEMP
-      then `(@Cell.emp _ _ $nm _)
-      else `(@Cell.val _ _ $nm _ $val)
+  | `(/[ $[$nms:term := $vals:cell],* ]) => do
     let accCell : (Lean.Syntax × Lean.Syntax) → Lean.Syntax
                     → Lean.MacroM Lean.Syntax
     | (nm, val), acc => do
-      let cell ← mkCell nm val
+      let cell ← `(($val : Cell $nm _))
       `(Row.cons $cell $acc)
     let nil ← ``(Row.nil)
     Array.foldrM accCell nil (Array.zip nms vals)
