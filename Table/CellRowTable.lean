@@ -114,8 +114,8 @@ def selectColumns2 (t : Table schema)
 
 -- FIXME: need to figure out a better way to handle the type -- this breaks
 -- (see `ExampleTests.lean`)
-def selectColumns3 (t : Table schema) (cs : List (CertifiedName schema))
-    : Table (Schema.pick schema cs) :=
+def selectColumns3 (t : Table schema) (cs : List (CertifiedHeader schema))
+    : Table (Schema.fromCHeaders cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
 -- TODO: quotient or proof? (should standardize this for other functions, too)
@@ -431,6 +431,7 @@ def flattenOne {τ}
                (t : Table schema)
                (c : ((c : η) × schema.HasCol (c, List τ)))
     : Table (schema.retypeColumn (Schema.colImpliesName c.2) τ) :=
+    -- : Table (schema.flattenList ⟨c.1, τ, c.2⟩) :=
 {rows :=
   t.rows.flatMap (λ (r : Row schema) =>
       match getValue r c.1 c.2 with
@@ -440,7 +441,8 @@ def flattenOne {τ}
 }
 
 -- def flatten (t : Table schema)
---             (cs : List ((τ : Type u) × ((c : η) × schema.HasCol (c, List τ))))
+--             (cs : List ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))
+--             : Table (schema.flattenLists cs) := sorry
 
 -- def flatten (t : Table schema) (cs : List (CertifiedName schema)) : Table _ := sorry
 

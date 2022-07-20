@@ -26,7 +26,7 @@ inductive Row {η : Type u_η} [DecidableEq η] : @Schema η → Type (max u_η 
 -- Should tables contain their number of rows and columns at type level? (Also
 -- probably.)
 -- Also, we still need to enforce distinct column names somehow...
---  --> we could quotient over lists to restrict to lists that don't contain
+--  --> we could subtype over lists to restrict to lists that don't contain
 --      duplicates, but I could imagine that causing a lot of headaches
 
 structure Table {η : Type u_η} [DecidableEq η] (hs : @Schema η) where

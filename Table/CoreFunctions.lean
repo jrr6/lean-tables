@@ -37,6 +37,9 @@ def Subschema.toSchema {schm : @Schema η} : Subschema schm → @Schema η
 | [] => []
 | ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
 
+def Schema.fromCHeaders {schema : @Schema η} (cs : List (CertifiedHeader schema)) :
+  @Schema η := cs.map Sigma.fst
+
 def Schema.HasCol.size : {schema : @Schema η} →
                          {hdr : @Header η} →
                          schema.HasCol hdr →
@@ -107,6 +110,15 @@ def Schema.removeName {c : η} :
 | _::s, Schema.HasName.hd => s
 | s::ss, Schema.HasName.tl h => s :: removeName ss h
 
+theorem Schema.removeName_eq_1 {η : Type u_η} [DecidableEq η]
+  {c : η} (hdr : @Header η) (ss : @Schema η) :
+  removeName (hdr :: ss) Schema.HasName.hd = ss := rfl
+
+theorem Schema.removeName_eq_2 {η : Type u_η} [DecidableEq η]
+  {c : η} (hdr : @Header η) (ss : @Schema η)
+  (h : Schema.HasName c ss) :
+  removeName (hdr :: ss) (Schema.HasName.tl h) = hdr :: removeName ss h := rfl
+
 -- TODO: Uniqueness is evil...
 -- TODO: new issue is that the input might have duplicate names...
 def Schema.removeNames {η : Type u_η} [DecidableEq η] :
@@ -121,6 +133,21 @@ def Schema.removeNames {η : Type u_η} [DecidableEq η] :
       | cons x xs ih => _
 ⟩) ys)
 -/
+
+-- Same problem yet again
+def Schema.flattenList : (schema : @Schema η) →
+                         ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)) →
+                         @Schema η
+| (_, _) :: ss, ⟨nm, τ, Schema.HasCol.hd⟩ => (nm, τ) :: ss
+| hdr :: ss, ⟨nm, τ, Schema.HasCol.tl h⟩ => hdr :: flattenList ss ⟨nm, τ, h⟩
+
+def Schema.flattenLists : (schema : @Schema η) →
+                          (List ((c : η) ×
+                                 (τ : Type u) ×
+                                 schema.HasCol (c, List τ))) →
+                         @Schema η
+| ss, [] => ss
+| ss, c :: cs => sorry -- flattenLists (flattenList ss c) cs
 
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η]
@@ -314,14 +341,13 @@ def Row.retypeCell {schema : @Schema η} {τ₁ τ₂ : Type u} {c : η}
 
 def Row.pick : {schema : @Schema η} →
                Row schema →
-               (cs : List (CertifiedName schema)) →
-               Row (Schema.pick schema cs)
+               (cs : List (CertifiedHeader schema)) →
+               Row (Schema.fromCHeaders cs)
 | _, Row.nil, [] => Row.nil
 | _, Row.nil, (⟨c, h⟩::cs) => by cases h
 | _, Row.cons cell rs, [] => Row.nil
 | (s::ss), Row.cons cell rs, (c::cs) =>
-  have h := Schema.schemaHasLookup (s::ss) c;
-  Row.cons (Row.getCell (Row.cons cell rs) h)
+  Row.cons (Row.getCell (Row.cons cell rs) c.2)
            (pick (Row.cons cell rs) cs)
 termination_by Row.pick r cs => List.length cs
 
@@ -369,7 +395,7 @@ instance {ss : @Schema η}
   by simp; apply h_conj_dec
 
 -- TODO: simplify a la case 4 of Cell instance?
-instance {sch : @Schema η} [DecidableEq (Row sch)] : DecidableEq (Table sch) :=
+instance {sch : @Schema η} [inst : DecidableEq (Row sch)] : DecidableEq (Table sch) :=
 λ {rows := r₁} {rows := r₂} =>
 dite (r₁ = r₂)
      (λ htrue => isTrue $ congrArg Table.mk htrue)
