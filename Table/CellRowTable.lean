@@ -149,9 +149,10 @@ def dropColumn (t : Table schema) (c : CertifiedName schema)
     : Table (schema.removeName c.property) :=
 {rows := t.rows.map (Row.removeColumn c.property)}
 
--- FIXME: this issue again (see `removeNames`)...
-def dropColumns (t : Table schema) (cs : List (CertifiedName schema))
-    : Table (schema.removeNames cs) := sorry
+def dropColumns (t : Table schema)
+                (cs : Schema.ActionList Schema.removeCertifiedName schema)
+    : Table (schema.removeNames cs) :=
+{rows := t.rows.map (Row.removeColumns cs)}
 
 def tfilter (t : Table schema) (f : Row schema → Bool) : Table schema :=
 {rows := t.rows.filter f}

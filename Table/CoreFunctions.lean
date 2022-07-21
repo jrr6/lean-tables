@@ -119,20 +119,31 @@ theorem Schema.removeName_eq_2 {η : Type u_η} [DecidableEq η]
   (h : Schema.HasName c ss) :
   removeName (hdr :: ss) (Schema.HasName.tl h) = hdr :: removeName ss h := rfl
 
--- TODO: Uniqueness is evil...
--- TODO: new issue is that the input might have duplicate names...
+def Schema.removeCertifiedName (s : @Schema η) (cn : CertifiedName s) :=
+  removeName s cn.2
+
+def Schema.removeCNPres_aux : {schema : @Schema η} →
+                              {nm : η} →
+                              {n : schema.HasName nm} →
+                              {nm' : η} →
+                              Schema.HasName nm' (schema.removeName n) →
+                              Schema.HasName nm' schema
+| _ :: _, nm, Schema.HasName.hd, nm', pf => Schema.HasName.tl pf
+| (nm', τ) :: ss, nm, Schema.HasName.tl h, _, Schema.HasName.hd =>
+  Schema.HasName.hd
+| s :: ss, nm, Schema.HasName.tl h, nm', Schema.HasName.tl h' =>
+  let ih := @removeCNPres_aux _ nm h nm' h'
+  Schema.HasName.tl ih
+
+def Schema.removeCNPres {schema : @Schema η} {nm} {n : schema.HasName nm}
+                        (cn : CertifiedName $ schema.removeName n)
+    : CertifiedName schema
+  := ⟨cn.1, removeCNPres_aux cn.2⟩
+
 def Schema.removeNames {η : Type u_η} [DecidableEq η] :
-    (s : @Schema η) → List (CertifiedName s) → @Schema η
-| ss, [] => ss
-| ss, (y::ys) => sorry -- removeNames (removeName ss y.snd) ys
-/-
-`ys` gets changed to:
-(List.map (λ (x : ((c : CertifiedName ss) × (c.fst ≠ y.fst))) => ⟨x.fst.fst, by
-      induction ss with
-      | nil => cases x with | mk fst snd => cases snd
-      | cons x xs ih => _
-⟩) ys)
--/
+    (s : @Schema η) → ActionList removeCertifiedName s → @Schema η
+| ss, ActionList.nil => ss
+| ss, ActionList.cons cn rest => removeNames (removeName ss cn.2) rest
 
 -- Same problem yet again
 def Schema.flattenList : (schema : @Schema η) →
@@ -142,12 +153,10 @@ def Schema.flattenList : (schema : @Schema η) →
 | hdr :: ss, ⟨nm, τ, Schema.HasCol.tl h⟩ => hdr :: flattenList ss ⟨nm, τ, h⟩
 
 def Schema.flattenLists : (schema : @Schema η) →
-                          (List ((c : η) ×
-                                 (τ : Type u) ×
-                                 schema.HasCol (c, List τ))) →
+                          (ActionList flattenList schema) →
                          @Schema η
-| ss, [] => ss
-| ss, c :: cs => sorry -- flattenLists (flattenList ss c) cs
+| ss, ActionList.nil => ss
+| ss, ActionList.cons c cs => flattenLists (flattenList ss c) cs
 
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η]
@@ -180,13 +189,15 @@ def Schema.renameColumn {η : Type u_η} [DecidableEq η]
 | _, (nm, τ) :: cs, Schema.HasName.hd, nm' => (nm', τ) :: cs
 | _, c :: cs, Schema.HasName.tl h, nm' => c :: renameColumn cs h nm'
 
--- TODO: this issue again. Whenever our recursion looks like
--- `f_list (f_el schema modifier_el) rest_of_modifier_list`
--- bad things happen
+def Schema.renameColumnCN {η : Type u_η} [DecidableEq η]
+                          (s : @Schema η) (entry : CertifiedName s × η)
+    : @Schema η :=
+  renameColumn s entry.1.2 entry.2
+
 def Schema.renameColumns {η : Type u_η} [DecidableEq η]
-    : (s : @Schema η) → List (CertifiedName s × η) → @Schema η
-| s, [] => []
-| s, (oldPf, nm') :: ccs => sorry --renameColumns (renameColumn s oldPf.snd nm') ccs
+    : (s : @Schema η) → ActionList renameColumnCN s → @Schema η
+| s, ActionList.nil => []
+| s, ActionList.cons c ccs => renameColumns (renameColumnCN s c) ccs
 
 theorem Schema.removeName_sublist :
   ∀ (s : @Schema η) (c : η) (hc : HasName c s),
@@ -354,7 +365,14 @@ termination_by Row.pick r cs => List.length cs
 def Row.removeColumn {s : Schema} {c : η} :
     (h : s.HasName c) → Row s → Row (s.removeName h)
 | Schema.HasName.hd, Row.cons r rs => rs
-| Schema.HasName.tl h', Row.cons r rs => Row.cons r (removeColumn h' rs)
+| Schema.HasName.tl h',Row.cons r rs => Row.cons r (removeColumn h' rs)
+
+def Row.removeColumns {s : @Schema η} :
+    (cs : Schema.ActionList Schema.removeCertifiedName s) →
+    Row s →
+    Row (s.removeNames cs)
+| .nil, r => r
+| .cons c cs, r => removeColumns cs (removeColumn c.2 r) 
 
 /-------------------------------------------------------------------------------
                           Decidable Equality Instances
