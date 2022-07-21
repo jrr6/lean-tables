@@ -37,6 +37,17 @@ macro_rules
     let nil ← ``(Row.nil)
     Array.foldrM accCell nil (Array.zip nms vals)
 
+-- # ActionList Notation
+syntax "A[" term,* "]" : term
+macro_rules
+  | `(A[ $elems,* ]) => do
+    let rec expandListLit (i : Nat) (skip : Bool) (result : Lean.Syntax) : Lean.MacroM Lean.Syntax := do
+      match i, skip with
+      | 0,   _     => pure result
+      | i+1, true  => expandListLit i false result
+      | i+1, false => expandListLit i true  (← ``(ActionList.cons $(elems.elemsAndSeps[i]) $result))
+    expandListLit elems.elemsAndSeps.size false (← ``(ActionList.nil))
+
 -- # Table `toString`
 -- TODO: make this prettier
 instance : ToString (@Row η dec_η []) where

@@ -427,7 +427,24 @@ Table.mk [
   /[ "Eve"   , 13  , 7     , 9     , 84      , 8     , 8     ]
 ]
 
--- TODO: `dropColumns`
+-- `dropColumns`
+#test
+dropColumns students A[⟨"age", by name⟩]
+=(Table [("name", String), ("favorite color", String)])
+Table.mk [
+  /[ "Bob"   , "blue"         ],
+  /[ "Alice" , "green"        ],
+  /[ "Eve"   , "red"          ]
+]
+
+#test
+dropColumns gradebook A[⟨"final", by name⟩, ⟨"midterm", by name⟩]
+=
+Table.mk [
+  /[ "Bob"   , 12  , 8     , 9     , 7     , 9     ],
+  /[ "Alice" , 17  , 6     , 8     , 8     , 7     ],
+  /[ "Eve"   , 13  , 7     , 9     , 8     , 8     ]
+]
 
 -- `tfilter`
 def ageUnderFifteen : (Row $ schema students) → Bool := λ r =>
@@ -628,7 +645,48 @@ Table.mk [
 
 -- TODO: `pivotWider`
 
--- TODO: `flatten`
+-- `flatten`
+#test
+flatten gradebookSeq A[⟨"quizzes", _, by header⟩]
+=(Table [("name", String), ("age", Nat), ("quizzes", Nat), ("midterm", Nat), ("final", Nat)])
+Table.mk [
+  /[ "Bob"   , 12  , 8       , 77      , 87    ],
+  /[ "Bob"   , 12  , 9       , 77      , 87    ],
+  /[ "Bob"   , 12  , 7       , 77      , 87    ],
+  /[ "Bob"   , 12  , 9       , 77      , 87    ],
+  /[ "Alice" , 17  , 6       , 88      , 85    ],
+  /[ "Alice" , 17  , 8       , 88      , 85    ],
+  /[ "Alice" , 17  , 8       , 88      , 85    ],
+  /[ "Alice" , 17  , 7       , 88      , 85    ],
+  /[ "Eve"   , 13  , 7       , 84      , 77    ],
+  /[ "Eve"   , 13  , 9       , 84      , 77    ],
+  /[ "Eve"   , 13  , 8       , 84      , 77    ],
+  /[ "Eve"   , 13  , 8       , 84      , 77    ]
+]
+
+def t := buildColumn gradebookSeq "quiz-pass?" (λ r => 
+  let isPass : Nat → Bool := λ n => n >= 8
+  (getValue r "quizzes" (by header)).map (List.map isPass)
+)
+
+-- FIXME: flatten is implemented incorrectly
+#test
+flatten t A[⟨"quiz-pass?", _, by header⟩, ⟨"quizzes", _, by header⟩]
+=
+Table.mk [
+  /[ "Bob"   , 12  , 8       , 77      , 87    , true       ],
+  /[ "Bob"   , 12  , 9       , 77      , 87    , true       ],
+  /[ "Bob"   , 12  , 7       , 77      , 87    , false      ],
+  /[ "Bob"   , 12  , 9       , 77      , 87    , true       ],
+  /[ "Alice" , 17  , 6       , 88      , 85    , false      ],
+  /[ "Alice" , 17  , 8       , 88      , 85    , true       ],
+  /[ "Alice" , 17  , 8       , 88      , 85    , true       ],
+  /[ "Alice" , 17  , 7       , 88      , 85    , false      ],
+  /[ "Eve"   , 13  , 7       , 84      , 77    , false      ],
+  /[ "Eve"   , 13  , 9       , 84      , 77    , true       ],
+  /[ "Eve"   , 13  , 8       , 84      , 77    , true       ],
+  /[ "Eve"   , 13  , 8       , 84      , 77    , true       ]
+]
 
 -- FIXME: more typeclass issues
 -- `transformColumn`
@@ -657,7 +715,27 @@ Table.mk [
   /[ "Eve"   , 13  , "pass" , 9     , 84      , 8     , 8     , 77    ]
 ]
 
--- TODO: `renameColumns`
+-- `renameColumns`
+#test
+renameColumns students A[⟨⟨"favorite color", by name⟩, "preferred color"⟩,
+                         ⟨⟨"name", by name⟩, "first name"⟩]
+=(Table [("first name", String), ("age", Nat), ("preferred color", String)])
+Table.mk [
+  /[ "Bob"      , 12  , "blue"          ],
+  /[ "Alice"    , 17  , "green"         ],
+  /[ "Eve"      , 13  , "red"           ]
+]
+
+#test
+renameColumns gradebook A[⟨⟨"midterm", by name⟩, "final"⟩,
+                          ⟨⟨"final", by name⟩, "midterm"⟩]
+=(Table [("name", String), ("age", Nat), ("quiz1", Nat), ("quiz2", Nat),
+         ("final", Nat), ("quiz3", Nat), ("quiz4", Nat), ("final", Nat)])
+Table.mk [
+  /[ "Bob"   , 12  , 8     , 9     , 77    , 7     , 9     , 87      ],
+  /[ "Alice" , 17  , 6     , 8     , 88    , 8     , 7     , 85      ],
+  /[ "Eve"   , 13  , 7     , 9     , 84    , 8     , 8     , 77      ]
+]
 
 -- `find`
 #test
@@ -707,16 +785,16 @@ Table.mk [
 ]
 
 -- `groupBySubtractive`
--- FIXME: why does the `header` tactic fail here?
+-- TODO: why does the `header` tactic fail here?
 -- Interestingly, only fails when we have the equality test -- evaluating
 -- `groupBySubtractive` alone works just fine
 #test
 groupBySubtractive students ⟨"favorite color", Schema.HasCol.tl (Schema.HasCol.tl (Schema.HasCol.hd))⟩
-=(Table [("key", ULift String), ("groups", Table [("name", String), ("age", Nat)])])
+=[by inst]
 Table.mk [
   /[ULift.up "blue" , Table.mk [/["Bob"  , 12]]],
   /[ULift.up "green", Table.mk [/["Alice", 17]]],
-  /[ULift.up "green", Table.mk [/["Eve"  , 13]]]
+  /[ULift.up "red", Table.mk [/["Eve"  , 13]]]
 ]
 
 #test
