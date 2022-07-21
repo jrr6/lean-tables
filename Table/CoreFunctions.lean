@@ -29,6 +29,10 @@ def Cell.name {nm τ} (_ : @Cell η dec_η nm τ) : η :=
   nm
 def Cell.type {nm τ} (_ : @Cell η dec_η nm τ) := τ
 
+def Cell.rename {nm τ} : Cell (η := η) nm τ → (nm' : η) → Cell nm' τ
+| Cell.emp, nm => Cell.emp
+| Cell.val x, nm => Cell.val x
+
 -- This will make proofs difficult
 -- def Subschema.toSchema {schm : @Schema η} (s : Subschema schm) : @Schema η := 
 --   s.map (λ x => x.fst)
@@ -145,19 +149,6 @@ def Schema.removeNames {η : Type u_η} [DecidableEq η] :
 | ss, ActionList.nil => ss
 | ss, ActionList.cons cn rest => removeNames (removeName ss cn.2) rest
 
--- Same problem yet again
-def Schema.flattenList : (schema : @Schema η) →
-                         ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)) →
-                         @Schema η
-| (_, _) :: ss, ⟨nm, τ, Schema.HasCol.hd⟩ => (nm, τ) :: ss
-| hdr :: ss, ⟨nm, τ, Schema.HasCol.tl h⟩ => hdr :: flattenList ss ⟨nm, τ, h⟩
-
-def Schema.flattenLists : (schema : @Schema η) →
-                          (ActionList flattenList schema) →
-                         @Schema η
-| ss, ActionList.nil => ss
-| ss, ActionList.cons c cs => flattenLists (flattenList ss c) cs
-
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η]
     : (s : @Schema η) → CertifiedName s → @Header η
@@ -184,6 +175,17 @@ def Schema.retypeColumn {η : Type u_η} [DecidableEq η]
 | _, (nm, τ) :: cs, Schema.HasName.hd, τ' => (nm, τ') :: cs
 | _, c :: cs, Schema.HasName.tl h, τ' => c :: retypeColumn cs h τ'
 
+def Schema.flattenList (schema : @Schema η)
+  (c : ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))
+    : @Schema η :=
+  schema.retypeColumn (Schema.colImpliesName c.2.2) c.2.1
+
+def Schema.flattenLists : (schema : @Schema η) →
+                          (ActionList flattenList schema) →
+                         @Schema η
+| ss, ActionList.nil => ss
+| ss, ActionList.cons c cs => flattenLists (flattenList ss c) cs
+
 def Schema.renameColumn {η : Type u_η} [DecidableEq η]
     : {nm : η} → (s : @Schema η) → s.HasName nm → η → @Schema η
 | _, (nm, τ) :: cs, Schema.HasName.hd, nm' => (nm', τ) :: cs
@@ -196,7 +198,7 @@ def Schema.renameColumnCN {η : Type u_η} [DecidableEq η]
 
 def Schema.renameColumns {η : Type u_η} [DecidableEq η]
     : (s : @Schema η) → ActionList renameColumnCN s → @Schema η
-| s, ActionList.nil => []
+| s, ActionList.nil => s
 | s, ActionList.cons c ccs => renameColumns (renameColumnCN s c) ccs
 
 theorem Schema.removeName_sublist :
@@ -350,6 +352,21 @@ def Row.retypeCell {schema : @Schema η} {τ₁ τ₂ : Type u} {c : η}
 | Row.cons cell cells, Schema.HasCol.tl h, newCell =>
     Row.cons cell (retypeCell cells h newCell)
 
+def Row.renameCell {schema : @Schema η} {c : η}
+    : Row schema → (h : Schema.HasName c schema) → (c' : η)
+      → Row (schema.renameColumn h c')
+| Row.cons cell cells, Schema.HasName.hd, nm' =>
+  Row.cons (cell.rename nm') cells
+| Row.cons cell cells, Schema.HasName.tl h, nm' =>
+  Row.cons cell (renameCell cells h nm')
+
+def Row.renameCells {schema : @Schema η}
+    : (cs : ActionList Schema.renameColumnCN schema) →
+      Row schema →
+      Row (schema.renameColumns cs)
+| ActionList.nil, r => r
+| ActionList.cons c cs, r => renameCells cs (renameCell r c.1.2 c.2) 
+
 def Row.pick : {schema : @Schema η} →
                Row schema →
                (cs : List (CertifiedHeader schema)) →
@@ -368,11 +385,11 @@ def Row.removeColumn {s : Schema} {c : η} :
 | Schema.HasName.tl h',Row.cons r rs => Row.cons r (removeColumn h' rs)
 
 def Row.removeColumns {s : @Schema η} :
-    (cs : Schema.ActionList Schema.removeCertifiedName s) →
+    (cs : ActionList Schema.removeCertifiedName s) →
     Row s →
     Row (s.removeNames cs)
 | .nil, r => r
-| .cons c cs, r => removeColumns cs (removeColumn c.2 r) 
+| .cons c cs, r => removeColumns cs (removeColumn c.2 r)  
 
 /-------------------------------------------------------------------------------
                           Decidable Equality Instances

@@ -150,7 +150,7 @@ def dropColumn (t : Table schema) (c : CertifiedName schema)
 {rows := t.rows.map (Row.removeColumn c.property)}
 
 def dropColumns (t : Table schema)
-                (cs : Schema.ActionList Schema.removeCertifiedName schema)
+                (cs : ActionList Schema.removeCertifiedName schema)
     : Table (schema.removeNames cs) :=
 {rows := t.rows.map (Row.removeColumns cs)}
 
@@ -428,24 +428,24 @@ def groupBy {η'} [DecidableEq η']
 termination_by group xs => xs.length
 
 -- TODO: probably a more elegant/functorial/monadic way to do this
-def flattenOne {τ}
-               (t : Table schema)
-               (c : ((c : η) × schema.HasCol (c, List τ)))
-    : Table (schema.retypeColumn (Schema.colImpliesName c.2) τ) :=
-    -- : Table (schema.flattenList ⟨c.1, τ, c.2⟩) :=
+def flattenOne (t : Table schema)
+               (c : ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))
+    : Table (schema.flattenList c) :=
 {rows :=
   t.rows.flatMap (λ (r : Row schema) =>
-      match getValue r c.1 c.2 with
+      match getValue r c.1 c.2.2 with
       | none => []
-      | some xs => xs.foldr (λ x acc => r.retypeCell c.2 (Cell.val x) :: acc) []
+      | some xs => xs.foldr (λ x acc => r.retypeCell c.2.2 (Cell.val x) :: acc)
+                            []
   )
 }
 
--- def flatten (t : Table schema)
---             (cs : List ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))
---             : Table (schema.flattenLists cs) := sorry
-
--- def flatten (t : Table schema) (cs : List (CertifiedName schema)) : Table _ := sorry
+def flatten {schema : @Schema η} :
+  Table schema →
+  (cs : ActionList Schema.flattenList schema) →
+  Table (schema.flattenLists cs)
+| t, ActionList.nil => t
+| t, ActionList.cons c cs => flatten (flattenOne t c) cs
 
 def transformColumn {τ₁ τ₂}
                     (t : Table schema)
@@ -456,9 +456,10 @@ def transformColumn {τ₁ τ₂}
     r.retypeCell c.snd (Cell.fromOption (f (getValue r c.fst c.snd)))
   )}
 
--- TODO: same issue as with removing columns...
-def renameColumns (t : Table schema) (ccs : List (CertifiedName schema × η))
-    : Table (schema.renameColumns ccs) := sorry
+def renameColumns (t : Table schema)
+                  (ccs : ActionList Schema.renameColumnCN schema)
+    : Table (schema.renameColumns ccs) :=
+{rows := t.rows.map (Row.renameCells ccs)}
 
 -- TODO: do we need decidable equality of τ, or will the row lookup figure that
 -- out for us?
@@ -617,13 +618,13 @@ groupBy t (λ r => getValue r c.1 c.2)
 --       let remainingCells := r₁.pick remainingNames;
 --       Row.append remainingCells r₂)
 
-def pivotWider [inst : Inhabited η]
-               (t : Table schema)
-               (c1 : (c : η) × Schema.HasCol (c, η) schema)
-               (c2 : CertifiedHeader schema)
-    : Table (List.append
-      (schema.removeNames [⟨c1.fst, Schema.colImpliesName c1.snd⟩,
-                           ⟨c2.fst.fst, Schema.colImpliesName c2.snd⟩])
-      (t.rows.map (λ (r : Row schema) =>
-        (Option.orDefault (getValue r c1.fst c1.snd), η)
-      ))) := sorry
+-- def pivotWider [inst : Inhabited η]
+--                (t : Table schema)
+--                (c1 : (c : η) × Schema.HasCol (c, η) schema)
+--                (c2 : CertifiedHeader schema)
+--     : Table (List.append
+--       (schema.removeNames [⟨c1.fst, Schema.colImpliesName c1.snd⟩,
+--                            ⟨c2.fst.fst, Schema.colImpliesName c2.snd⟩])
+--       (t.rows.map (λ (r : Row schema) =>
+--         (Option.orDefault (getValue r c1.fst c1.snd), η)
+--       ))) := sorry

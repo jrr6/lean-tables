@@ -53,30 +53,30 @@ def CertifiedHeader (schema : @Schema η) :=
 Action lists represent a collection of items to apply to a schema with a
 guarantee that the validity of each proof of containment is preserved after each
 action item is applied. It generalizes the following instances:
-    inductive SchemaRemoveList {η : Type u_η} [DecidableEq η] :
-      @Schema.{u_η, u} η → Type (max u_η (u + 1))
-    | nil {schema} : SchemaRemoveList schema
-    | cons {schema} : (cn : CertifiedName schema) →
-                      SchemaRemoveList (schema.removeName cn.2) →
-                      SchemaRemoveList schema
+  inductive SchemaRemoveList {η : Type u_η} [DecidableEq η] :
+    @Schema.{u_η, u} η → Type (max u_η (u + 1))
+  | nil {schema} : SchemaRemoveList schema
+  | cons {schema} : (cn : CertifiedName schema) →
+                    SchemaRemoveList (schema.removeName cn.2) →
+                    SchemaRemoveList schema
 
-    inductive SchemaFlattenList {η : Type u_η} [DecidableEq η] :
-      @Schema η → Type _
-    | nil {schema} : SchemaFlattenList schema
-    | cons {schema} : (cn : ((c : η) × (τ: Type u) × schema.HasCol (c, List τ))) →
-                      SchemaFlattenList (schema.flattenList cn) →
-                      SchemaFlattenList schema
+  inductive SchemaFlattenList {η : Type u_η} [DecidableEq η] :
+    @Schema η → Type _
+  | nil {schema} : SchemaFlattenList schema
+  | cons {schema} : (cn : ((c : η) × (τ: Type u) × schema.HasCol (c, List τ))) →
+                    SchemaFlattenList (schema.flattenList cn) →
+                    SchemaFlattenList schema
 
-    inductive SchemaRenameList {η : Type u_η} [DecidableEq η] :
-      @Schema η → Type _
-    | nil {schema} : SchemaRenameList schema
-    | cons {schema} : (cnc : (CertifiedName schema × η))→
-                      SchemaRenameList (schema.renameColumn cnc.1.2 cnc.2) →
-                      SchemaRenameList schema
+  inductive SchemaRenameList {η : Type u_η} [DecidableEq η] :
+    @Schema η → Type _
+  | nil {schema} : SchemaRenameList schema
+  | cons {schema} : (cnc : (CertifiedName schema × η))→
+                    SchemaRenameList (schema.renameColumn cnc.1.2 cnc.2) →
+                    SchemaRenameList schema
 -/
-inductive Schema.ActionList {η : Type u_η} [DecidableEq η]
-                            {κ : @Schema η → Type u}
-                            (f : ∀ (s : @Schema η), κ s → @Schema η)
+inductive ActionList {η : Type u_η} [DecidableEq η]
+                     {κ : @Schema η → Type u}
+                     (f : ∀ (s : @Schema η), κ s → @Schema η)
     : @Schema η → Type _
 | nil {schema}  : ActionList f schema
 | cons {schema} : (entry : κ schema) →
