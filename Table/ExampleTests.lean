@@ -569,13 +569,17 @@ def average (xs : List Nat) := List.foldl (·+·) 0 xs / xs.length
 def aggregate := λ (k : String) vs =>
 /["key" := k, "average" := average vs]
 
--- FIXME: does order matter?
+-- TODO: Need to double-check, but this seems to me like the correct output --
+-- the first row matches "cool," so order preservation would tell us that this
+-- order (and not the reversed order in the B2T2 docs) is most reasonable
+-- (B2T2 TS is using unordered maps in the implementation of `groupBy`, which is
+-- probably why its order is different)
 #test
 groupBy students colorTemp nameLength aggregate
 =
 Table.mk [
-  /[ "warm" , 3       ],
-  /[ "cool" , 4       ]
+  /[ "cool" , 4       ],
+  /[ "warm" , 3       ]
 ]
 
 def abstractAge := λ (r : Row $ schema gradebook) =>
@@ -841,8 +845,8 @@ Table.mk [
 def didWellUpdate := λ (r : Row $ schema gradebook) =>
   match getValue r "midterm" (by header), getValue r "final" (by header) with
   | some (m : Nat), some (f : Nat) => /["midterm" := (85 ≤ m : Bool), "final" := (85 ≤ f : Bool)]
-  | some m, none   => /["midterm" := 85 ≤ m, "final" := EMP]
-  | none, some f   => /["midterm" := EMP, "final" := 85 ≤ f]
+  | some m, none   => /["midterm" := (85 ≤ m : Bool), "final" := EMP]
+  | none, some f   => /["midterm" := EMP, "final" := (85 ≤ f : Bool)]
   | none, none   => /["midterm" := EMP, "final" := EMP]
 
 #test
