@@ -242,7 +242,7 @@ theorem List.split_length_snd' {α} :
      apply Nat.succ_le_succ
      apply ih
 
-def List.merge_with {α} : (α → α → Ordering) → List α × List α → List α
+def List.mergeWith {α} : (α → α → Ordering) → List α × List α → List α
 | _, ([], ys) => ys
 | _, (xs, []) => xs
 | cmp, (x :: xs, y :: ys) =>
@@ -257,11 +257,11 @@ def List.merge_with {α} : (α → α → Ordering) → List α × List α → L
         ]
     apply Nat.lt.base
   match cmp x y with
-  | Ordering.gt => y :: merge_with cmp (x :: xs, ys)
-  | _ => x :: merge_with cmp (xs, y :: ys)
-termination_by merge_with cmp prd => prd.fst.length + prd.snd.length
+  | Ordering.gt => y :: mergeWith cmp (ys, x :: xs)
+  | _ => x :: mergeWith cmp (y :: ys, xs)
+termination_by mergeWith cmp prd => prd.fst.length + prd.snd.length
 
-def List.merge_sort_with {α} : (α → α → Ordering) → List α → List α
+def List.mergeSortWith {α} : (α → α → Ordering) → List α → List α
 | _, [] => []
 | _, [x] => [x]
 | cmp, x₁ :: x₂ :: xs =>
@@ -292,9 +292,9 @@ def List.merge_sort_with {α} : (α → α → Ordering) → List α → List α
         exact h 
   
   let xs_split := split (x₁ :: x₂ :: xs)
-  merge_with cmp (merge_sort_with cmp (xs_split.fst),
-                  merge_sort_with cmp (xs_split.snd))
-termination_by merge_sort_with cmp xs => xs.length
+  mergeWith cmp (mergeSortWith cmp (xs_split.fst),
+                  mergeSortWith cmp (xs_split.snd))
+termination_by mergeSortWith cmp xs => xs.length
 
 -- theorem List.length_map : ∀ (xs : List α) (f : α → β),
 --     List.length (List.map f xs) = List.length xs
@@ -446,41 +446,40 @@ theorem List.sieve_removeAll : (bs : List Bool) → (xs : List α) →
      . simp only [length, sieve]
        exact ih
 
-theorem List.length_merge_with : ∀ (cmp : α → α → Ordering)
+theorem List.length_mergeWith : ∀ (cmp : α → α → Ordering)
                                    (xs ys : List α),
-  length (merge_with cmp (xs, ys)) = length xs + length ys
-| cmp, [], ys => by simp only [merge_with, length, Nat.zero_add]
+  length (mergeWith cmp (xs, ys)) = length xs + length ys
+| cmp, [], ys => by simp only [mergeWith, length, Nat.zero_add]
 | cmp, x :: xs, [] => rfl
 | cmp, x :: xs, y :: ys =>
-have ih₁ := length_merge_with cmp xs (y :: ys)
-have ih₂ := length_merge_with cmp (x :: xs) ys
-by simp only [merge_with]
+have ih₁ := length_mergeWith cmp (y :: ys) xs
+have ih₂ := length_mergeWith cmp ys (x :: xs)
+by simp only [mergeWith]
    cases cmp x y with
    | lt =>
      simp only
-     have h₁ : length (x :: merge_with cmp (xs, y :: ys)) =
-               length (merge_with cmp (xs, y :: ys)) + 1 := rfl
+     have h₁ : length (x :: mergeWith cmp (y :: ys, xs)) =
+               length (mergeWith cmp (y :: ys, xs)) + 1 := rfl
      have h₂ : length (x :: xs) = length xs + 1 := rfl
      rw [h₁, h₂, Nat.add_comm (length xs + 1), ←Nat.add_assoc]
      apply congrArg (λ x => x + 1)
-     rw [Nat.add_comm]
      exact ih₁
    | eq =>
      simp only
-     have h₁ : length (x :: merge_with cmp (xs, y :: ys)) =
-               length (merge_with cmp (xs, y :: ys)) + 1 := rfl
+     have h₁ : length (x :: mergeWith cmp (y :: ys, xs)) =
+               length (mergeWith cmp (y :: ys, xs)) + 1 := rfl
      have h₂ : length (x :: xs) = length xs + 1 := rfl
      rw [h₁, h₂, Nat.add_comm (length xs + 1), ←Nat.add_assoc]
      apply congrArg (λ x => x + 1)
-     rw [Nat.add_comm]
      exact ih₁
    | gt =>
      simp only [length]
      simp only [length] at ih₂
      rw [←Nat.add_assoc]
      apply congrArg (λ x => x + 1)
+     rw [Nat.add_comm]
      exact ih₂
-termination_by length_merge_with xs ys => xs.length + ys.length
+termination_by length_mergeWith xs ys => xs.length + ys.length
 
 theorem List.length_split : ∀ (xs : List α),
   length ((split xs).1) + length ((split xs).2) = length xs
@@ -497,8 +496,8 @@ theorem List.length_split : ∀ (xs : List α),
      apply congrArg (λ x => x + (1 + 1))
      exact ih
 
-theorem List.length_merge_sort_with : ∀ (cmp : α → α → Ordering) (xs : List α),
-  length (merge_sort_with cmp xs) = length xs
+theorem List.length_mergeSortWith : ∀ (cmp : α → α → Ordering) (xs : List α),
+  length (mergeSortWith cmp xs) = length xs
 | _, [] => rfl
 | _, [x] => rfl
 | cmp, x :: y :: xs =>
@@ -508,10 +507,10 @@ theorem List.length_merge_sort_with : ∀ (cmp : α → α → Ordering) (xs : L
   have term₂ : Nat.succ (length (split xs).snd) <
                Nat.succ (Nat.succ (length xs)) :=
     Nat.succ_le_succ (Nat.succ_le_succ $ split_length_snd' xs)
-  have ih₁ := length_merge_sort_with cmp (x :: (split xs).1)
-  have ih₂ := length_merge_sort_with cmp (y :: (split xs).2)
+  have ih₁ := length_mergeSortWith cmp (x :: (split xs).1)
+  have ih₂ := length_mergeSortWith cmp (y :: (split xs).2)
   -- TODO: we shouldn't need to do a "step" of length_split again here
-  by simp only [merge_sort_with, merge_with, split, length_merge_with, length]
+  by simp only [mergeSortWith, mergeWith, split, length_mergeWith, length]
      rw [ih₁, ih₂]
      simp only [length]
      rw [Nat.add_assoc (length (split xs).1),
@@ -521,7 +520,7 @@ theorem List.length_merge_sort_with : ∀ (cmp : α → α → Ordering) (xs : L
          Nat.add_assoc (length xs)]
      apply congrArg (λ x => x + (1 + 1))
      apply length_split
-termination_by length_merge_sort_with cmp xs => xs.length
+termination_by length_mergeSortWith cmp xs => xs.length
 
 -- Slightly over-generalized "loop invariant" (we could make the preservation
 -- portion more specific, e.g., by providing `x ∈ xs` as an extra hypothesis)

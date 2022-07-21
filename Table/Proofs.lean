@@ -318,7 +318,7 @@ theorem tsort_spec1 : ∀ {τ : Type u} [Ord τ]
                         (c : ((c : η) × sch.HasCol (c, τ)))
                         (b : Bool),
   nrows (tsort t c b) = nrows t :=
-λ t c b => List.length_merge_sort_with _ t.rows
+λ t c b => List.length_mergeSortWith _ t.rows
 
 theorem tsort_spec2 : ∀ {τ : Type u} [Ord τ]
                         (t : Table sch)

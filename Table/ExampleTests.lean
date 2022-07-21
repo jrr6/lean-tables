@@ -499,7 +499,6 @@ Table.mk [
   /[ "Alice" , 17  , "green"        ]
 ]
 
--- FIXME: merge sort isn't stable
 #test
 sortByColumns gradebook [⟨("quiz2", Nat), by header, inferInstance⟩,
                          ⟨("quiz1", Nat), by header, inferInstance⟩]

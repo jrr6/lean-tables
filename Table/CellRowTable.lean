@@ -169,7 +169,7 @@ def tsort {τ} [Ord τ]
   | false, Ordering.gt => Ordering.lt
   | _    , ordering    => ordering
 {rows :=
-  t.rows.merge_sort_with (λ r₁ r₂ => 
+  t.rows.mergeSortWith (λ r₁ r₂ => 
     let ov₁ := getValue r₁ c.1 c.2
     let ov₂ := getValue r₂ c.1 c.2
     match (ov₁, ov₂) with
@@ -182,7 +182,6 @@ def tsort {τ} [Ord τ]
 
 -- TODO: Worth creating a `CertifiedOrdHeader` type? Also, would be nice if the
 -- τ in the header could be fully implicit (can still be inferred using `_`)
--- TODO: Appears to be working? Double-check stability of `merge_sort_with`.
 def sortByColumns (t : Table schema)
                   (cs : List ((h : Header) × Schema.HasCol h schema × Ord h.2))
     : Table schema :=
@@ -221,7 +220,7 @@ def bin [ToString η]
     : Table [("group", String), ("count", Nat)] :=
   let col := getColumn2 t c.1 c.2
   let sorted := col |> List.filterMap id  -- get rid of empty cells
-                    |> List.merge_sort_with compare
+                    |> List.mergeSortWith compare
   -- match sorted with
   -- | [] => {rows := []}
   -- | s :: ss =>
