@@ -59,9 +59,8 @@ unsafe def elabTest : Lean.Elab.Command.CommandElab
 | _ => Lean.Elab.throwUnsupportedSyntax
 
 -- Ways of making type class inference work where Lean struggles
-def instHint (α : Type _) (inst : DecidableEq α) (x : α) (y : α) :=
+def instHint (α : Type _) (x : α) (y : α) (inst : DecidableEq α) :=
   decide (x = y)
-notation lhs "=(" tp ")" rhs => instHint tp inferInstance lhs rhs
 
 macro "inst" : tactic =>
   `(repeat (first
@@ -71,9 +70,11 @@ macro "inst" : tactic =>
     | apply instDecidableEqCell (inst := _)
     | infer_instance))
 
-notation lhs "=[" inst "]" rhs => instHint _ inst lhs rhs
+notation lhs "=(" tp ")" rhs => instHint tp lhs rhs inferInstance
 
-notation lhs "=(" tp ")[" inst "]" rhs => instHint tp inst lhs rhs
+notation lhs "=[" inst "]" rhs => instHint _ lhs rhs inst
+
+notation lhs "=(" tp ")[" inst "]" rhs => instHint tp lhs rhs inst
 
 -- `addRows`
 #test
@@ -644,7 +645,46 @@ Table.mk [
   /[ "Eve"   , 13  , 0     , 9     , 84      , 8     , 8     , 77    ]
 ]
 
--- TODO: `pivotLonger`
+-- `pivotLonger`
+-- TODO: more typeclass issues...
+#test
+pivotLonger gradebook A[⟨"midterm", by header⟩, ⟨"final", by header⟩] "exam" "score"
+=[by simp [Schema.removeTypedNames, Schema.removeTypedName, Schema.removeHeader, Schema.removeName]; inst]
+Table.mk [
+  /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , "midterm" , 77    ],
+  /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , "final"   , 87    ],
+  /[ "Alice" , 17  , 6     , 8     , 8     , 7     , "midterm" , 88    ],
+  /[ "Alice" , 17  , 6     , 8     , 8     , 7     , "final"   , 85    ],
+  /[ "Eve"   , 13  , 7     , 9     , 8     , 8     , "midterm" , 84    ],
+  /[ "Eve"   , 13  , 7     , 9     , 8     , 8     , "final"   , 77    ]
+]
+
+#test
+pivotLonger gradebook A[⟨"quiz1", by header⟩, ⟨"quiz2", by header⟩,
+                        ⟨"quiz3", by header⟩, ⟨"quiz4", by header⟩,
+                        ⟨"midterm", by header⟩, ⟨"final", by header⟩]
+            "test" "score"
+=
+Table.mk [
+  /[ "Bob"   , 12  , "quiz1"   , 8     ],
+  /[ "Bob"   , 12  , "quiz2"   , 9     ],
+  /[ "Bob"   , 12  , "quiz3"   , 7     ],
+  /[ "Bob"   , 12  , "quiz4"   , 9     ],
+  /[ "Bob"   , 12  , "midterm" , 77    ],
+  /[ "Bob"   , 12  , "final"   , 87    ],
+  /[ "Alice" , 17  , "quiz1"   , 6     ],
+  /[ "Alice" , 17  , "quiz2"   , 8     ],
+  /[ "Alice" , 17  , "quiz3"   , 8     ],
+  /[ "Alice" , 17  , "quiz4"   , 7     ],
+  /[ "Alice" , 17  , "midterm" , 88    ],
+  /[ "Alice" , 17  , "final"   , 85    ],
+  /[ "Eve"   , 13  , "quiz1"   , 7     ],
+  /[ "Eve"   , 13  , "quiz2"   , 9     ],
+  /[ "Eve"   , 13  , "quiz3"   , 8     ],
+  /[ "Eve"   , 13  , "quiz4"   , 8     ],
+  /[ "Eve"   , 13  , "midterm" , 84    ],
+  /[ "Eve"   , 13  , "final"   , 77    ]
+]
 
 -- TODO: `pivotWider`
 

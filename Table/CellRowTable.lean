@@ -212,6 +212,7 @@ def count {τ} [DecidableEq τ]
 -- FIXME: the necessary instances don't seem to exist for, e.g., Int, so
 -- functionally we constrain τ = Nat, which is too restrictive
 -- FIXME: this doesn't generate empty intermediate bins!
+-- TODO: why does this depend on `Classical.choice`?
 def bin [ToString η]
         {τ} [Ord τ] [HDiv τ Nat $ outParam τ] [OfNat (outParam τ) 1] [HMul (outParam τ) Nat τ] [Add (outParam τ)] [HSub τ Nat $ outParam τ] [DecidableEq τ] [ToString τ] -- [HAdd τ Nat $ outParam τ]
         (t : Table schema)
@@ -446,6 +447,68 @@ def flatten {schema : @Schema η} :
 | t, ActionList.nil => t
 | t, ActionList.cons c cs => flatten (flattenOne t c) cs
 
+/- BEGIN: ongoing flatten work
+-- Row of lists to list of rows
+def rol2Lor : {schema : @Schema η} → {flattenschema : @Schema η} → Row schema → List (Row flattenschema)
+| _, _, Row.nil => []
+| _, _, Row.cons Cell.emp cs => rol2Lor cs
+| (nm, _) :: ss, _, Row.cons (Cell.val []) cs => Row.nil :: rol2Lor cs
+| _, _, Row.cons (Cell.val (x :: xs)) cs =>
+  let r :: rs := rol2Lor (Row.cons (Cell.val xs) cs)
+  (Row.cons (Cell.val x) r) :: rs
+
+def allEmpty {schema : @Schema η} : Row schema → Bool
+| Row.nil => true
+| Row.cons Cell.emp cs => allEmpty cs
+| Row.cons (Cell.val v) cs => false
+
+def proc {s₁ s₂ s₃ : @Schema η} : Row s₁ → Row s₂ → Row s₃ → Row (List.append s₁ s₂)
+| Row.nil, acc1, acc2 => if allEmpty acc2 then [acc1] else acc1 :: proc acc2 Row.nil Row.nil
+| Row.cons Cell.emp cs, acc1, acc2 => proc cs (Row.append acc1 (Row.singleCell Cell.emp)) (Row.append acc2 (Row.singleCell Cell.emp))
+| Row.cons (Cell.val []) cs, acc1, acc2 => proc cs (Cell.emp :: acc1) (Cell.emp :: acc2)
+| Row.cons (Cell.val (x :: xs)) cs, acc1, acc2 => proc cs (Cell.emp :: acc1) (Cell.emp :: acc2)
+
+def ActionList.mapToList {α} {sch : @Schema η}
+                         {κ : @Schema η → Type u}
+                         {f : ∀ (s : @Schema η), κ s → @Schema η}
+                         (g : ∀ {s : @Schema η}, κ s → α)
+    : ActionList f sch → List α
+| nil => []
+| cons x xs => g x :: mapToList g xs
+
+#check @Row.retypeCell
+def flatten' {n : Nat}
+  (t : Table schema)
+  (cs : ActionList (Schema.flattenList (n := n)) schema) :
+  Table (schema.flattenLists cs) :=
+selectMany t
+(λ r n =>
+  -- let ccols := selectColumns3 (Table.mk [r]) (cs.mapToList (λ {_} x => x))
+  let doIter r :=
+    if allEmpty r then [] else
+    -- TODO: how do we say that the type of `r'` is `Row sch` where `sch` is the
+    -- same as `schema` modulo some flattening?
+    -- FIXME: α cannot depend on `s`; only `κ` can (so `r'` can't have the right
+    -- type! -- `c` is a proof for that dependent type variable...)
+    let (oneFlat, rest) := cs.foldl (λ {s : @Schema η} ((r' : Row s), acc) c =>
+      match r'.getCell c.2.2 with
+      -- TODO: see algorithm on iPad
+      -- *Potential issue*: the proofs may become invalid as soon as we start
+      -- retyping cells -- need to make sure the ActionList is correct (I feel
+      -- like it might be, since the retyping is a flattening, but should make
+      -- sure...)
+      | Cell.emp => sorry
+      | Cell.val [] => sorry
+      | Cell.val [x] => sorry
+      | Cell.val (x :: y :: xs) => sorry
+    ) (r, r)
+    oneFlat :: doIter rest
+  {rows := doIter r}
+)
+(λ r₁ r₂ => _)
+
+END: ongoing flatten work -/
+
 def transformColumn {τ₁ τ₂}
                     (t : Table schema)
                     (c : ((c : η) × schema.HasCol (c, τ₁)))
@@ -526,96 +589,23 @@ groupBy t (λ r => getValue r c.1 c.2)
                             r.removeColumn (Schema.colImpliesName c.2)))))
                           Row.nil))
 
--- theorem test {τ} {cs : List {c : η // Schema.HasCol (c, τ) schema}} {remainingNames : List (CertifiedName schema)}
---   (hdef : remainingNames = (schema.certify.filter
---                       (λ (⟨(c, τ), h⟩ : CertifiedHeader schema) => not ((cs.map Subtype.val).elem c))
---                   ).map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) => ⟨c, Schema.colImpliesName h⟩))
--- :
---   Schema.pick schema remainingNames = Schema.removeNames schema (List.map (fun c => Subtype.val c) cs) := by
---   rw [hdef];
---   induction schema;
---   . induction cs with
---     | nil => simp [Schema.pick, Schema.removeNames, List.map]
---     | cons s ss ih => apply ih
---                       simp [Schema.pick, Schema.removeNames, List.map, ih]
-
--- def Row.removeNamedCols (r : Row schema) (cs : List (CertifiedName schema)) :
---   Row (schema.removeNames (cs.map Subtype.val)) :=
---   let cnames : List η := cs.map Subtype.val;
---   let remainingHeaders := (schema.certify.filter
---                   (λ (⟨(c, τ), h⟩ : CertifiedHeader schema) => not (cnames.elem c))
---               );
---   let remainingNames : List (CertifiedName schema) := remainingHeaders.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) => ⟨c, Schema.colImpliesName h⟩);
---   have _ : Pickable remainingNames := _;
---   -- TODO: maybe we could have some sort of "Row.removeColumns" that
---   -- produces a row with the correct schema type by construction?
---   r.pick remainingNames
-
--- def Row.removeNamedCol : {schema : @Schema η} → (c : CertifiedName schema) → Row schema → Row (schema.removeName c.val)
--- | _, c, Row.nil => Row.nil
--- | (nm, τ)::ss, ⟨c, h⟩, Row.cons cell r => dite (c = nm)
---                           (λ ht => r)
---                           (λ _ => Row.cons cell (@removeNamedCol ss ⟨c, by
---                           cases h with
---                           | hd => contradiction
---                           | tl hss => exact hss
---                           ⟩ r))
-
--- theorem sp {x y : η} {τ₁ τ₂ : Type u}: Schema.pick [(x, τ₁), (y, τ₂)] [⟨x, Schema.HasName.hd⟩] = [(x, τ₁)] := rfl
-
--- theorem rn {n : η} {τ : Type u} {y z w : @Header η} : Schema.removeName [(n,τ),y,z,w] n = [y,z,w] := by
---   simp [Schema.removeName]
-
--- theorem simple {x : η} : (if x = x then (2 : Nat) else (1 : Nat)) = 2 := rfl
--- theorem simple₂ {x : η} : (dite (x = x) (λ_=>(2 : Nat)) (λ_=>1)) = 2 := rfl
-
--- #print sp
-
--- def Row.removeNamedCol {nm : η} : {schema : @Schema η} → (schema.HasName nm) → Row schema → Row (schema.removeName nm)
--- | _, Schema.HasName.hd, Row.cons cell r => r
--- | _, Schema.HasName.tl h, Row.cons cell r => Row.cons cell (removeNamedCol h r)
-
--- def test_rn : Row (Schema.removeName [("hi", Nat), ("there", String)] "hi") :=
---   Row.cons (Cell.val "hello") Row.nil
-
--- #check @Row.removeNamedCol
-
--- def Row.removeNamedCols2 : {schema : @Schema η} → (cs : List (CertifiedName schema)) → Row schema → Row (schema.removeNames (cs.map Sigma.fst))
--- | _, [], Row.nil => Row.nil
--- | _, [], Row.cons cell rs => Row.cons cell rs
--- | (s::ss), (c::cs), Row.cons cell rs =>
---   -- have h : Schema.HasCol ((Schema.lookup (s::ss) c).fst, (Schema.lookup (s::ss) c).snd) ss := _;
---   -- TODO: how do we tell Lean to just "go look it up!"??
---   @removeNamedCols2 (schema.removeName c.fst) cs (removeNamedCol c (Row.cons cell rs))
---   -- Row.cons (getCell rs (Schema.lookup (s::ss) c).fst h) (pick2 cs (Row.cons cell rs))
-
--- TODO: require that c1, c2 
--- def pivotLonger {τ}
---                 (t : Table schema)
---                 (cs : List ((c : η) × Schema.HasCol (c, τ) schema))
---                 (c1 : η)
---                 (c2 : η)
---     -- FIXME: need to remove the old columns from schema!!!
---     : Table (List.append (schema.removeNames (cs.map (λc => c.fst))) [(c1, η), (c2, τ)]) :=
---   selectMany t
---     (λ r _ =>
---       values (cs.map (λ (c : ((c : η) × Schema.HasCol (c, τ) schema)) =>
---         Row.cons (Cell.val c)
---           (Row.cons (getCell r c.snd) Row.nil)
---       )))
---     (λ (r₁ : Row schema) (r₂ : Row [(c1, η), (c2, τ)]) =>
---       -- TODO: what?
---       -- have cnames : List {c : η // Schema.HasName c schema} := cs.map (λ (⟨c, h⟩ : {c : η // Schema.HasCol (c, τ) schema})
---         -- => ⟨c, schema.colImpliesName h⟩);
---       let cnames : List η := cs.map Sigma.snd;
---       let remainingHeaders := (schema.certify.filter
---                       (λ (⟨(c, τ), h⟩ : CertifiedHeader schema) => not (cnames.elem c))
---                   );
---       let remainingNames : List (CertifiedName schema) := remainingHeaders.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) => ⟨c, Schema.colImpliesName h⟩);
---       -- TODO: maybe we could have some sort of "Row.removeColumns" that
---       -- produces a row with the correct schema type by construction?
---       let remainingCells := r₁.pick remainingNames;
---       Row.append remainingCells r₂)
+def pivotLonger {τ : Type u_η}
+                (t : Table schema)
+                (cs : ActionList (Schema.removeTypedName τ) schema)
+                (c1 : η)
+                (c2 : η)
+    : Table (List.append (schema.removeTypedNames cs) [(c1, η), (c2, τ)]) :=
+  selectMany t
+    (λ r _ =>
+      values ((cs.toList Schema.removeTNPres).map
+        (λ (c : ((c : η) × schema.HasCol (c, τ))) =>
+          let renamedCell := (r.getCell c.2).rename c2
+          Row.cons (Cell.val c.1) (Row.cons renamedCell Row.nil)
+      )))
+    (λ (r₁ : Row schema) (r₂ : Row [(c1, η), (c2, τ)]) =>
+      let remainingCells := r₁.removeTypedColumns cs
+      Row.append remainingCells r₂
+    )
 
 -- def pivotWider [inst : Inhabited η]
 --                (t : Table schema)

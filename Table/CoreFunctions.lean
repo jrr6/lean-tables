@@ -123,10 +123,36 @@ theorem Schema.removeName_eq_2 {η : Type u_η} [DecidableEq η]
   (h : Schema.HasName c ss) :
   removeName (hdr :: ss) (Schema.HasName.tl h) = hdr :: removeName ss h := rfl
 
+def Schema.removeHeader {c : η} {τ : Type u}
+                        (s : @Schema η)
+                        (hd : s.HasCol (c, τ))
+    : @Schema η :=
+  removeName s (Schema.colImpliesName hd)
+-- | _::s, .hd => s
+-- | s::ss, .tl h => s :: removeHeader ss h
+
+-- theorem Schema.removeHeader_eq_1 {η : Type u_η} [DecidableEq η]
+--   {c : η} (hdr : @Header η) (ss : @Schema η) :
+--   removeHeader (hdr :: ss) Schema.HasCol.hd = ss := rfl
+
+-- theorem Schema.removeHeader_eq_2 {η : Type u_η} [DecidableEq η]
+--   {c : η} {τ : Type u} (hdr : @Header η) (ss : @Schema η)
+--   (h : Schema.HasCol (c, τ) ss) :
+--   removeHeader (hdr :: ss) (Schema.HasCol.tl h) = hdr :: removeHeader ss h := rfl
+
 def Schema.removeCertifiedName (s : @Schema η) (cn : CertifiedName s) :=
   removeName s cn.2
 
-def Schema.removeCNPres_aux : {schema : @Schema η} →
+def Schema.removeCertifiedHeader (s : @Schema η) (ch : CertifiedHeader s) :=
+  removeHeader s ch.2
+
+def Schema.removeTypedName (τ : Type u)
+                           (s : @Schema η)
+                           (c : ((c : η) × s.HasCol (c, τ)))
+    : @Schema η :=
+  removeHeader s c.2
+
+def Schema.removeNamePres : {schema : @Schema η} →
                               {nm : η} →
                               {n : schema.HasName nm} →
                               {nm' : η} →
@@ -136,18 +162,47 @@ def Schema.removeCNPres_aux : {schema : @Schema η} →
 | (nm', τ) :: ss, nm, Schema.HasName.tl h, _, Schema.HasName.hd =>
   Schema.HasName.hd
 | s :: ss, nm, Schema.HasName.tl h, nm', Schema.HasName.tl h' =>
-  let ih := @removeCNPres_aux _ nm h nm' h'
+  let ih := @removeNamePres _ nm h nm' h'
   Schema.HasName.tl ih
 
 def Schema.removeCNPres {schema : @Schema η} {nm} {n : schema.HasName nm}
                         (cn : CertifiedName $ schema.removeName n)
     : CertifiedName schema
-  := ⟨cn.1, removeCNPres_aux cn.2⟩
+  := ⟨cn.1, removeNamePres cn.2⟩
+
+def Schema.removeHeaderPres :
+    {nm : η} → {τ : Type u} → {schema : @Schema η} →
+    {h : schema.HasCol (nm, τ)} → {nm' : η} →
+    Schema.HasCol (nm', τ) (schema.removeHeader h) →
+    Schema.HasCol (nm', τ) schema
+| nm, τ, _ :: _, HasCol.hd, nm', pf => HasCol.tl pf
+| nm, τ, (nm', .(τ)) :: ss, HasCol.tl h, _, HasCol.hd => HasCol.hd
+| nm, τ, s :: ss, HasCol.tl h, nm', HasCol.tl h' =>
+  let ih := @removeHeaderPres nm _ _ h nm' h'
+  HasCol.tl ih
+
+def Schema.removeTNPres
+  (s : Schema)
+  (k : (c : η) × Schema.HasCol (c, τ) s)
+  (c : (c : η) × Schema.HasCol (c, τ) (Schema.removeTypedName τ s k)) :
+  (c : η) × Schema.HasCol (c, τ) s
+  := ⟨c.1, removeHeaderPres c.2⟩
 
 def Schema.removeNames {η : Type u_η} [DecidableEq η] :
     (s : @Schema η) → ActionList removeCertifiedName s → @Schema η
 | ss, ActionList.nil => ss
 | ss, ActionList.cons cn rest => removeNames (removeName ss cn.2) rest
+
+def Schema.removeHeaders {η : Type u_η} [DecidableEq η] :
+    (s : @Schema η) → ActionList removeCertifiedHeader s → @Schema η
+| ss, ActionList.nil => ss
+| ss, ActionList.cons cn rest =>
+  removeHeaders (removeCertifiedHeader ss cn) rest
+
+def Schema.removeTypedNames {τ : Type u} :
+  (s : @Schema η) → ActionList (removeTypedName τ) s → @Schema η
+| s, ActionList.nil => s
+| s, ActionList.cons ch rest => removeTypedNames (removeTypedName τ s ch) rest
 
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η]
@@ -175,6 +230,7 @@ def Schema.retypeColumn {η : Type u_η} [DecidableEq η]
 | _, (nm, τ) :: cs, Schema.HasName.hd, τ' => (nm, τ') :: cs
 | _, c :: cs, Schema.HasName.tl h, τ' => c :: retypeColumn cs h τ'
 
+-- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
 def Schema.flattenList (schema : @Schema η)
   (c : ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))
     : @Schema η :=
@@ -389,7 +445,37 @@ def Row.removeColumns {s : @Schema η} :
     Row s →
     Row (s.removeNames cs)
 | .nil, r => r
-| .cons c cs, r => removeColumns cs (removeColumn c.2 r)  
+| .cons c cs, r => removeColumns cs (removeColumn c.2 r)
+
+def Row.removeColumnsHeaders {s : @Schema η} :
+    (cs : ActionList Schema.removeCertifiedHeader s) →
+    Row s →
+    Row (s.removeHeaders cs)
+| .nil, r => r
+| .cons c cs, r => removeColumnsHeaders cs $
+                    removeColumn (Schema.colImpliesName c.2) r
+
+def Row.removeTypedColumns {s : @Schema η} {τ : Type u} :
+    (cs : ActionList (Schema.removeTypedName τ) s) →
+    Row s →
+    Row (s.removeTypedNames cs)
+| .nil, r => r
+| .cons c cs, r => removeTypedColumns cs $
+                    removeColumn (Schema.colImpliesName c.2) r
+
+-- TODO: why does this depend on `Classical.choice`‽
+/--
+Takes an ActionList along with a "preservation" function that maps action list
+entries "in reverse" (i.e., enables them to be "lifted" to a schema prior to
+the ActionList's associated transformation) and generates a list of action list
+entries at the top-level (original, pre-transformation) schema.
+-/
+def ActionList.toList {sch : @Schema η} {κ : @Schema η → Type u}
+    {f : ∀ (s : @Schema η), κ s → @Schema η}
+    (pres : ∀ (s : @Schema η) (k : κ s), κ (f s k) → κ s)
+    : ActionList f sch → List (κ sch)
+| ActionList.nil => []
+| ActionList.cons hdr xs => hdr :: (toList pres xs).map (pres sch hdr)
 
 /-------------------------------------------------------------------------------
                           Decidable Equality Instances
