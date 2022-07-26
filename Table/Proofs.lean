@@ -23,7 +23,7 @@ theorem addRows_spec2 :
 -- We omit the precondition because it is not required for this portion of the
 -- spec
 theorem addColumn_spec1 :
-  ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List τ),
+  ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List $ Option τ),
     header (addColumn t c vs) = List.append (header t) [c] := by
   intros τ inst t c vs
   simp [header, addColumn, Schema.names]
@@ -55,7 +55,7 @@ theorem addColumn_spec2 :
   ∀ {τ : Type u}
     (t : Table sch)
     (c : η)
-    (vs : List τ)
+    (vs : List $ Option τ)
     (c' : η)
     (h' : sch.HasName c'),
     c ∈ header t →
@@ -69,7 +69,7 @@ theorem addColumn_spec2 :
 --     (schema (addColumn t c vs)).lookup c = τ := rfl
 
 theorem addColumn_spec4 :
-  ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List τ),
+  ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List $ Option τ),
     vs.length = nrows t →
     nrows (addColumn t c vs) = nrows t := by
   intros τ inst t c vs h
@@ -90,7 +90,7 @@ theorem addColumn_spec4 :
 
 -- Spec 1 is enforced by the type system
 theorem buildColumn_spec2 :
-  ∀ {τ : Type u} (t : Table sch) (c : η) (f : Row sch → τ),
+  ∀ {τ : Type u} (t : Table sch) (c : η) (f : Row sch → Option τ),
     header (buildColumn t c f) = List.append (header t) [c] :=
 by intros τ t c f
    simp [header, Schema.names]
@@ -111,7 +111,7 @@ by intros τ t c f
     exact (λ x => f (Row.cons Cell.emp x))
 
 theorem buildColumn_spec5 :
-  ∀ {τ : Type u} (t : Table sch) (c : η) (f : Row sch → τ),
+  ∀ {τ : Type u} (t : Table sch) (c : η) (f : Row sch → Option τ),
     nrows (buildColumn t c f) = nrows t :=
 by intros τ t c f
    simp only [nrows, buildColumn, addColumn]
@@ -234,8 +234,8 @@ theorem selectColumns2_spec4 :
 λ t ns => List.length_map _ _
 
 theorem selectColumns3_spec1 :
-  ∀ (t : Table sch) (cs : List (CertifiedName sch)),
-    header (selectColumns3 t cs) = cs.map Sigma.fst :=
+  ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
+    header (selectColumns3 t cs) = cs.map (Prod.fst ∘ Sigma.fst) :=
 by intros t cs
    simp only [header, selectColumns3, Schema.names]
    induction cs with
@@ -243,13 +243,13 @@ by intros t cs
    | cons c cs ih =>
      simp only [Schema.pick, List.map, List.cons.injEq]
      apply And.intro
-     . simp only [Schema.lookup_fst_eq_nm, CertifiedName.val]
+     . simp only [Function.comp, Schema.lookup_fst_eq_nm, CertifiedName.val]
      . exact ih
 
 -- TODO: sc3 spec 2
 
 theorem selectColumns3_spec3 :
-  ∀ (t : Table sch) (cs : List (CertifiedName sch)),
+  ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
     nrows (selectColumns3 t cs) = nrows t :=
 λ t cs => List.length_map _ _
 
