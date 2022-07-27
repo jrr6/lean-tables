@@ -276,8 +276,6 @@ def bin [ToString η]
 
 -- termination_by mk_bins t vs cur => vs.length
 
--- TODO: pivotTable
-
 -- # Mising Values
 
 def completeCases {τ} (t : Table schema) (c : ((c : η) × schema.HasCol (c, τ))) :=
@@ -616,13 +614,59 @@ def pivotLonger {τ : Type u_η}
       Row.append remainingCells r₂
     )
 
--- def pivotWider [inst : Inhabited η]
---                (t : Table schema)
---                (c1 : (c : η) × Schema.HasCol (c, η) schema)
---                (c2 : CertifiedHeader schema)
---     : Table (List.append
---       (schema.removeNames [⟨c1.fst, Schema.colImpliesName c1.snd⟩,
---                            ⟨c2.fst.fst, Schema.colImpliesName c2.snd⟩])
---       (t.rows.map (λ (r : Row schema) =>
---         (Option.orDefault (getValue r c1.fst c1.snd), η)
---       ))) := sorry
+def pivotWider [inst : Inhabited η]
+               (t : Table schema)
+               (c1 : (c : η) × Schema.HasCol (c, η) schema)
+               (c2 : CertifiedHeader (schema.removeHeader c1.2))
+    : Table (List.append
+      (schema.removeHeaders $ ActionList.cons ⟨(c1.1, η), c1.2⟩
+                                (ActionList.cons c2 ActionList.nil))
+      -- FIXME: this is wrong -- we instead want the *unique* entries in c1
+      (t.rows.map (λ (r : Row schema) =>
+        (Option.orDefault (getValue r c1.fst c1.snd), η)
+      ))) := sorry
+
+-- TODO: a lot of stuff to fix here...
+-- TODO: we should really be able to synthesize the DecidableEq instance
+-- ourselves (the client only needs to use the `inst` tactic in the test file,
+-- but even that really shouldn't be necessary)
+def pivotTable (t : Table schema)
+  -- TODO: probably need a custom product with decidable equality instances (I
+  -- think we have one already somewhere else in the code!) (Could also try to
+  -- just let Lean infer it using `Row $ Schema.fromCHeaders etc`, but I'm not
+  -- sure it's smart enough to do that -- should test!)
+  (cs : List (CertifiedHeader schema))
+  (inst : DecidableEq (Row (Schema.fromCHeaders cs)))
+  (aggs : List ((c' : @Header η) ×
+                (c : CertifiedHeader schema) ×
+                (List (Option c.1.2) → Option c'.2)))
+  : Table (List.append (Schema.fromCHeaders cs)
+                       (aggs.map (λ a => a.1))) :=
+                      --  (Schema.fromCHeaders (aggs.map (λ a => a.2.1)))) :=
+groupBy t
+        (λ r => r.pick cs)
+        (λ r => r)
+        (λ k rs =>
+          let subT := Table.mk rs
+          let rec mkSubrow :
+            (as : List ((c' : @Header η) ×
+                        (c : CertifiedHeader schema) ×
+                        (List (Option c.1.2) → Option c'.2))) →
+            Row (as.map (λ a => a.1))
+            -- Row $ Schema.fromCHeaders (as.map (λ a => a.2.1))
+          | [] => Row.nil
+          | a :: as =>
+            -- If we use pattern-matching, `h` is no longer a reflexivity proof
+            let c' := a.1
+            let c := a.2.1
+            let f := a.2.2
+            let newCell : Cell c'.1 c'.2 := Cell.fromOption $ f (getColumn2 subT c.1.1 c.2)
+            let rest : Row $ as.map (λ a => a.1) := mkSubrow as
+            let newRow : Row $ c' :: as.map (λ a => a.1) := Row.cons newCell rest
+            have h : Row (c' :: as.map (λ a => a.1)) = Row ((a :: as).map (λ a => a.1)) := rfl
+            -- TODO: why won't the type checker unfold `map`‽
+            -- let newNewRow : Row $ (a :: as).map (λ a => a.1) := newRow
+            -- Row.cons (newCell : Cell c'.1 c'.2) (rest : Row $ as.map (λ a => a.1)) --  : Row $ a.1 :: as.map (λ a => a.1))
+            cast h newRow -- FIXME: we shouldn't need to pull out the `Eq` stops for this...
+          Row.append k (mkSubrow aggs)
+        )

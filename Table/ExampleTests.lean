@@ -550,7 +550,38 @@ Table.mk [
   /[ "85 <= age < 90" , 2     ]
 ]
 
--- TODO: `pivotTable`
+-- `pivotTable`
+def oAverage (xs : List $ Option Nat) : Option Nat := some $
+  List.foldl (λ acc => λ | none => acc | some x => x + acc) 0 xs / xs.length
+
+#test
+pivotTable students [⟨("favorite color", _), by header⟩] (by inst) [⟨("age-average", _), ⟨("age", _), by header⟩, oAverage⟩]
+=[by inst]
+Table.mk [
+  /[ "blue"         , 12          ],
+  /[ "green"        , 17          ],
+  /[ "red"          , 13          ]
+]
+
+-- Slightly modified since we aren't using decimals
+def proportion (bs : List $ Option Bool) : Option Nat := some $
+  (100 * (bs.filter (λ | some true => true | _ => false)).length) / bs.length
+
+-- TODO: does order matter?
+#test
+pivotTable
+  jellyNamed
+  [⟨("get acne", Bool), by header⟩, ⟨("brown", _), by header⟩]
+  (by inst)
+  [⟨("red-proportion", _), ⟨("red", _), by header⟩, proportion⟩,
+   ⟨("pink-proportion", _), ⟨("pink", _), by header⟩, proportion⟩]
+=[by inst]
+Table.mk [
+  /[ false    , false , 0              , 75              ],
+  /[ false    , true  , 100            , 100             ],
+  /[ true     , false , 0              , 25              ],
+  /[ true     , true  , 0              , 0               ]
+]
 
 -- `groupBy`
 -- TODO: handle `none` case?

@@ -531,6 +531,14 @@ theorem List.foldr_invariant :
 | p, f, z, x :: xs, h_init, h_pres =>
   h_pres x (foldr f z xs) (foldr_invariant p f z xs h_init h_pres)
 
+-- From a failed approach to `pivotTable` -- keeping around just in case
+def List.depFoldr {κ : List α → Type _} :
+  (xs : List α) →
+  (∀ {xs : List α} (x : α), κ xs → κ (x :: xs)) →
+  κ [] →
+  κ xs
+| [], f, z => z
+| x :: xs, f, z => f x (depFoldr xs f z)
 
 -- I suspect this is probably built in somewhere, but I'm not finding it
 -- def Int.abs (z : Int) := if z < 0 then -z else z
