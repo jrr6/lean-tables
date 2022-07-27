@@ -388,14 +388,20 @@ theorem findMatches_snd_length {κ ν} [DecidableEq κ] :
     ∀ (xs : List (κ × ν)) (k : κ), (findMatches xs k).2.length ≤ xs.length :=
 by intros xs k
    induction xs with
-   | nil => simp [findMatches]
+   | nil => exact Nat.le.refl
    | cons x xs ih =>
      simp only [findMatches]
-     split
-     . simp only [Prod.snd]
+     apply @Decidable.byCases (x.1=k) _
+     . intros heq
+       simp only [heq]
+       rw [ite_true]
+       simp only [Prod.snd]
        apply Nat.le_step
        exact ih
-     . simp only [Prod.fst]
+     . intros hneq
+       simp only [hneq]
+       rw [ite_false]
+       simp only [Prod.fst]
        apply Nat.succ_le_succ
        exact ih
 
@@ -426,6 +432,9 @@ def groupBy {η'} [DecidableEq η']
   let grouped := group projected
 {rows := grouped.map (λ klv => aggregate klv.1 klv.2)}
 termination_by group xs => xs.length
+-- Use this because the default tactic (whatever it is) keeps needlessly
+-- introducing dependence on `Quot.sound`
+decreasing_by assumption
 
 -- TODO: probably a more elegant/functorial/monadic way to do this
 def flattenOne (t : Table schema)
