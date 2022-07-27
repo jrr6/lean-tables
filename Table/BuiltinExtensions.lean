@@ -246,20 +246,21 @@ def List.mergeWith {α} : (α → α → Ordering) → List α × List α → Li
 | _, ([], ys) => ys
 | _, (xs, []) => xs
 | cmp, (x :: xs, y :: ys) =>
-  have _ : xs.length + ys.length.succ < xs.length.succ + ys.length.succ := by
-    rw [←Nat.add_one,
-        ←Nat.add_one,
-        ←Nat.add_assoc (length xs) (length ys),
-        Nat.add_assoc (length xs) 1,
-        Nat.add_comm 1,
-        Nat.add_assoc (length ys),
-        ←Nat.add_assoc (length xs) (length ys) (1 + 1)
-        ]
-    apply Nat.lt.base
+  have h1 : ys.length + (x :: xs).length <
+            (x :: xs).length + (y :: ys).length :=
+    by simp only [length]
+       rw [Nat.add_comm]
+       apply Nat.lt.base
+  have h2 : (y :: ys).length + xs.length <
+            (x :: xs).length + (y :: ys).length :=
+    by simp only [length]
+       rw [Nat.add_comm (length xs + 1)]
+       apply Nat.lt.base
   match cmp x y with
   | Ordering.gt => y :: mergeWith cmp (ys, x :: xs)
   | _ => x :: mergeWith cmp (y :: ys, xs)
 termination_by mergeWith cmp prd => prd.fst.length + prd.snd.length
+decreasing_by assumption
 
 def List.mergeSortWith {α} : (α → α → Ordering) → List α → List α
 | _, [] => []
@@ -270,31 +271,32 @@ def List.mergeSortWith {α} : (α → α → Ordering) → List α → List α
     | [] => by simp only [length]
     | [xs] => by simp only [length]
     | y :: y' :: ys =>
-      by cases split_length_fst (y :: y' :: ys) with
-      | inl _ => contradiction
-      | inr h =>
-        simp only [length] at *
-        apply Nat.lt.step
-        apply Nat.succ_lt_succ
-        exact h
+      match split_length_fst (y :: y' :: ys) with
+      | Or.inl _ => by contradiction
+      | Or.inr h =>
+        by simp only [length] at *
+           apply Nat.lt.step
+           apply Nat.succ_lt_succ
+           exact h
 
    have _ : (split (x₁::x₂::xs)).snd.length < (x₁::x₂::xs).length :=
     match xs with
     | [] => by simp only [length]
     | [xs] => by simp only [length]
     | y :: y' :: ys =>
-      by cases split_length_snd (y :: y' :: ys) with
-      | inl _ => contradiction
-      | inr h =>
-        simp only [length] at *
-        apply Nat.lt.step
-        apply Nat.succ_lt_succ
-        exact h 
+      match split_length_snd (y :: y' :: ys) with
+      | Or.inl _ => by contradiction
+      | Or.inr h =>
+        by simp only [length] at *
+           apply Nat.lt.step
+           apply Nat.succ_lt_succ
+           exact h 
   
   let xs_split := split (x₁ :: x₂ :: xs)
   mergeWith cmp (mergeSortWith cmp (xs_split.fst),
                   mergeSortWith cmp (xs_split.snd))
 termination_by mergeSortWith cmp xs => xs.length
+decreasing_by assumption
 
 -- theorem List.length_map : ∀ (xs : List α) (f : α → β),
 --     List.length (List.map f xs) = List.length xs
