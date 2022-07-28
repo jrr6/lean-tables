@@ -187,6 +187,19 @@ def sortByColumns (t : Table schema)
     : Table schema :=
 cs.foldr (λ ohdr acc => @tsort _ _ _ _ ohdr.2.2 acc ⟨ohdr.1.1, ohdr.2.1⟩ true) t
 
+-- TODO: with the flexibility afforded by ADTs, it might be worth modifying this
+-- to allow for a more expressive ordering function
+def orderBy (t : Table schema)
+            (cmps : List ((κ : Type u) × (Row schema → κ) × (κ → κ → Bool)))
+    : Table schema :=
+{rows :=
+  t.rows.mergeSortWith (λ r₁ r₂ =>
+    match cmps.find? (λ | ⟨κ, key, ord⟩ => !ord (key r₁) (key r₂)) with
+    | none => Ordering.lt
+    | _    => Ordering.gt
+  )
+}
+
 -- # Aggregate
 -- TODO: this "dictionary" implementation could use some improvement
 -- Should we enforce Ord instance so that we can get the speed-up of an RBT?

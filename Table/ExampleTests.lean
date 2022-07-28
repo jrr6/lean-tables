@@ -510,7 +510,47 @@ Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ]
 ]
 
--- TODO: `orderBy`
+-- `orderBy`
+def nameLengthOB (r : Row $ schema students) :=
+  match getValue r "name" (by header) with
+  | some s => String.length s
+  | _ => 0
+
+def leOB := (λ (a : Nat) b => decide $ a ≤ b)
+
+#test
+orderBy students [⟨_, nameLengthOB, leOB⟩]
+=
+Table.mk [
+  /[ "Bob"   , 12  , "blue"         ],
+  /[ "Eve"   , 13  , "red"          ],
+  /[ "Alice" , 17  , "green"        ]
+]
+
+def geOB := (λ (a : Nat) b => decide $ a ≥ b)
+
+def nameLengthOB' (r : Row $ schema gradebook) :=
+  match getValue r "name" (by header) with
+  | some s => String.length s
+  | _ => 0
+
+def averageOB (xs : List $ Option Nat) :=
+  List.foldl (λ acc => λ | none => acc | some x => x + acc) 0 xs / xs.length
+
+def midtermAndFinalOB (r : Row $ schema gradebook) : List $ Option Nat :=
+  [getValue r "midterm" (by header), getValue r "final" (by header)]
+
+def compareGradeOB (g1 : List $ Option Nat) (g2 : List $ Option Nat) :=
+  leOB (averageOB g1) (averageOB g2)
+
+#test
+orderBy gradebook [⟨_, nameLengthOB', geOB⟩, ⟨_, midtermAndFinalOB, compareGradeOB⟩]
+=
+Table.mk [
+  /[ "Alice" , 17  , 6     , 8     , 88      , 8     , 7     , 85    ],
+  /[ "Eve"   , 13  , 7     , 9     , 84      , 8     , 8     , 77    ],
+  /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ]
+]
 
 -- `count`
 #test
@@ -823,7 +863,7 @@ find students /["age" := 14]
 none
 
 -- `groupByRetentive`
--- Deal with ULift deicdable equality
+-- Deal with ULift decidable equality
 deriving instance DecidableEq for ULift
 
 #test
