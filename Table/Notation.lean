@@ -1,4 +1,4 @@
-import Table.CellRowTable
+import Table.API
 import Lean
 
 -- # Header/Name Tactics

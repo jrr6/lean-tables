@@ -1,4 +1,4 @@
-import Table.CellRowTable
+import Table.API
 
 universe u u_η
 

@@ -1,4 +1,4 @@
-import Table.CellRowTable
+import Table.API
 import Table.Notation
 
 def students : Table [("name", String), ("age", Nat), ("favorite color", String)] :=

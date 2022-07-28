@@ -1,6 +1,7 @@
-import Table.BuiltinExtensions
-import Table.CoreFunctions
-import Table.CoreTypes
+import Table.Cell
+import Table.Schema
+import Table.Row
+import Table.Table
 
 universe u_η
 universe u
