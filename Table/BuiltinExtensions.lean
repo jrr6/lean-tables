@@ -542,6 +542,56 @@ def List.depFoldr {κ : List α → Type _} :
 | [], f, z => z
 | x :: xs, f, z => f x (depFoldr xs f z)
 
+-- Reproducing `algebra/order/sub.lean` for Nats
+
+-- Based on `tsub_le_iff_left` in `algebra/order/sub.lean` in Mathlib 3
+theorem Nat.sub_le_iff_left {a b c : Nat} : a - b ≤ c ↔ a ≤ b + c :=
+by apply Iff.intro
+   . intros h
+     rw [Nat.add_comm]
+     apply Nat.le_add_of_sub_le
+     exact h
+   . intros h
+     apply Nat.sub_le_of_le_add
+     rw [Nat.add_comm]
+     exact h
+
+-- Based on `le_add_tsub`
+theorem Nat.le_add_sub {a b : Nat} : a ≤ b + (a - b) :=
+Nat.sub_le_iff_left.mp $ Nat.le_refl _
+
+-- Based on `tsub_add_eq_tsub_tsub`
+theorem Nat.sub_add_eq_sub_sub {a b c : Nat} : a - (b + c) = a - b - c :=
+by apply Nat.le_antisymm (Nat.sub_le_iff_left.mpr _)
+                         (Nat.sub_le_iff_left.mpr $ Nat.sub_le_iff_left.mpr _)
+   . rw [Nat.add_assoc]
+     apply Nat.le_trans Nat.le_add_sub (Nat.add_le_add_left Nat.le_add_sub _)
+   . rw [←Nat.add_assoc]
+     apply Nat.le_add_sub
+
+theorem Nat.lt_of_sub_add : ∀ (m k n : Nat),
+  k < m →
+  n > 0 →
+  m - (k + n) < m - k := by
+  intros m k n hkm hn
+  -- have h1 : m - (k + n) ≤ m - k - n :=     
+  apply Nat.lt_of_le_of_lt (m := m - k - n)
+  . apply Nat.le_of_eq (@Nat.sub_add_eq_sub_sub m k n)
+  . apply Nat.sub_lt
+    . exact Nat.zero_lt_sub_of_lt hkm
+    . exact hn
+
+
+theorem Nat.lt_of_not_ge (x y : Nat) (h : ¬(x ≥ y)) : x < y :=
+by unfold LT.lt
+   unfold instLTNat
+   unfold Nat.lt
+   simp only
+   have h' : Nat.le (Nat.succ x) y = ((x + 1) ≤ y) := rfl
+   rw [h']
+   rw [←Nat.not_le_eq]
+   apply h
+
 -- I suspect this is probably built in somewhere, but I'm not finding it
 -- def Int.abs (z : Int) := if z < 0 then -z else z
 
@@ -582,3 +632,21 @@ by intros h
      unfold Int.sub
      simp only
      rw [neg_succ_eq_neg_ofNat_succ]
+
+-- Is this really not in the library yet, or am I missing something?
+theorem Int.add_comm : ∀ (x y : Int), x + y = y + x :=
+by intros x y
+   unfold HAdd.hAdd
+   unfold instHAdd
+   unfold Add.add
+   unfold instAddInt
+   unfold Int.add
+   induction x with
+   | ofNat n =>
+     cases y with
+     | ofNat m => simp [Nat.add_comm]
+     | negSucc m => simp
+   | negSucc n =>
+     cases y with
+     | ofNat m => simp
+     | negSucc m => simp [Nat.add_comm]

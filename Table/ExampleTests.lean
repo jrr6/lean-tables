@@ -573,21 +573,21 @@ Table.mk [
 
 -- `bin`
 #test
-bin students ⟨"age", by header⟩ 5
+bin students ⟨"age", by header⟩ ⟨5, by simp⟩
 =
 Table.mk [
   /[ "10 <= age < 15" , 2     ],
   /[ "15 <= age < 20" , 1     ]
 ]
 
--- FIXME: `bin` is incorrect
+-- TODO: tell B2T2 that there's a typo in this test ("final," not "age")
 #test
-bin gradebook ⟨"final", by header⟩ 5
+bin gradebook ⟨"final", by header⟩ ⟨5, by simp⟩
 =
 Table.mk [
-  /[ "75 <= age < 80" , 1     ],
-  /[ "80 <= age < 85" , 0     ],
-  /[ "85 <= age < 90" , 2     ]
+  /[ "75 <= final < 80" , 1     ],
+  /[ "80 <= final < 85" , 0     ],
+  /[ "85 <= final < 90" , 2     ]
 ]
 
 -- `pivotTable`

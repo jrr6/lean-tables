@@ -222,72 +222,53 @@ def count {τ} [DecidableEq τ]
                  | acc, Option.some v => incr acc v) []
   }
 
--- FIXME: the necessary instances don't seem to exist for, e.g., Int, so
--- functionally we constrain τ = Nat, which is too restrictive
--- FIXME: this doesn't generate empty intermediate bins!
--- TODO: why does this depend on `Classical.choice`?
+-- Once mathlib has been ported, we can find some suitable algebraic structure
+-- (or, at the very least, use `Int`s once the tooling for those has been
+-- fleshed out). In the meantime, we'll use this replacement to indicate which
+-- variables can be swapped out for a more general type.
+local notation "BinType" => Nat
 def bin [ToString η]
-        {τ} [Ord τ] [HDiv τ Nat $ outParam τ] [OfNat (outParam τ) 1] [HMul (outParam τ) Nat τ] [Add (outParam τ)] [HSub τ Nat $ outParam τ] [DecidableEq τ] [ToString τ] -- [HAdd τ Nat $ outParam τ]
         (t : Table schema)
-        (c : ((c : η) × schema.HasCol (c, τ)))
-        (n : Nat)
+        (c : ((c : η) × schema.HasCol (c, BinType)))
+        (n : {n : Nat // n > 0})
     : Table [("group", String), ("count", Nat)] :=
   let col := getColumn2 t c.1 c.2
   let sorted := col |> List.filterMap id  -- get rid of empty cells
                     |> List.mergeSortWith compare
-  -- match sorted with
-  -- | [] => {rows := []}
-  -- | s :: ss =>
-  --   let max := List.getLast (s :: ss) (by simp)
-  --   let min := s
-
-  -- match sorted with
-  -- | [] => {rows := []}
-  -- | s :: ss =>
-    -- -- Fold doesn't work b/c we need to be able to "skip" bins
-    -- let qrty := sorted.foldr (λ x (acc : τ × List (τ × Nat)) =>
-    --   match compare x acc.1 with
-    --   | Ordering.lt => _
-    --   | _ => _
-    -- ) (s, [])
-
-  let rec mk_bins : List τ → τ → List (τ × Nat) := λ
-   | [], k => []
-   | a :: as, k =>
-     let k := 
-      match compare a k with
-      | Ordering.lt => k
-      | _ => ((a / n) + 1) * n  -- TODO: may need to round for ℚ
-     match mk_bins as k with
-     | [] => [(k, 1)]
-     | (k', cnt) :: bs =>
-       if k = k'
-       then (k, cnt + 1) :: bs
-       else (k, 1) :: (k', cnt) :: bs
-  
   match sorted with
-  | [] => Table.mk []
-  | s :: ss =>
-    let bins := mk_bins (s :: ss) s
-    {rows := bins.map (λ (k, cnt) =>
-      Row.cons (Cell.val $
-        toString (k - n) ++ " <= "
-                         ++ toString c.1
-                         ++ " < "
-                         ++ toString k)
-       (Row.singleValue cnt))}
+| [] => Table.mk []
+| s :: ss =>
+  let min := s
+  let max := n * ((List.getLast (s :: ss) List.noConfusion) / n) + 1
+  let rec kthBin : BinType → List BinType → List (BinType × Nat)
+  | k, [] => []
+  | k, x :: xs =>
+    -- This case is impossible but needed for termination
+    if h : k ≥ max then [(k, (x :: xs).length)] else
+    let rec countBin : List BinType → Nat × List BinType
+    | [] => (0, [])
+    | y :: ys =>
+      if y < k
+      then let (cnt, rest) := countBin ys
+           (cnt + 1, rest)
+      else (0, y :: ys)
+    let (cnt, rest) := countBin (x :: xs)
 
-  -- Generates counts of bin inhabitants for each bin with upper bound k
-  -- let rec mk_bins : τ → List τ → Nat → List (τ × Nat) := λ
-  --  | k, [], 0 => []
-  --  | k, [], cur => [(k, cur)]
-  --  | k, v :: vs, cur =>
-  --   match compare v k with
-  --   | Ordering.lt => mk_bins k vs (cur + 1)
-  --   | _ => sorry -- (k, cur) :: mk_bins (k + n) (v :: vs) cur
-  -- sorry
-
--- termination_by mk_bins t vs cur => vs.length
+    have hterm : max - (k + n.val) < max - k :=
+    by apply Nat.lt_of_sub_add
+       . exact Nat.lt_of_not_ge _ _ h
+       . exact n.property
+       
+    (k, cnt) :: kthBin (k + n.val) rest
+  let bins := kthBin (n * (s / n + 1)) (s :: ss)
+  {rows := bins.map (λ (k, cnt) =>
+    Row.cons (Cell.val $
+      toString (k - n) ++ " <= "
+                        ++ toString c.1
+                        ++ " < "
+                        ++ toString k)
+      (Row.singleValue cnt))}
+termination_by kthBin k xs => max - k
 
 -- # Mising Values
 
