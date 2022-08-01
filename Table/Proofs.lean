@@ -121,7 +121,11 @@ by intros τ t c f
 
 -- TODO: come back to buildColumn
 
--- Spec 1 is enforced by the type system
+theorem vcat_spec1 :
+  ∀ (t1 : Table sch) (t2 : Table sch),
+    schema (vcat t1 t2) = schema t1 :=
+λ _ _ => rfl
+
 theorem vcat_spec2 :
   ∀ (t1 : Table sch) (t2 : Table sch),
     nrows (vcat t1 t2) = nrows t1 + nrows t2 :=
@@ -202,6 +206,8 @@ theorem selectColumns1_spec1 :
     List.Sublist (header (selectColumns1 t bs h)) (header t) :=
 λ t bs h => List.sublist_of_map_sublist _ _ Prod.fst $ List.sieve_sublist bs sch
 
+-- TODO: sC1 spec 2 (I don't think this is actually currently true due to
+-- uniqueness issues)
 -- FIXME: there must be a better way
 theorem ncols_eq_header_length :
   ∀ (t : Table sch), ncols t = (header t).length :=
@@ -253,7 +259,10 @@ theorem selectColumns3_spec3 :
     nrows (selectColumns3 t cs) = nrows t :=
 λ t cs => List.length_map _ _
 
--- Spec 1 is enforced by types
+theorem head_spec1 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
+  schema (head t z) = schema t :=
+λ _ _ => rfl
+
 theorem head_spec2 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
   z.val ≥ 0 → nrows (head t z) = z.val :=
 by intros t z h
@@ -281,6 +290,7 @@ by intros t z h
    cases z with | mk z prop =>
    simp only [head, nrows, h, ite_true, List.dropLastN, Function.comp]
    rw [List.length_reverse, List.length_drop, List.length_reverse]
+   -- Need separate `rw`s here so that the equality proof can be auto-generated
    rw [List.length_reverse]
    exact prop
 
@@ -325,7 +335,7 @@ theorem tfilter_spec2 : ∀ (t : Table sch) (f : Row sch → Bool),
   schema (tfilter t f) = schema t :=
 λ t f => rfl
 
-theorem tsort_spec1 : ∀ {τ : Type u} [Ord τ]
+theorem tsort_spec1 : ∀ {τ : Type u} [inst : Ord τ]
                         (t : Table sch)
                         (c : ((c : η) × sch.HasCol (c, τ)))
                         (b : Bool),
@@ -350,24 +360,45 @@ by intros t hs
    -- Preservation
    . intros x acc h
      rw [←h]
-     apply @tsort_spec1 _ _ _ _ x.snd.snd
+     apply tsort_spec1 (inst := x.snd.snd)
 
 theorem sortByColumns_spec2 :
   ∀ (t : Table sch) (hs : List ((h : Header) × sch.HasCol h × Ord h.snd)),
     schema (sortByColumns t hs) = schema t :=
 λ t hs => rfl
 
--- Specs 1 and 2 are enforced by types
+-- Spec 1 is enforced by types
+theorem orderBy_spec2 :
+  ∀ (t : Table sch)
+    (cmps : List ((κ : Type u) × (Row sch → κ) × (κ → κ → Bool))),
+    schema (orderBy t cmps) = schema t :=
+λ _ _ => rfl
+
 theorem orderBy_spec3 :
   ∀ (t : Table sch)
     (cmps : List ((κ : Type u) × (Row sch → κ) × (κ → κ → Bool))),
-  nrows (orderBy t cmps) = nrows t :=
+    nrows (orderBy t cmps) = nrows t :=
 λ t _ => List.length_mergeSortWith _ t.rows
 
 theorem count_spec1 :
   ∀ {τ} [DecidableEq τ]
     (t : Table sch) (c : ((c : η) × sch.HasCol (c, τ))),
-  header (count t c) = ["value", "count"] :=
+    header (count t c) = ["value", "count"] :=
 λ t c => rfl
 
 -- TODO: specs 2, 3, 4
+-- theorem count_spec2 :
+--   ∀ {sch : @Schema η} {τ} [DecidableEq τ]
+--     (t : Table sch) (c : ((c : η) × sch.HasCol (c, τ))),
+--   (schema (count t c)).lookupType ⟨"value", Schema.HasName.hd⟩ =
+--   sch.lookupType ⟨c.1, Schema.colImpliesName c.2⟩
+-- | _ :: _, _, _, t, ⟨_, Schema.HasCol.hd⟩ => rfl
+-- | _ :: _, _, _, t, ⟨c, Schema.HasCol.tl h⟩ => sorry
+-- -- by intros τ inst t c
+-- --    simp only [Schema.lookupType]
+-- --    cases c with | mk c hc =>
+-- --    cases hc with
+-- --    | hd => simp only [Schema.lookupType]
+-- --    | tl h =>
+-- --     simp only [Schema.lookupType]
+
