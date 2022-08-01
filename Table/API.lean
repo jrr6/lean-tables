@@ -204,6 +204,7 @@ def orderBy (t : Table schema)
 -- # Aggregate
 -- TODO: this "dictionary" implementation could use some improvement
 -- Should we enforce Ord instance so that we can get the speed-up of an RBT?
+-- TODO: why does Lean freeze if we specify `τ : Type u`?
 def count {τ} [DecidableEq τ]
           (t : Table schema)
           (c : ((c : η) × schema.HasCol (c, τ)))

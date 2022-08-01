@@ -10,8 +10,8 @@ inductive List.All {α} (p : α → Prop) : List α → Prop
 
 inductive List.Sublist {α} : List α → List α → Prop
 | nil : Sublist [] []
-| cons (x xs ys) : Sublist xs ys → Sublist xs (x :: ys)
-| cons2 (x xs ys) : Sublist xs ys → Sublist (x :: xs) (x :: ys)
+| cons (xs ys x) : Sublist xs ys → Sublist xs (x :: ys)
+| cons2 (xs ys x) : Sublist xs ys → Sublist (x :: xs) (x :: ys)
 
 -- Nifty, but hard to write proofs over
 -- def List.prod {α β} (xs : List α) (ys : List β) : List (α × β) :=
@@ -377,11 +377,31 @@ theorem List.length_take :
 
 theorem List.sublist_self : ∀ (xs : List α), Sublist xs xs
 | [] => Sublist.nil
-| x :: xs => Sublist.cons2 x xs xs (sublist_self xs)
+| x :: xs => Sublist.cons2 xs xs x (sublist_self xs)
 
-theorem List.empty_sublist : ∀ (xs : List α), Sublist [] xs
+theorem List.nil_sublist : ∀ (xs : List α), Sublist [] xs
 | [] => Sublist.nil
-| x :: xs => Sublist.cons x [] xs $ empty_sublist xs
+| x :: xs => Sublist.cons [] xs x $ nil_sublist xs
+
+-- Adapted from ll. 953-962 of `data/list/basic.lean` of Mathlib 3
+theorem List.Sublist.trans {l₁ l₂ l₃ : List α}
+  (h₁ : Sublist l₁ l₂) (h₂ : Sublist l₂ l₃) : Sublist l₁ l₃ :=
+Sublist.recOn
+  (motive := λ l₂ l₃ h₂ => (l₁ : List α) → (Sublist l₁ l₂) → Sublist l₁ l₃)
+  h₂
+  (λ _ s => s)
+  (λ l₂ l₃ a h₂ IH l₁ h₁ => Sublist.cons _ _ _ (IH l₁ h₁))
+  (λ l₂ l₃ a h₂ IH l₁ h₁ =>
+    Sublist.casesOn
+      (motive := λl₁ l₂' _ => l₂' = a :: l₂ → Sublist l₁ (a :: l₃))
+      h₁
+      (λ_ => nil_sublist _)
+      (λl₁ l₂' a' h₁' e =>
+        match a', l₂', e, h₁' with
+          | _, _, rfl, h₁ => Sublist.cons _ _ _ (IH _ h₁))
+      (λl₁ l₂' a' h₁' e => match a', l₂', e, h₁' with
+        | _, _, rfl, h₁ => Sublist.cons2 _ _ _ (IH _ h₁)) rfl)
+  l₁ h₁
 
 -- This shouldn't need to be this verbose -- is something up with the defeqs for
 -- `sieve`?
@@ -391,19 +411,19 @@ theorem List.sieve_sublist : (bs : List Bool) → (xs : List α) →
 | [], x :: xs => List.sublist_self (x :: xs)
 | true :: bs, [] => Sublist.nil
 | false :: bs, [] => Sublist.nil
-| true :: bs, x :: xs => Sublist.cons2 x (sieve bs xs) xs (sieve_sublist bs xs)
-| false :: bs, x :: xs => Sublist.cons x (sieve bs xs) xs (sieve_sublist bs xs)
+| true :: bs, x :: xs => Sublist.cons2 (sieve bs xs) xs x (sieve_sublist bs xs)
+| false :: bs, x :: xs => Sublist.cons (sieve bs xs) xs x (sieve_sublist bs xs)
 
 theorem List.sublist_of_map_sublist :
   (xs : List α) → (ys : List α) → (f : α → β) → Sublist xs ys →
     Sublist (xs.map f) (ys.map f)
-| [], ys, f, h => empty_sublist (map f ys)
+| [], ys, f, h => nil_sublist (map f ys)
 | xs, x :: ys, f, Sublist.cons _ _ _ h =>
   have ih := sublist_of_map_sublist xs ys f h
-  Sublist.cons (f x) (map f xs) (map f ys) ih
+  Sublist.cons (map f xs) (map f ys) (f x) ih
 | x :: xs, _ :: ys, f, Sublist.cons2 _ _ _ h =>
   have ih := sublist_of_map_sublist xs ys f h
-  Sublist.cons2 (f x) (map f xs) (map f ys) ih
+  Sublist.cons2 (map f xs) (map f ys) (f x) ih
 
 theorem List.removeAll_singleton_hd_eq [DecidableEq α] :
   ∀ (x: α) (xs : List α), removeAll (x :: xs) [x] = removeAll xs [x] :=

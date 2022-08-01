@@ -107,6 +107,17 @@ def Schema.colImpliesName :
 --     | hd => apply HasName.hd
 --     | tl a => apply HasName.tl (colImpliesName a)
 
+-- There occasionally seem to be some issues with this function, too -- not sure
+-- if it's the same issue as `removeName` and `lookup`, but will leave these
+-- here for the time being just in case
+def Schema.colImpliesName_eq_1 {sch' : @Schema η} {hdr : @Header η} :
+  colImpliesName (schema := hdr :: sch') HasCol.hd = HasName.hd := rfl
+
+def Schema.colImpliesName_eq_2 {schema : @Schema η} {hdr : @Header η}
+                               {h : schema.HasCol hdr}:
+  colImpliesName (schema := hdr :: schema) (HasCol.tl h) =
+  HasName.tl (colImpliesName h) := rfl
+
 def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
   schema.certify.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) =>
                         ⟨c, colImpliesName h⟩)
@@ -295,6 +306,14 @@ theorem Schema.removeName_sublist :
     List.Sublist (s.removeName hc) s
 | _, _, HasName.hd => List.Sublist.cons _ _ _ (List.sublist_self _)
 | _, _, HasName.tl h => List.Sublist.cons2 _ _ _ (removeName_sublist _ _ h)
+
+theorem Schema.removeNames_sublist :
+  ∀ (s : @Schema η) (cs : ActionList Schema.removeCertifiedName s),
+    List.Sublist (s.removeNames cs) s
+| s, ActionList.nil => List.sublist_self _
+| s, ActionList.cons c cs =>
+  have ih := removeNames_sublist (s.removeName c.2) cs
+  List.Sublist.trans ih (Schema.removeName_sublist s c.1 c.2)
 
 theorem Schema.lookup_fst_eq_nm :
   ∀ (sch : @Schema η) (c : CertifiedName sch),

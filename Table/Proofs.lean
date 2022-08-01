@@ -308,6 +308,18 @@ theorem dropColumn_spec3 : ∀ (t : Table sch) (c : CertifiedName sch),
   List.Sublist (schema (dropColumn t c)) (schema t) :=
 λ _ c => Schema.removeName_sublist sch c.val c.property
 
+theorem dropColumns_spec1 :
+  ∀ (t : Table sch) (cs : ActionList Schema.removeCertifiedName sch),
+  nrows (dropColumns t cs) = nrows t :=
+λ t cs => List.length_map _ _
+
+-- TODO: dCs spec 2 -- same issue as dC
+
+theorem dropColumns_spec3 :
+  ∀ (t : Table sch) (cs : ActionList Schema.removeCertifiedName sch),
+  List.Sublist (schema $ dropColumns t cs) (schema t) :=
+λ _ cs => Schema.removeNames_sublist sch cs
+
 -- Spec 1 is enforced by types
 theorem tfilter_spec2 : ∀ (t : Table sch) (f : Row sch → Bool),
   schema (tfilter t f) = schema t :=
@@ -344,3 +356,18 @@ theorem sortByColumns_spec2 :
   ∀ (t : Table sch) (hs : List ((h : Header) × sch.HasCol h × Ord h.snd)),
     schema (sortByColumns t hs) = schema t :=
 λ t hs => rfl
+
+-- Specs 1 and 2 are enforced by types
+theorem orderBy_spec3 :
+  ∀ (t : Table sch)
+    (cmps : List ((κ : Type u) × (Row sch → κ) × (κ → κ → Bool))),
+  nrows (orderBy t cmps) = nrows t :=
+λ t _ => List.length_mergeSortWith _ t.rows
+
+theorem count_spec1 :
+  ∀ {τ} [DecidableEq τ]
+    (t : Table sch) (c : ((c : η) × sch.HasCol (c, τ))),
+  header (count t c) = ["value", "count"] :=
+λ t c => rfl
+
+-- TODO: specs 2, 3, 4
