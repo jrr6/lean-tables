@@ -58,6 +58,15 @@ inductive ActionList {η : Type u_η} [DecidableEq η]
                   ActionList f (f schema entry) →
                   ActionList f schema
 
+inductive BiActionList {η : Type u_η} [DecidableEq η]
+                       {κ : @Schema η × @Schema η → Type u}
+  (f : ∀ (ss : @Schema η × @Schema η), κ ss → @Schema η × @Schema η)
+    : @Schema η × @Schema η → Type _
+| nil {s₁ s₂}  : BiActionList f (s₁, s₂)
+| cons {s₁ s₂} : (entry : κ (s₁, s₂)) →
+                  BiActionList f (f (s₁, s₂) entry) →
+                  BiActionList f (s₁, s₂)
+
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
 -- For ease of refactoring, makes these products act like subtypes
@@ -254,6 +263,14 @@ def Schema.lookup {η : Type u_η} [DecidableEq η]
 | hdr :: _, ⟨_, Schema.HasName.hd⟩ => hdr
 | _ :: hs, ⟨c, Schema.HasName.tl h'⟩ => lookup hs ⟨c, h'⟩
 
+-- Returns the type associated with the given name.
+-- Note: don't use this function to specify the return type of a function.
+-- Instead, take the type implicitly and make that variable the return type.
+def Schema.lookupType {η : Type u_η} [DecidableEq η]
+    : (s : @Schema η) → CertifiedName s → Type u
+| (_, τ) :: _, ⟨_, Schema.HasName.hd⟩ => τ
+| _ :: hs, ⟨c, Schema.HasName.tl h'⟩ => lookupType hs ⟨c, h'⟩
+
 -- TODO: figure out what's going on here -- these should be auto-generated
 -- (also the field syntax isn't working, so using underscores instead)
 theorem Schema.lookup_eq_1 {η : Type u_η} [DecidableEq η]
@@ -366,3 +383,14 @@ def ActionList.toList {sch : @Schema η} {κ : @Schema η → Type u}
     : ActionList f sch → List (κ sch)
 | ActionList.nil => []
 | ActionList.cons hdr xs => hdr :: (toList pres xs).map (pres sch hdr)
+
+def BiActionList.toList {schs : @Schema η × @Schema η} {κ : @Schema η × @Schema η → Type u}
+    {f : ∀ (ss : @Schema η × @Schema η), κ ss → @Schema η × @Schema η}
+    (pres : ∀ (ss : @Schema η × @Schema η) (k : κ ss), κ (f ss k) → κ ss)
+    : BiActionList f schs → List (κ schs)
+| BiActionList.nil => []
+| BiActionList.cons x xs =>
+  have hterm : sizeOf xs < sizeOf (cons x xs) :=
+    by simp; rw [Nat.add_comm, Nat.add_one]; apply Nat.lt.base
+  x :: (toList pres xs).map (pres schs x)
+termination_by toList xs => sizeOf xs
