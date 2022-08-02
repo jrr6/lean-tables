@@ -177,6 +177,14 @@ def Row.removeTypedColumns {s : @Schema η} {τ : Type u} :
 | .cons c cs, r => removeTypedColumns cs $
                     removeColumn (Schema.colImpliesName c.2) r
 
+def Row.removeOtherSchemaCols {schema' schema : @Schema η} :
+  (cs : ActionList (Schema.removeOtherDecCH schema') schema) →
+  Row schema →
+  Row (Schema.removeOtherDecCHs schema' schema cs)
+| ActionList.nil, r => r
+| ActionList.cons c cs, r =>
+  removeOtherSchemaCols cs (r.removeColumn $ Schema.colImpliesName c.2.2.1)
+
 -- Decidable equality
 instance : DecidableEq (@Row η _ [])
 | Row.nil, Row.nil => Decidable.isTrue rfl

@@ -44,54 +44,31 @@ def crossJoin {schema₁ schema₂}
   {rows := List.map (λ (c1, c2) => Row.append c1 c2)
                     (List.prod t1.rows t2.rows)}
 
-def Schema.pairRemoveCHeader (ss : @Schema η × @Schema η)
-  (pfs : ((c : η) × (τ : Type u) × ss.1.HasCol (c, τ) × ss.2.HasCol (c, τ)))
-  : @Schema η × @Schema η :=
-(ss.1.removeHeader pfs.2.2.1, ss.2.removeHeader pfs.2.2.2)
-
--- TODO: the c and τ really need to be separate arguments so that we can make
--- the preservation proof go through...
--- def Schema.pairRemoveCHPres :
---   {schs : @Schema η × @Schema η} →
---   {pfs : ((c : η) × (τ : Type u) × ss.1.HasCol (c, τ) × ss.2.HasCol (c, τ))} →
---   {nm' : η} →
---   Schema.HasCol (nm', τ) (Schema.pairRemoveCHeader schs pfs) →
---   Schema.HasCol (nm', τ) schs := sorry
-
-def Schema.pairRemoveCHeaders :
-  (ss : @Schema η × @Schema η) →
-  (pfs : BiActionList Schema.pairRemoveCHeader ss) →
-  @Schema η × @Schema η
-| ss, BiActionList.nil => ss
-| ss, BiActionList.cons c cs => pairRemoveCHeaders (pairRemoveCHeader ss c) cs
-
-def removeCH2OfPairRemoveCH {schema₁ schema₂ : @Schema η} :
-  BiActionList Schema.pairRemoveCHeader (schema₁, schema₂) →
-  ActionList Schema.removeCertifiedHeader schema₂
-| BiActionList.nil => ActionList.nil
-| BiActionList.cons ⟨c, τ, hc₁, hc₂⟩ cs =>
-  ActionList.cons ⟨(c, τ), hc₂⟩ (removeCH2OfPairRemoveCH cs)
-
--- TODO: I think `BiActionList` is unnecessary -- we only need to remove from
--- schema₂, so it suffices to just require the schema₁ proof as an argument to
--- the function (which can be parametrized over schema₁ at the outset to be able
--- to specify the right proof type)
 def leftJoin {schema₁ schema₂ : @Schema η}
              (t1 : Table schema₁)
              (t2 : Table schema₂)
-             (cs : BiActionList Schema.pairRemoveCHeader (schema₁, schema₂))
-: Table (List.append schema₁ (Schema.pairRemoveCHeaders (schema₁, schema₂) cs).2) :=
-sorry
--- {rows :=
---   t1.rows.flatMap (λ r₁ =>
---     let rs2 := t2.rows.filter (λ r₂ =>
---       match (cs.toList sorry).find? (λ c => r₁.getCell c ≠ r₂.getCell c) with
---       | none => true
---       | _    => false
---     )
---     rs2.map (λ r₂ => Row.append r₁ r₂)
---   )
--- }
+             (cs : ActionList (Schema.removeOtherDecCH schema₁) schema₂)
+: Table (List.append schema₁ (Schema.removeOtherDecCHs schema₁ schema₂ cs)) :=
+{rows :=
+  t1.rows.flatMap (λ r₁ =>
+    let rs2 := t2.rows.filter (λ r₂ =>
+      let mismatch := (cs.toList Schema.removeOtherCHPres).find? (λ c =>
+        let _ : DecidableEq (Cell c.1.1 c.1.2) :=
+          instDecidableEqCell (inst := c.2.1)
+        decide $ r₁.getCell c.2.2.2 ≠ r₂.getCell c.2.2.1)
+
+      match mismatch with
+      | none => true
+      | _    => false
+    )
+    match rs2 with
+    | [] => [Row.append r₁ (Row.empty _)]
+    | _  =>
+      rs2.map (λ r₂ =>
+        let r₂' := r₂.removeOtherSchemaCols cs
+        Row.append r₁ r₂')
+  )
+}
 
 -- # Properties
 -- TODO: Use Fin instead of ad-hoc quotients

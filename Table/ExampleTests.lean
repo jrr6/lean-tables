@@ -229,7 +229,32 @@ crossJoin emptyTable petiteJelly
 =[by simp [List.nth, List.nths, List.map]; inst]
 Table.mk []
 
--- TODO: `leftJoin`
+-- `leftJoin`
+-- TODO: we need the `header` (and probably `name`) tactic to be able to "see
+-- through" the various Schema ActionList functions like `removeOtherDecCH`
+#test
+leftJoin students gradebook A[⟨("name", _), inferInstance, by header, by header⟩,
+                               ⟨("age", _), inferInstance, by simp only [Schema.removeOtherDecCH]; header, by header⟩]
+=(Table [("name", String), ("age", Nat), ("favorite color", String),
+         ("quiz1", Nat), ("quiz2", Nat), ("midterm", Nat), ("quiz3", Nat),
+         ("quiz4", Nat), ("final", Nat)])
+Table.mk [
+  /[ "Bob"   , 12  , "blue"         , 8     , 9     , 77      , 7     , 9     , 87    ],
+  /[ "Alice" , 17  , "green"        , 6     , 8     , 88      , 8     , 7     , 85    ],
+  /[ "Eve"   , 13  , "red"          , 7     , 9     , 84      , 8     , 8     , 77    ]
+]
+
+#test
+leftJoin employees departments A[⟨("Department ID", _), inferInstance, by header, by header⟩]
+=
+Table.mk [
+  /[ "Rafferty"   , 31            , "Sales"         ],
+  /[ "Jones"      , 32            , EMP             ],
+  /[ "Heisenberg" , 33            , "Engineering"   ],
+  /[ "Robinson"   , 34            , "Clerical"      ],
+  /[ "Smith"      , 34            , "Clerical"      ],
+  /[ "Williams"   , EMP           , EMP             ]
+]
 
 -- `nrows`
 #test nrows (@emptyTable String _) = 0

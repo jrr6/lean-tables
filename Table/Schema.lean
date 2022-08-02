@@ -224,15 +224,14 @@ def Schema.removeCNPres {schema : @Schema η} {nm} {n : schema.HasName nm}
   := ⟨cn.1, removeNamePres cn.2⟩
 
 def Schema.removeHeaderPres :
-    {nm : η} → {τ : Type u} → {schema : @Schema η} →
-    {h : schema.HasCol (nm, τ)} → {nm' : η} →
-    Schema.HasCol (nm', τ) (schema.removeHeader h) →
-    Schema.HasCol (nm', τ) schema
-| nm, τ, _ :: _, HasCol.hd, nm', pf => HasCol.tl pf
-| nm, τ, (nm', .(τ)) :: ss, HasCol.tl h, _, HasCol.hd => HasCol.hd
-| nm, τ, s :: ss, HasCol.tl h, nm', HasCol.tl h' =>
-  let ih := @removeHeaderPres nm _ _ h nm' h'
-  HasCol.tl ih
+    {hdr : @Header η} → {schema : @Schema η} →
+    {h : schema.HasCol hdr} →
+    {hdr' : @Header η} →
+    Schema.HasCol hdr' (schema.removeHeader h) →
+    Schema.HasCol hdr' schema
+| _, _ :: _, HasCol.hd, hdr', pf => HasCol.tl pf
+| hdr, .(hdr') :: ss, HasCol.tl h, hdr', HasCol.hd => HasCol.hd
+| hdr, s :: ss, HasCol.tl h, _, HasCol.tl h' => HasCol.tl (removeHeaderPres h')
 
 def Schema.removeTNPres
   (s : Schema)
@@ -256,6 +255,33 @@ def Schema.removeTypedNames {τ : Type u} :
   (s : @Schema η) → ActionList (removeTypedName τ) s → @Schema η
 | s, ActionList.nil => s
 | s, ActionList.cons ch rest => removeTypedNames (removeTypedName τ s ch) rest
+
+-- TODO: this is a very inelegant way of hijacking `ActionList` (the
+-- alternative, though, would be to make `ActionList` even *more* abstract by
+-- decoupling `κ` and the type of the argument to `f`, which would be a function
+-- of `κ` or something like that...)
+def Schema.removeOtherDecCH
+  (schema' schema : @Schema η)
+  (c : (hdr : @Header η) × DecidableEq hdr.2 ×
+    schema.HasCol hdr × schema'.HasCol hdr) :
+  @Schema η := schema.removeHeader c.2.2.1
+
+def Schema.removeOtherDecCHs (schema' : @Schema η) :
+  (schema : @Schema η) →
+  (cs : ActionList (removeOtherDecCH schema') schema) →
+  @Schema η
+| s, ActionList.nil => s
+| s, ActionList.cons c cs =>
+  removeOtherDecCHs schema' (removeOtherDecCH schema' s c) cs
+
+def Schema.removeOtherCHPres :
+  (s : Schema) →
+  (k : (hdr : Header) × DecidableEq hdr.snd ×
+    HasCol hdr s × HasCol hdr schema₁) →
+  (hdr : Header) × DecidableEq hdr.snd ×
+    HasCol hdr (removeOtherDecCH schema₁ s k) × HasCol hdr schema₁ →
+  (hdr : Header) × DecidableEq hdr.snd × HasCol hdr s × HasCol hdr schema₁ := 
+λ _ _ c => ⟨c.1, c.2.1, removeHeaderPres c.2.2.1, c.2.2.2⟩
 
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η]
