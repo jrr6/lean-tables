@@ -402,3 +402,50 @@ theorem count_spec1 :
 -- --    | tl h =>
 -- --     simp only [Schema.lookupType]
 
+theorem bin_spec1 [ToString η] :
+  ∀ (t : Table sch)
+    (c : (c : η) × Schema.HasCol (c, Nat) sch)
+    (n : { n // n > 0 }),
+    header (bin t c n) = ["group", "count"] :=
+λ _ _ _ => rfl
+
+theorem bin_spec2 [ToString η] :
+  ∀ (t : Table sch)
+    (c : (c : η) × Schema.HasCol (c, Nat) sch)
+    (n : { n // n > 0 }),
+    (schema (bin t c n)).lookupType ⟨"group", Schema.HasName.hd⟩ = String :=
+λ _ _ _ => rfl
+
+theorem bin_spec3 [ToString η] :
+  ∀ (t : Table sch)
+    (c : (c : η) × Schema.HasCol (c, Nat) sch)
+    (n : { n // n > 0 }),
+    (schema (bin t c n)).lookupType
+      ⟨"count", Schema.HasName.tl Schema.HasName.hd⟩ = Nat :=
+λ _ _ _ => rfl
+
+-- TODO: `pivotTable`
+
+-- TODO: `groupBy`
+
+theorem completeCases_spec {τ : Type u} :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  (completeCases t c).length = nrows t :=
+λ t c => Eq.trans (List.length_map _ _) (List.length_map _ _)
+
+theorem dropna_spec : ∀ (t : Table sch), schema (dropna t) = schema t :=
+λ t => rfl
+
+theorem fillna_spec1 {τ : Type u} :
+  ∀ (t : Table sch)
+    (c : (c : η) × sch.HasCol (c, τ))
+    (v : τ),
+    schema (fillna t c v) = schema t :=
+λ _ _ _ => rfl
+
+theorem fillna_spec2 {τ : Type u} :
+  ∀ (t : Table sch)
+    (c : (c : η) × sch.HasCol (c, τ))
+    (v : τ),
+    nrows (fillna t c v) = nrows t :=
+λ _ _ _ => List.length_map _ _
