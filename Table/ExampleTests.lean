@@ -809,6 +809,7 @@ def t := buildColumn gradebookSeq "quiz-pass?" (λ r =>
 )
 
 -- FIXME: flatten is implemented incorrectly
+#eval flatten'' t A[⟨"quiz-pass?", _, by header⟩, ⟨"quizzes", _, by header⟩]
 #test
 flatten t A[⟨"quiz-pass?", _, by header⟩, ⟨"quizzes", _, by header⟩]
 =
