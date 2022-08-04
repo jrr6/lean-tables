@@ -462,49 +462,54 @@ termination_by group xs => xs.length
 -- introducing dependence on `Quot.sound`
 decreasing_by assumption
 
-def clearFlattennees {schema : @Schema η} :
-  Row schema → (cs : ActionList Schema.flattenList schema) →
-  Row (schema.flattenLists cs)
-| r, ActionList.nil => r
-| r, ActionList.cons c cs => clearFlattennees (r.retypeCell c.2.2 Cell.emp) cs
-
--- def clearFlattennees' {schema : @Schema η} :
---   (cs : ActionList Schema.flattenList schema) → Row (schema.flattenLists cs) →
---   Row (schema.flattenLists cs)
--- | ActionList.nil, r => r
--- | ActionList.cons c cs, r =>
---   let r' := r.setCell (Schema.flattenHasCol_of_HasCol_List c.2.2) Cell.emp
---   clearFlattennees' cs r'
-
+/--
+`flattenOne` takes a list of row copies and clean-row templates (i.e., a list of
+row list-row tuples) `rss` and applies a flatten for the specified column `c`.
+(That is, each element of `rss` is a copy of the same row with 0 or more prior
+flattenings applied.) It outputs `rss'`, where each elements `rs ∈ rss` is
+mapped to `rs'`, the result of applying a flattening at `c` to each element of
+`rs.1`, i.e., each element of `rs.1` receives a single element from the
+flattening of the `List τ` at `c`, with extra elements inserted if `c` flattens
+to more rows than yet exist; empty cells are inserted into elements of `rs.1`
+for which there is no element of the flattening of `c`. `rs'.2` is the result of
+retyping `rs.2` such that `c` is flattened, with the cell at `c` set to empty.
+(These "clean-row" arguments are used to construct extra rows in future
+iterations when a flattened sequence has more elements than yet exist. Note
+that, since each single-flattening clears the selected column in rows beyond
+those into which it flattens, we only need clean-row arguments to be "clean" in
+rows that have already been flattened.)
+-/
 def flattenOne {schema : @Schema η} :
-  List (List (Row schema)) →
+  -- list of flattened copies of each row × "clean" copy of row for all
+  -- columns up to this point
+  List (List (Row schema) × Row schema) →
   (c : (c : η) × (τ : Type u_1) × Schema.HasCol (c, List τ) schema) →
-  List (List (Row $ schema.flattenList c))
+  List (List (Row $ schema.flattenList c) × (Row $ schema.flattenList c))
 | [], c => []
-| [] :: rss, c => flattenOne rss c
-| (r :: rs) :: rss, c =>
+| ([], _) :: rss, c => flattenOne rss c
+| (r :: rs, cleanR) :: rss, c =>
   let vals := match r.getCell c.2.2 with
               | Cell.emp => []
               | Cell.val xs => xs
-  let cleanR : Row schema := r -- TODO: figure out a way to empty the previous
   let rec setVals : List c.2.1 → List (Row schema) →
                     List (Row $ schema.flattenList c)
   | [], [] => []
   | [], r :: rs => (r.retypeCell c.2.2 Cell.emp) :: setVals [] rs
   | v :: vs, [] => (cleanR.retypeCell c.2.2 (Cell.val v)) :: setVals vs []
   | v :: vs, r :: rs => (r.retypeCell c.2.2 (Cell.val v)) :: setVals vs rs
-  setVals vals (r :: rs) :: flattenOne rss c
+  
+  (setVals vals (r :: rs), r.retypeCell c.2.2 Cell.emp) :: flattenOne rss c
 termination_by setVals vs rs => vs.length + rs.length
 
 -- TODO: could probably rewrite this to use the `selectMany` combinator
 def flatten (t : Table schema) (cs : ActionList Schema.flattenList schema)
   : Table (schema.flattenLists cs) :=
-  let rss := t.rows.toSingletons
+  let rss := t.rows.map (λ r => ([r], r))
   let rec doFlatten {sch : @Schema η} :
     (cs : ActionList Schema.flattenList sch) →
-    List (List (Row sch)) →
+    List (List (Row sch) × Row sch) →
     List (List (Row $ sch.flattenLists cs))
-  | ActionList.nil, rss => rss
+  | ActionList.nil, rss => rss.map (λ rs => rs.1)
   | ActionList.cons c cs, rss => doFlatten cs (flattenOne rss c)
   {rows := List.flatten (doFlatten cs rss)}
 

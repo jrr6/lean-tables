@@ -826,6 +826,30 @@ Table.mk [
   /[ "Eve"   , 13  , 8       , 84      , 77    , true       ]
 ]
 
+
+def unbalancedTable :
+  Table [("id", Nat), ("seq1", List Nat), ("seq2", List String)] :=
+Table.mk [
+  /[0, [0, 1, 2], ["a", "b"]],
+  /[1, [], ["c"]],
+  /[2, [3, 4], ["d", "e", "f"]],
+  /[3, [5, 6], []],
+  /[4, [], []]
+]
+
+-- This behavior matches the B2T2 implementation, although I don't think the
+-- behavior of leaving row 4 in the first eval is actually what we'd want.
+-- (And I'd argue that leaving the last row in the second example actually
+-- violates the spec.)
+-- One potential workaround would be to check after each flattening to see if
+-- the last row we get is equal (up to cell emptiness -- no need for DecEq)
+-- to the clean template row and ditch it if so. (Even more ugly dynamicity, but
+-- so it goes...)
+-- TODO: notify B2T2 that their implementation crashes on the (valid) example
+-- given by the row with ID 4.
+#eval flatten unbalancedTable A[⟨"seq1", _, by header⟩]
+#eval flatten unbalancedTable A[⟨"seq1", _, by header⟩, ⟨"seq2", _, by header⟩]
+
 -- FIXME: more typeclass issues
 -- `transformColumn`
 def addLastName := Option.map (· ++ " Smith")
