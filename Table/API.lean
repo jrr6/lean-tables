@@ -431,6 +431,9 @@ by intros xs k
 -- FIXME: we need to allow for schema' to have a different η, but this leads
 -- to annoying typeclass resolution errors. Also, we probably need a distinct η'
 -- in other functions where we can change schemata -- double-check!
+-- Note that we can't stipulate that η' : Type u_η b/c there's no guarantee it
+-- belongs to the same universe level as η (and, indeed, enforcing this breaks
+-- things)
 def groupBy {η'} [DecidableEq η']
             {schema' : @Schema η'}
             {κ ν} [DecidableEq κ]

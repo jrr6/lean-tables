@@ -44,7 +44,8 @@ def Row.foldr {β} {schema : @Schema η}
 | Row.cons cell rs => f cell (foldr f z rs)
 
 def Row.certifiedFoldr {β} : {schema : @Schema η} →
-              (f : ∀ {nm α}, (@Cell η dec_η nm α) → (schema.HasCol (nm, α)) → β → β) →
+              (f : ∀ {nm α}, (@Cell η dec_η nm α) →
+              (schema.HasCol (nm, α)) → β → β) →
               (z  : β) →
     Row schema → β
 | [], _, z, Row.nil => z

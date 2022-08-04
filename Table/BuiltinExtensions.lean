@@ -102,7 +102,7 @@ def List.toSingletons : List α → List (List α)
 | [] => []
 | x :: xs => [x] :: toSingletons xs
 
--- def List.verifiedEnum' : (xs : List α) → List ({n : Nat // n < xs.length} × α)
+-- def List.verifiedEnum : (xs : List α) → List ({n : Nat // n < xs.length} × α)
 -- | [] => []
 -- | x :: xs =>
 --   let zs := x :: xs
@@ -141,7 +141,9 @@ def List.verifiedEnum : (xs : List α) → List ({n : Nat // n < xs.length} × �
                 ((⟨Nat.succ n, Nat.lt_of_lt_of_le hn hys⟩, y) :: acc)
   vEnumFrom ⟨reverse xs, Nat.le_of_eq $ List.length_reverse xs⟩
             ⟨length xs - 1,
-             by rw [List.length_reverse]; apply Nat.sub_succ_lt_self; apply Nat.zero_lt_succ⟩
+             by rw [List.length_reverse]
+                apply Nat.sub_succ_lt_self
+                apply Nat.zero_lt_succ⟩
             []
 termination_by vEnumFrom ys n acc => ys.val.length
 -- | [] => []
