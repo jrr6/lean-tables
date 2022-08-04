@@ -575,9 +575,7 @@ def isSubRow : {schema : @Schema η} →
 | _, [], Row.nil, _ => true
 | s :: ss, ⟨(nm, _), pf, _⟩ :: sbs, Row.cons sc scs, r =>
   have hterm : sizeOf scs < sizeOf (Row.cons sc scs) :=
-    by have h : (sizeOf scs < 1 + sizeOf sc + sizeOf scs) =
-                (0 + sizeOf scs < 1 + sizeOf sc + sizeOf scs) := by simp
-       apply cast (Eq.symm h)
+    by conv => lhs; rw [←Nat.zero_add (sizeOf scs)]
        apply @Nat.add_lt_add_right 0 (1 + sizeOf sc) _ (sizeOf scs)
        rw [Nat.add_comm, Nat.add_one]
        apply Nat.zero_lt_succ
