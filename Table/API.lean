@@ -254,6 +254,7 @@ def count {τ} [DecidableEq τ]
 -- (or, at the very least, use `Int`s once the tooling for those has been
 -- fleshed out). In the meantime, we'll use this replacement to indicate which
 -- variables can be swapped out for a more general type.
+section BinTypeScope
 local notation "BinType" => Nat
 def bin [ToString η]
         (t : Table schema)
@@ -297,6 +298,7 @@ def bin [ToString η]
                         ++ toString k)
       (Row.singleValue cnt))}
 termination_by kthBin k xs => max - k
+end BinTypeScope
 
 -- # Mising Values
 
