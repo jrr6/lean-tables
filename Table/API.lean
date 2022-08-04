@@ -679,17 +679,13 @@ groupBy t
       Row (as.map (λ a => a.1))
       -- Row $ Schema.fromCHeaders (as.map (λ a => a.2.1))
     | [] => Row.nil
-    | a :: as =>
-      -- If we use pattern-matching, `h` is no longer a reflexivity proof
-      let c' := a.1
-      let c := a.2.1
-      let f := a.2.2
+    | ⟨c', c, f⟩ :: as =>
       let newCell : Cell c'.1 c'.2 := Cell.fromOption $
         f (getColumn2 subT c.1.1 c.2)
       let rest : Row $ as.map (λ a => a.1) := mkSubrow as
       let newRow : Row $ c' :: as.map (λ a => a.1) := Row.cons newCell rest
       have h : Row (c' :: as.map (λ a => a.1)) =
-               Row ((a :: as).map (λ a => a.1)) := rfl
+               Row ((⟨c', c, f⟩ :: as).map (λ a => a.1)) := rfl
       -- TODO: why won't the type checker unfold `map`‽
       -- let newNewRow : Row $ (a :: as).map (λ a => a.1) := newRow
       -- Row.cons (newCell : Cell c'.1 c'.2) (rest : Row $ as.map (λ a => a.1)) --  : Row $ a.1 :: as.map (λ a => a.1))
