@@ -20,6 +20,9 @@ inductive Schema.HasName {η : Type u_η} : η → @Schema η → Type (max (u +
 def Subschema {η : Type u_η} (schm : @Schema η) :=
   List ((h : Header) × schm.HasCol (h.fst, h.snd))
 
+def EqSubschema {η : Type u_η} (schm : @Schema η) :=
+  List ((h : Header) × schm.HasCol (h.fst, h.snd) × DecidableEq h.2)
+
 def CertifiedName (schema : @Schema η) := ((c : η) × Schema.HasName c schema)
 def CertifiedHeader (schema : @Schema η) :=
   ((h : Header) × Schema.HasCol h schema)
@@ -84,8 +87,14 @@ def Subschema.toSchema {schm : @Schema η} : Subschema schm → @Schema η
 | [] => []
 | ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
 
-def Schema.fromCHeaders {schema : @Schema η} (cs : List (CertifiedHeader schema)) :
-  @Schema η := cs.map Sigma.fst
+def EqSubschema.toSchema {schm : @Schema η} : EqSubschema schm → @Schema η
+| [] => []
+| ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
+
+def Schema.fromCHeaders {schema : @Schema η}
+                        (cs : List (CertifiedHeader schema))
+    : @Schema η :=
+  cs.map Sigma.fst
 
 def Schema.HasCol.size : {schema : @Schema η} →
                          {hdr : @Header η} →

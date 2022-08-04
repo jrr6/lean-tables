@@ -877,12 +877,12 @@ Table.mk [
 
 -- `find`
 #test
-find students /["age" := 13]
+find [⟨("age", Nat), by header, inferInstance⟩] students /["age" := 13]
 =
 some 2
 
 #test
-find students /["age" := 14]
+find [⟨("age", _), by header, inferInstance⟩] students /["age" := 14]
 =
 none
 

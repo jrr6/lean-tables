@@ -561,48 +561,38 @@ def renameColumns (t : Table schema)
     : Table (schema.renameColumns ccs) :=
 {rows := t.rows.map (Row.renameCells ccs)}
 
--- TODO: do we need decidable equality of τ, or will the row lookup figure that
--- out for us?
-def find {nm : η} {τ : Type u} {ss : @Schema η}
-         [DecidableEq τ] [DecidableEq (Row ((nm, τ) :: ss))]
-        : Table ((nm, τ) :: ss) → Row ((nm, τ) :: ss) → Option Nat
--- This ugliness is to help the termination checker realize that t.rows.length
--- is decreasing
-| {rows := t_rows}, r =>
-  match t_rows with
-  | [] => none
-  | r' :: rs =>
-    if r = r'
-    then some 0
-    else match find {rows := rs} r with
-         | some n => some (n + 1)
-         | none => none
-termination_by find t r => t.rows.length
+-- TODO: move this somewhere else
+def isSubRow : {schema : @Schema η} →
+               {subschema : EqSubschema schema} →
+               (sr : Row subschema.toSchema) →
+               (r : Row schema) →
+               Bool
+| _, [], Row.nil, _ => true
+| s :: ss, ⟨(nm, _), pf, _⟩ :: sbs, Row.cons sc scs, r =>
+  have hterm : sizeOf scs < sizeOf (Row.cons sc scs) :=
+    by have h : (sizeOf scs < 1 + sizeOf sc + sizeOf scs) =
+                (0 + sizeOf scs < 1 + sizeOf sc + sizeOf scs) := by simp
+       apply cast (Eq.symm h)
+       apply @Nat.add_lt_add_right 0 (1 + sizeOf sc) _ (sizeOf scs)
+       rw [Nat.add_comm, Nat.add_one]
+       apply Nat.zero_lt_succ
+  if r.getCell pf = sc
+  then isSubRow scs r
+  else false
+termination_by isSubRow sr r => sizeOf sr
+decreasing_by assumption
 
--- FIXME: figure out how to properly handle `find`
--- def isSubRow : {schema : @Schema η} →
---                {subschema : Subschema schema} →
---                [DecidableEq $ Row subschema.toSchema] →
---                (sr : Row subschema.toSchema) →
---                (r : Row schema) →
---                Bool
--- | _, [], _, Row.nil, _ => true
--- | _, _ :: _, _, _, Row.nil => false
--- | schema, ⟨(nm, _), pf⟩ :: subsch, inst, Row.cons sc scs, r =>
---   if getCell r pf = sc
---   then @isSubRow schema subsch inst scs r
---   else false
-
--- def find' {schema : @Schema η}
---           (subschema : Subschema schema)
---           [DecidableEq $ Row subschema.toSchema] :
---           Table (schema) → Row (subschema.toSchema) → Option Nat
--- | {rows := []}, r => none
--- | {rows := r :: rs}, r' =>
---   if isSubRow r' r
---   then some 0
---   else (find' subschema {rows := rs} r').map (λ n => n + 1)
-  
+-- TODO: having to maually specify the schema is really annoying -- can we make
+-- this better? Also, having separate `EqSubschema` and `Subschema` types feels
+-- inelegant.
+def find {schema : @Schema η}
+         (subschema : EqSubschema schema) :
+    Table schema → Row (subschema.toSchema) → Option Nat
+| {rows := []}, r => none
+| {rows := r :: rs}, r' =>
+  if isSubRow r' r
+  then some 0
+  else (find subschema {rows := rs} r').map (λ n => n + 1)
 
 def groupByRetentive {τ : Type u} [DecidableEq τ]
                      (t : Table schema)
@@ -675,29 +665,31 @@ def pivotTable (t : Table schema)
                        (aggs.map (λ a => a.1))) :=
                       --  (Schema.fromCHeaders (aggs.map (λ a => a.2.1)))) :=
 groupBy t
-        (λ r => r.pick cs)
-        (λ r => r)
-        (λ k rs =>
-          let subT := Table.mk rs
-          let rec mkSubrow :
-            (as : List ((c' : @Header η) ×
-                        (c : CertifiedHeader schema) ×
-                        (List (Option c.1.2) → Option c'.2))) →
-            Row (as.map (λ a => a.1))
-            -- Row $ Schema.fromCHeaders (as.map (λ a => a.2.1))
-          | [] => Row.nil
-          | a :: as =>
-            -- If we use pattern-matching, `h` is no longer a reflexivity proof
-            let c' := a.1
-            let c := a.2.1
-            let f := a.2.2
-            let newCell : Cell c'.1 c'.2 := Cell.fromOption $ f (getColumn2 subT c.1.1 c.2)
-            let rest : Row $ as.map (λ a => a.1) := mkSubrow as
-            let newRow : Row $ c' :: as.map (λ a => a.1) := Row.cons newCell rest
-            have h : Row (c' :: as.map (λ a => a.1)) = Row ((a :: as).map (λ a => a.1)) := rfl
-            -- TODO: why won't the type checker unfold `map`‽
-            -- let newNewRow : Row $ (a :: as).map (λ a => a.1) := newRow
-            -- Row.cons (newCell : Cell c'.1 c'.2) (rest : Row $ as.map (λ a => a.1)) --  : Row $ a.1 :: as.map (λ a => a.1))
-            cast h newRow -- FIXME: we shouldn't need to pull out the `Eq` stops for this...
-          Row.append k (mkSubrow aggs)
-        )
+  (λ r => r.pick cs)
+  (λ r => r)
+  (λ k rs =>
+    let subT := Table.mk rs
+    let rec mkSubrow :
+      (as : List ((c' : @Header η) ×
+                  (c : CertifiedHeader schema) ×
+                  (List (Option c.1.2) → Option c'.2))) →
+      Row (as.map (λ a => a.1))
+      -- Row $ Schema.fromCHeaders (as.map (λ a => a.2.1))
+    | [] => Row.nil
+    | a :: as =>
+      -- If we use pattern-matching, `h` is no longer a reflexivity proof
+      let c' := a.1
+      let c := a.2.1
+      let f := a.2.2
+      let newCell : Cell c'.1 c'.2 := Cell.fromOption $
+        f (getColumn2 subT c.1.1 c.2)
+      let rest : Row $ as.map (λ a => a.1) := mkSubrow as
+      let newRow : Row $ c' :: as.map (λ a => a.1) := Row.cons newCell rest
+      have h : Row (c' :: as.map (λ a => a.1)) =
+               Row ((a :: as).map (λ a => a.1)) := rfl
+      -- TODO: why won't the type checker unfold `map`‽
+      -- let newNewRow : Row $ (a :: as).map (λ a => a.1) := newRow
+      -- Row.cons (newCell : Cell c'.1 c'.2) (rest : Row $ as.map (λ a => a.1)) --  : Row $ a.1 :: as.map (λ a => a.1))
+      cast h newRow -- FIXME: we shouldn't need to pull out the `Eq` stops for this...
+    Row.append k (mkSubrow aggs)
+  )
