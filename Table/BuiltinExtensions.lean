@@ -98,6 +98,10 @@ def List.flatMap {α β} (f : α → List β) : List α → List β
 | [] => []
 | x :: xs => f x ++ flatMap f xs
 
+def List.toSingletons : List α → List (List α)
+| [] => []
+| x :: xs => [x] :: toSingletons xs
+
 -- def List.verifiedEnum' : (xs : List α) → List ({n : Nat // n < xs.length} × α)
 -- | [] => []
 -- | x :: xs =>

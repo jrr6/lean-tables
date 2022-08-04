@@ -7,7 +7,8 @@ def Header {η} := (η × Type u)
 def Schema {η} := List (@Header η)
 
 -- Schema column predicates
-inductive Schema.HasCol {η : Type u_η} : @Header η → @Schema η → Type (max (u + 1) u_η)
+inductive Schema.HasCol {η : Type u_η} :
+  @Header η → @Schema η → Type (max (u + 1) u_η)
 | hd {c : η} {τ : Type u} {rs : Schema} : HasCol (c, τ) ((c, τ) :: rs)
 | tl {r c τ rs} : HasCol (c, τ) rs → HasCol (c, τ) (r::rs)
 
@@ -191,7 +192,8 @@ def Schema.removeHeader {c : η} {τ : Type u}
 -- theorem Schema.removeHeader_eq_2 {η : Type u_η} [DecidableEq η]
 --   {c : η} {τ : Type u} (hdr : @Header η) (ss : @Schema η)
 --   (h : Schema.HasCol (c, τ) ss) :
---   removeHeader (hdr :: ss) (Schema.HasCol.tl h) = hdr :: removeHeader ss h := rfl
+--   removeHeader (hdr :: ss) (Schema.HasCol.tl h) = hdr :: removeHeader ss h :=
+-- rfl
 
 def Schema.removeCertifiedName (s : @Schema η) (cn : CertifiedName s) :=
   removeName s cn.2
@@ -380,7 +382,8 @@ by intros s t c h
 def Schema.schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema)
     → schema.HasCol (schema.lookup c)
 | _, ⟨_, Schema.HasName.hd⟩ => Schema.HasCol.hd
-| _ :: s', ⟨c, Schema.HasName.tl h⟩ => Schema.HasCol.tl (schemaHasLookup s' ⟨c, h⟩)
+| _ :: s', ⟨c, Schema.HasName.tl h⟩ =>
+  Schema.HasCol.tl (schemaHasLookup s' ⟨c, h⟩)
 
 def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
                                 {schema : @Schema η} →
@@ -410,7 +413,8 @@ def ActionList.toList {sch : @Schema η} {κ : @Schema η → Type u}
 | ActionList.nil => []
 | ActionList.cons hdr xs => hdr :: (toList pres xs).map (pres sch hdr)
 
-def BiActionList.toList {schs : @Schema η × @Schema η} {κ : @Schema η × @Schema η → Type u}
+def BiActionList.toList {schs : @Schema η × @Schema η}
+    {κ : @Schema η × @Schema η → Type u}
     {f : ∀ (ss : @Schema η × @Schema η), κ ss → @Schema η × @Schema η}
     (pres : ∀ (ss : @Schema η × @Schema η) (k : κ ss), κ (f ss k) → κ ss)
     : BiActionList f schs → List (κ schs)

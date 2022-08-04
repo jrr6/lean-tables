@@ -88,7 +88,8 @@ def getRow : (t : Table schema) → (n : Nat) → (n < nrows t) → Row schema
       apply Nat.not_lt_zero _ nh
     )
 | {rows := r::rs}, 0, h => r
-| {rows := r::rs}, Nat.succ n, h => getRow {rows := rs} n (Nat.lt_of_succ_lt_succ h)
+| {rows := r::rs}, Nat.succ n, h =>
+  getRow {rows := rs} n (Nat.lt_of_succ_lt_succ h)
 
 -- TODO: it would be nice not to have to provide a proof...
 -- (Also, we now have Schema.lookup -- do we still need the implicit τ arg?
@@ -122,7 +123,8 @@ def selectRows1 (t : Table schema)
 -- TODO: We don't strictly *need* the proof here ; if we want to be consistent
 -- about enforcing preconditions through proof terms (do we‽), we should leave
 -- it...
-def selectRows2 (t : Table schema) (bs : List Bool) (h : List.length bs = nrows t)
+def selectRows2 (t : Table schema) (bs : List Bool)
+                (h : List.length bs = nrows t)
     : Table schema :=
   {rows := List.sieve bs t.rows}
 
@@ -298,7 +300,8 @@ termination_by kthBin k xs => max - k
 
 -- # Mising Values
 
-def completeCases {τ} (t : Table schema) (c : ((c : η) × schema.HasCol (c, τ))) :=
+def completeCases {τ} (t : Table schema)
+                  (c : ((c : η) × schema.HasCol (c, τ))) :=
   List.map (λ v => Option.isSome v) (getColumn2 t c.fst c.snd)
 
 def dropna (t : Table schema) : Table schema :=
@@ -468,10 +471,6 @@ def clearFlattennees {schema : @Schema η} :
 --   let r' := r.setCell (Schema.flattenHasCol_of_HasCol_List c.2.2) Cell.emp
 --   clearFlattennees' cs r'
 
-def List.toSingletons : List α → List (List α)
-| [] => []
-| x :: xs => [x] :: toSingletons xs
-
 def flattenOne {schema : @Schema η} :
   List (List (Row schema)) →
   (c : (c : η) × (τ : Type u_1) × Schema.HasCol (c, List τ) schema) →
@@ -483,7 +482,8 @@ def flattenOne {schema : @Schema η} :
               | Cell.emp => []
               | Cell.val xs => xs
   let cleanR : Row schema := r -- TODO: figure out a way to empty the previous
-  let rec setVals : List c.2.1 → List (Row schema) → List (Row $ schema.flattenList c)
+  let rec setVals : List c.2.1 → List (Row schema) →
+                    List (Row $ schema.flattenList c)
   | [], [] => []
   | [], r :: rs => (r.retypeCell c.2.2 Cell.emp) :: setVals [] rs
   | v :: vs, [] => (cleanR.retypeCell c.2.2 (Cell.val v)) :: setVals vs []
@@ -545,8 +545,7 @@ selectMany t
   {rows := doIter r}
 )
 (λ r₁ r₂ => _)
-END COMMENT 2-/
-/- END: ongoing flatten work -/
+END: ongoing flatten work -/
 
 def transformColumn {τ₁ τ₂}
                     (t : Table schema)
