@@ -189,7 +189,23 @@ Table.mk [
 ]
 
 -- `hcat`
--- TODO: don't have `dropColumns` yet
+#test
+hcat students (dropColumns gradebook A[⟨"name", by name⟩, ⟨"age", by name⟩])
+=
+Table.mk [
+  /[ "Bob"   , 12  , "blue"         , 8     , 9     , 77      , 7     , 9     , 87    ],
+  /[ "Alice" , 17  , "green"        , 6     , 8     , 88      , 8     , 7     , 85    ],
+  /[ "Eve"   , 13  , "red"          , 7     , 9     , 84      , 8     , 8     , 77    ]
+]
+
+#test
+hcat (dropColumns students A[⟨"name", by name⟩, ⟨"age", by name⟩]) gradebook
+=
+Table.mk [
+  /[ "blue"         , "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
+  /[ "green"        , "Alice" , 17  , 6     , 8     , 88      , 8     , 7     , 85    ],
+  /[ "red"          , "Eve"   , 13  , 7     , 9     , 84      , 8     , 8     , 77    ]
+]
 
 -- `values`
 #test
@@ -446,7 +462,7 @@ Table.mk [
 
 #test
 dropColumn gradebook ⟨"final", by name⟩
-=
+=(Table [("name", String), ("age", Nat), ("quiz1", Nat), ("quiz2", Nat), ("midterm", Nat), ("quiz3", Nat), ("quiz4", Nat)])
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     ],
   /[ "Alice" , 17  , 6     , 8     , 88      , 8     , 7     ],
@@ -760,7 +776,7 @@ pivotLonger gradebook A[⟨"quiz1", by header⟩, ⟨"quiz2", by header⟩,
                         ⟨"quiz3", by header⟩, ⟨"quiz4", by header⟩,
                         ⟨"midterm", by header⟩, ⟨"final", by header⟩]
             "test" "score"
-=
+=(Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)])
 Table.mk [
   /[ "Bob"   , 12  , "quiz1"   , 8     ],
   /[ "Bob"   , 12  , "quiz2"   , 9     ],
