@@ -31,10 +31,10 @@ def Row.append {schema₁ schema₂} :
 | Row.nil, rs₂ => rs₂
 | Row.cons r₁ rs₁, rs₂ => Row.cons r₁ (append rs₁ rs₂)
 
-def Row.map {schema} (f : ∀ n α, Cell n α → @Cell η dec_η n α)
+def Row.map {schema} (f : ∀ {n α}, Cell n α → @Cell η dec_η n α)
     : Row schema → @Row η dec_η schema
 | Row.nil => Row.nil
-| @Row.cons _ _ n τ _ r₁ rs₁ => Row.cons (f n τ r₁) (map f rs₁)
+| @Row.cons _ _ n τ _ c cs => Row.cons (f c) (map f cs)
 
 def Row.foldr {β} {schema : @Schema η}
               (f : ∀ {nm α}, @Cell η dec_η nm α → β → β)
@@ -116,11 +116,11 @@ def Row.setCell {schema : @Schema η} {τ : Type u} {c : η}
 | Row.cons cell cells, Schema.HasCol.tl h, newCell =>
     Row.cons cell (setCell cells h newCell)
 
-def Row.retypeCell {schema : @Schema η} {τ₁ τ₂ : Type u} {c : η}
-    : Row schema → (h : Schema.HasCol (c, τ₁) schema) → Cell c τ₂
-      → Row (schema.retypeColumn (Schema.colImpliesName h) τ₂)
-| Row.cons cell cells, Schema.HasCol.hd, newCell => Row.cons newCell cells
-| Row.cons cell cells, Schema.HasCol.tl h, newCell =>
+def Row.retypeCell {schema : @Schema η} {c : η} {τ₂ : Type u}
+    : Row schema → (h : schema.HasName c) → Cell c τ₂
+      → Row (schema.retypeColumn h τ₂)
+| Row.cons cell cells, Schema.HasName.hd, newCell => Row.cons newCell cells
+| Row.cons cell cells, Schema.HasName.tl h, newCell =>
     Row.cons cell (retypeCell cells h newCell)
 
 def Row.renameCell {schema : @Schema η} {c : η}

@@ -320,25 +320,362 @@ def dropna (t : Table schema) : Table schema :=
 
 -- # Utilities
 
+def RetypedSubschema.updateForRetype {s : @Schema η} {nm : η} {τ} {h : s.HasName nm}
+  (ss : RetypedSubschema s) : RetypedSubschema (s.retypeColumn h τ) :=
+ss.map (λ | ⟨hdr, pf'⟩ => ⟨hdr, Schema.retypedRetainsHasName pf'⟩)
+
+theorem RetypedSubschema.length_updateForRetype {s : @Schema η} {nm : η} {τ} {h : s.HasName nm} {ss : RetypedSubschema s} :
+  List.length (RetypedSubschema.updateForRetype (τ := τ) (h := h) ss) = List.length ss :=
+List.length_map _ _
+
+def Schema.retypeFromSubschema (s : @Schema η) :
+  RetypedSubschema s → @Schema η
+| [] => s
+-- | ⟨(_, τ), pf⟩ :: ss =>
+--   have hterm : List.length (RetypedSubschema.updateForRetype ss)
+--                 < Nat.succ (List.length ss) :=
+--     by conv =>
+--         lhs
+--         apply RetypedSubschema.length_updateForRetype (τ := τ) (h := pf)
+--        apply Nat.lt.base
+--   retypeFromSubschema (s.retypeColumn pf τ) (RetypedSubschema.updateForRetype ss)
+| shdr :: ss =>
+  have hterm : List.length (RetypedSubschema.updateForRetype ss)
+                < Nat.succ (List.length ss) :=
+    by conv =>
+        lhs
+        apply RetypedSubschema.length_updateForRetype (τ := shdr.1.2)
+                                                      (h := shdr.2)
+       apply Nat.lt.base
+  retypeFromSubschema (s.retypeColumn shdr.2 shdr.1.2) (RetypedSubschema.updateForRetype ss)
+termination_by retypeFromSubschema s ss => ss.length
+decreasing_by assumption
+
+def Row.retypeForSubschema :
+  {schema : @Schema η} →
+  (ss : RetypedSubschema schema) →
+  Row schema →
+  Row (schema.retypeFromSubschema ss)
+| _, [], r => r
+| schema, ⟨(_, τ), pf⟩ :: ss, r =>
+  have hterm : List.length (RetypedSubschema.updateForRetype ss)
+                < Nat.succ (List.length ss) :=
+    by conv =>
+        lhs
+        apply RetypedSubschema.length_updateForRetype (τ := τ) (h := pf)
+       apply Nat.lt.base
+  retypeForSubschema (RetypedSubschema.updateForRetype ss)
+                     (r.retypeCell pf Cell.emp)
+termination_by retypeForSubschema ss r => ss.length
+
+/-
+Want to show:
+toSchema (subhdr :: ss')
+=
+Schema.retypeFromSubschema (Schema.retypeColumn s pf τ) (updateForRetype ss)
+-/
+
+-- TODO: this should be trivial, and yet...
+-- FIXME: this is false! If we have the same name entry with different types
+-- in the RetypedSubschema, then only the *second* one would appear in the final
+-- retyped schema! :( Perhaps we will need some sort of ActionList after all...
+def RetypedSubschema.retypedHasCol :
+  {s : @Schema η} →
+  {ss : RetypedSubschema s} →
+  {hdr : Header} →
+  Schema.HasCol hdr (RetypedSubschema.toSchema ss) →
+  Schema.HasCol hdr (s.retypeFromSubschema ss)
+| (nm, τ) :: schm, ⟨(.(nm), τ'), Schema.HasName.hd⟩ :: subschm, _, Schema.HasCol.hd => --Schema.HasCol.hd
+by simp only [Schema.retypeFromSubschema, Schema.retypeColumn, updateForRetype]
+-- := by
+--   intros s ss hdr h
+--   cases ss with | nil => contradiction | cons shdr ss =>
+--   cases shdr with | mk shdr pf =>
+--   simp only [toSchema] at h
+--   simp only [Schema.retypeFromSubschema, updateForRetype]
+--   cases pf with
+--   | hd =>
+--      simp only [Schema.retypeColumn, Schema.retypeFromSubschema, updateForRetype]
+
+-- := by
+--   intros s ss hdr h
+--   cases hdr with | mk nm τ =>
+--   cases ss with
+--   | nil => contradiction
+--   | cons subhdr rest =>
+--     cases subhdr with | mk subhdr pf =>
+--     cases subhdr with | mk sub_nm sub_τ =>
+--     cases pf with
+--     | hd =>
+--       unfold Schema.retypeFromSubschema
+--       simp only [RetypedSubschema.updateForRetype]
+
+  -- Schema.HasCol.hd
+  -- by simp only [Schema.retypeFromSubschema, Schema.retypeColumn, updateForRetype]
+-- | s, ⟨curHdr, pf⟩ :: ss, _, Schema.HasCol.tl h =>
+--   sorry
+
+-- def Row.retypedSubrowForRetype {s : @Schema η} {nm : η} {τ} {h : s.HasName nm}
+--   {ss : RetypedSubschema s}
+--   (r : Row ss.toSchema) : Row (ss.updateForRetype (τ := τ) (h := h)).toSchema :=
+--   r.map (λ )
+-- ss.map (λ | ⟨hdr, pf'⟩ => ⟨hdr, Schema.retypedRetainsHasName pf'⟩)
+
+theorem Nat.lt_add_right (a b c : Nat) : a < b → a < b + c :=
+λ h => Nat.lt_of_lt_of_le h (Nat.le_add_right _ _)
+
+-- TODO: a better name might be `updateSubrowForRetype` or something, but let's
+-- fix the bugs first.
+def Row.retypeForRetypedSubschema :
+  {sch : @Schema η} → {sub : RetypedSubschema sch} →
+  {nm : η} → {h : sch.HasName nm} → {τ : Type _} →
+  Row (RetypedSubschema.toSchema sub) →
+  Row (RetypedSubschema.toSchema (RetypedSubschema.updateForRetype
+    (h := h) (τ := τ) sub))
+| _, [], _, _, _, _ => Row.nil
+| _, ⟨hdr, hn⟩ :: sub', _, _, _, Row.cons c cs =>
+  have hterm : sizeOf cs < sizeOf (Row.cons c cs) :=
+    by simp  -- TODO: figure out a strict simp set
+       rw [Nat.add_comm, ←Nat.add_assoc]
+       apply Nat.lt_add_right
+       apply Nat.lt.base
+  Row.cons c (retypeForRetypedSubschema cs)
+termination_by retypeForRetypedSubschema cs r => sizeOf r
+decreasing_by assumption
+
+-- Can also do this by `cast`, but this strikes me as not the best idea
+theorem Row.retypeForRetypedSubschema'_pf
+  {sch : @Schema η} {sub : RetypedSubschema sch}
+  {nm : η} {h : sch.HasName nm} {τ : Type _} :
+    RetypedSubschema.toSchema sub =
+    RetypedSubschema.toSchema (RetypedSubschema.updateForRetype
+      (h := h) (τ := τ) sub) :=
+  by induction sub with
+     | nil => simp only [RetypedSubschema.toSchema]
+     | cons shdr ss ih =>
+       simp only [RetypedSubschema.updateForRetype, List.map]
+       simp only [RetypedSubschema.toSchema]
+       apply congrArg (λ x => shdr.1 :: x)
+       apply ih
+
+def Row.retypeForRetypedSubschema'
+  {sch : @Schema η} {sub : RetypedSubschema sch}
+  {nm : η} {h : sch.HasName nm} {τ : Type _}
+  (r : Row (RetypedSubschema.toSchema sub)) :
+  Row (RetypedSubschema.toSchema (RetypedSubschema.updateForRetype
+    (h := h) (τ := τ) sub)) :=
+  cast (congrArg Row retypeForRetypedSubschema'_pf) r
+
+-- More issues with equation generation
+theorem Row.retypeForRetypedSubschema_eq_1
+  {sch : @Schema η} {nm : η} {h : sch.HasName nm} {τ : Type _} :
+  Row.retypeForRetypedSubschema (sch := sch) (sub := []) (h := h) (τ := τ) Row.nil = Row.nil := rfl
+
+-- FIXME: *why* will these definitions not expand‽
+theorem Row.retypeForRetypedSubschema_eq_test -- TODO: Delete once resolved
+  {sch : @Schema η} {nm : η} {h : sch.HasName nm} {τ : Type _} {pf : sch.HasName hdr.1}:
+  Row.retypeForRetypedSubschema (sch := sch) (sub := [⟨hdr, pf⟩]) (h := h) (τ := τ) (cons c nil) = cons c nil := rfl
+
+theorem Row.retypeForRetypedSubschema_eq_2
+  {sch : @Schema η}
+  {hdr : @Header η} {hn : sch.HasName hdr.1}
+  {sub' : RetypedSubschema sch}
+  {nm : η} {h : sch.HasName nm} {τ : Type _}
+  {c : Cell hdr.1 hdr.2} {cs : Row $ sub'.toSchema} :
+  @retypeForRetypedSubschema η dec_η sch (⟨hdr, hn⟩ :: sub') nm h τ (cons c cs) =
+  cons c (@retypeForRetypedSubschema η dec_η sch sub' nm h τ cs) := sorry --rfl
+
+theorem Row.retypeForRetypedSubschema'_eq_1
+  {sch : @Schema η} {nm : η} {h : sch.HasName nm} {τ : Type _} :
+  retypeForRetypedSubschema' (sch := sch) (sub := []) (h := h) (τ := τ) nil = nil := rfl
+
+theorem Row.retypeForRetypedSubschema'_eq_2 {sch : @Schema η}
+  {hdr : @Header η} {hn : sch.HasName hdr.1}
+  {sub' : RetypedSubschema sch}
+  {nm : η} {h : sch.HasName nm} {τ : Type _}
+  {c : Cell hdr.1 hdr.2} {cs : Row $ sub'.toSchema} :
+  @retypeForRetypedSubschema' η dec_η sch (⟨hdr, hn⟩ :: sub') nm h τ (cons c cs) =
+  cast (congrArg Row (retypeForRetypedSubschema'_pf (sub := ⟨hdr, hn⟩ :: sub'))) (cons c cs) := rfl
+
+theorem Row.retypeForRetypedSubschema'_eq_general
+  {sch : @Schema η}
+  {nm : η}
+  (hn : sch.HasName nm)
+  (sub : RetypedSubschema sch)
+  {nm' : η} {h : sch.HasName nm'} {τ : Type _}
+  (r : Row sub.toSchema) :
+  retypeForRetypedSubschema' (h := h) (τ := τ) r =
+  cast (congrArg Row Row.retypeForRetypedSubschema'_pf) r := rfl
+
+theorem Row.sizeOf_retypeForRetypedSubschema :
+  (sub : RetypedSubschema schema) →
+  (r : Row sub.toSchema) →
+  sizeOf (Row.retypeForRetypedSubschema (h := h) (τ := τ) r) = sizeOf r
+| [], Row.nil => rfl
+| ⟨n, hn⟩ :: subs, Row.cons c cs =>
+  have mainPf := congrArg (λ x => 1 + sizeOf c + x)
+                          (sizeOf_retypeForRetypedSubschema subs cs)
+  by rw [Row.cons.sizeOf_spec, retypeForRetypedSubschema_eq_2]; apply mainPf
+  -- `simp` isn't applying `Row.cons.sizeOf_spec` for some reason
+
+def Row.updateFromSubrow {sch : @Schema η} :
+         {subsch : RetypedSubschema sch} →
+    Row sch → Row (subsch.toSchema) → Row (sch.retypeFromSubschema subsch)
+| [], r, Row.nil => r
+| ⟨hdr, hn⟩ :: sub', r, Row.cons c cs =>
+  have hterm : sizeOf (retypeForRetypedSubschema (h := hn) (τ := hdr.2) cs)
+                < sizeOf (cons c cs) :=
+    by rw [sizeOf_retypeForRetypedSubschema sub' cs]
+       simp
+       rw [Nat.add_comm (1 + sizeOf c), ←Nat.add_assoc]
+       apply Nat.lt_add_right
+       apply Nat.lt.base
+  updateFromSubrow (subsch := RetypedSubschema.updateForRetype sub')
+                   (r.retypeCell hn c)
+                   (retypeForRetypedSubschema cs)
+termination_by updateFromSubrow r subr => sizeOf subr
+
+-- This doesn't work for `fillna` because it can't figure out that the types are
+-- the same
+def update_alt {schema₁ : @Schema η}
+               (schema₂ : RetypedSubschema schema₁)
+               (t : Table schema₁)
+               (f : Row schema₁ → Row schema₂.toSchema) : Table (schema₁.retypeFromSubschema schema₂) :=
+{rows := t.rows.map (λ r => Row.updateFromSubrow r (f r))}
+
 -- FIXME: Lean can't infer the subschema because it's really trying to infer
 -- "subschema.toSchema," which isn't definitional
 -- Couple of options here. The best thing would be to figure out a way to let
 -- Lean infer the (sub)schema directly, just like it does for normal schemata.
 -- Alternatively, we can just make the subschema an explicit arg :(
 def update {schema₁ : @Schema η}
-           (schema₂ : Subschema schema₁)
+           (schema₂ : RetypedSubschema schema₁)
            (t : Table schema₁)
-           (f : Row schema₁ → Row schema₂.toSchema) : Table schema₁ :=
+           (f : Row schema₁ → Row schema₂.toSchema) : Table (schema₁.retypeFromSubschema schema₂) :=
   {rows := t.rows.map (λ r =>
     let newCells : Row schema₂.toSchema := f r
     newCells.certifiedFoldr
       (λ {nm τ}
          (cell : Cell nm τ)
          (h : schema₂.toSchema.HasCol (nm, τ))
-         (acc : Row schema₁) =>
-          Row.setCell acc (Schema.schemaHasSubschema h) cell)
-      r
+         (acc) =>
+         -- TODO: this issue of the type changing at each stage of a fold again...
+         -- One solution might be to just retype `r` and replace the updated cells
+         -- with empties, then go through and `setCell` (no need to retype since
+         -- the base value will already be a `schema₂`)
+         -- But this solution would require some sort of action list, since
+         -- the proofs become invalidated as soon as we change one column...
+          Row.setCell acc (RetypedSubschema.retypedHasCol h) cell)
+      (r.retypeForSubschema schema₂)
   )}
+
+def Schema.retypeColumnPair (schema : @Schema η)
+                            (c : (nm : η) × schema.HasName nm × Type u) :=
+  Schema.retypeColumn schema c.2.1 c.2.2
+
+def Schema.retypeColumns :
+  (schema : @Schema η) → ActionList Schema.retypeColumnPair schema → @Schema η
+| schema, ActionList.nil => schema
+| schema, ActionList.cons c cs => retypeColumns (schema.retypeColumnPair c) cs
+
+-- The `induction` tactic doesn't support data, apparently
+def Schema.retypeColumnPreservesName :
+  {s : @Schema η} →
+  {nm nm' : η} →
+  {hn : HasName nm' s} →
+  {τ : Type u} →
+  HasName nm (retypeColumn s hn τ) →
+  HasName nm s
+| _ :: s, nm, nm', HasName.hd, τ, pf_orig => by
+  cases pf_orig with
+  | hd => apply HasName.hd
+  | tl h => apply HasName.tl h
+| _ :: s, nm, nm', HasName.tl h, τ, pf_orig => by
+  cases pf_orig with
+  | hd => apply HasName.hd
+  | tl h => apply HasName.tl (retypeColumnPreservesName h)
+
+def Schema.retypeColumnPairPres
+  (s : Schema)
+  (k : (nm : η) × Schema.HasName nm s × Type u)
+  (c : (nm : η) × Schema.HasName nm (Schema.retypeColumnPair s k) × Type u) :
+  (nm : η) × Schema.HasName nm s × Type u :=
+⟨c.1, retypeColumnPreservesName c.2.1, c.2.2⟩
+
+def Row.retypeEmptyCells {sch : @Schema η} :
+  (cs : ActionList Schema.retypeColumnPair sch) →
+  Row sch →
+  Row (sch.retypeColumns cs)
+| ActionList.nil, r => r
+| ActionList.cons c cs, r => retypeEmptyCells cs (r.retypeCell c.2.1 Cell.emp)
+
+def ActionList.columnPairListToSchema {sch : @Schema η}
+  (cs : ActionList Schema.retypeColumnPair sch) : @Schema η :=
+(cs.toList Schema.retypeColumnPairPres).map (λ c => (c.1, c.2.2))
+
+def ActionList.columnPairSchema :
+  {s : @Schema η} →
+  {cs : ActionList Schema.retypeColumnPair s} →
+  {hdr : Header} →
+  Schema.HasCol hdr cs.columnPairListToSchema →
+  Schema.HasCol hdr (s.retypeColumns cs) := sorry
+
+-- TODO: I really don't think we need an ActionList...this is ending up right
+-- where the regular `update` is...
+def update'_alt {schema : @Schema η}
+            (t : Table schema)
+            (cs : ActionList Schema.retypeColumnPair schema)
+            -- NOTE: this doesn't quite adhere to the spec b/c `f` is supposed
+            -- to return a row *just* containing modified cells
+            (f : Row schema → Row (cs.columnPairListToSchema))
+    : Table (schema.retypeColumns cs) :=
+{rows := t.rows.map (λ r => 
+    let newCells := f r
+    -- TODO: can't use `certifiedFoldr` because the type needs to change with
+    -- each iteration -- the ActionList relies on this incremental type changing
+    -- to provide its guarantee of validity
+    newCells.certifiedFoldr
+      (λ {nm τ}
+         (cell : Cell nm τ)
+         (h : cs.columnPairListToSchema.HasCol (nm, τ))
+         (acc) =>
+         -- TODO: this issue of the type changing at each stage of a fold again...
+         -- One solution might be to just retype `r` and replace the updated cells
+         -- with empties, then go through and `setCell` (no need to retype since
+         -- the base value will already be a `schema₂`)
+         -- But this solution would require some sort of action list, since
+         -- the proofs become invalidated as soon as we change one column...
+          Row.setCell acc h cell)
+      (r.retypeEmptyCells cs)
+)}
+
+-- Alternative implementation that slightly deviates from the spec
+def update' {schema : @Schema η}
+            (t : Table schema)
+            (cs : ActionList Schema.retypeColumnPair schema)
+            -- NOTE: this doesn't quite adhere to the spec b/c `f` is supposed
+            -- to return a row *just* containing modified cells
+            (f : Row schema → Row (schema.retypeColumns cs))
+    : Table (schema.retypeColumns cs) :=
+{rows := t.rows.map (λ r => f r)}
+
+-- This doesn't adhere to the spec b/c `f` is supposed to return a row of cells
+-- with names (but not necessarily types) matching some subset of the names in
+-- the original schema. However, this has proven challenging to implement, so
+-- for the time being, this is a (slightly too general) workaround -- it's not
+-- that hard to use `row.setCell` instead of constructing a row from scratch;
+-- unfortunately, we can no longer enforce that the names in the schemata be
+-- preserved.
+def update'' {schema schema' : @Schema η}
+             (t : Table schema)
+             (f : Row schema → Row schema')
+    : Table schema' :=
+{rows := t.rows.map f}
+
+def testtable : Table [("id", Nat), ("field", String)] := Table.mk [
+  Row.cons (Cell.val 0) $ Row.cons (Cell.val "hi") Row.nil,
+  Row.cons (Cell.val 1) $ Row.cons (Cell.val "bye") Row.nil
+]
 
 def fillna {τ}
            (t : Table schema)
@@ -349,6 +686,19 @@ def fillna {τ}
     (λ r => match Row.getCell r c.snd with
                 | Cell.emp => Row.singleValue v
                 | Cell.val vOld => Row.singleValue vOld)
+  -- update' t
+  --   ActionList.nil
+  --   (λ r => match Row.getCell r c.snd with
+  --               | Cell.emp => r
+  --               | Cell.val vOld => r.setCell c.snd $ Cell.val vOld)
+  -- update'' t
+  --   (λ r => match Row.getCell r c.snd with
+  --               | Cell.emp => r
+  --               | Cell.val vOld => r.setCell c.snd $ Cell.val vOld)
+  -- update_alt [⟨(c.fst, τ), Schema.colImpliesName c.snd⟩] t
+  --   (λ r => match Row.getCell r c.snd with
+  --               | Cell.emp => Row.singleValue v
+  --               | Cell.val vOld => Row.singleValue vOld)
 
 def select {schema' : @Schema η}
            (t : Table schema)
@@ -477,7 +827,7 @@ retyping `rs.2` such that `c` is flattened, with the cell at `c` set to empty.
 iterations when a flattened sequence has more elements than yet exist. Note
 that, since each single-flattening clears the selected column in rows beyond
 those into which it flattens, we only need clean-row arguments to be "clean" in
-rows that have already been flattened.)
+columns that have already been flattened.)
 -/
 def flattenOne {schema : @Schema η} :
   -- list of flattened copies of each row × "clean" copy of row for all
@@ -491,14 +841,15 @@ def flattenOne {schema : @Schema η} :
   let vals := match r.getCell c.2.2 with
               | Cell.emp => []
               | Cell.val xs => xs
+  let nmPf := Schema.colImpliesName c.2.2
   let rec setVals : List c.2.1 → List (Row schema) →
                     List (Row $ schema.flattenList c)
   | [], [] => []
-  | [], r :: rs => (r.retypeCell c.2.2 Cell.emp) :: setVals [] rs
-  | v :: vs, [] => (cleanR.retypeCell c.2.2 (Cell.val v)) :: setVals vs []
-  | v :: vs, r :: rs => (r.retypeCell c.2.2 (Cell.val v)) :: setVals vs rs
+  | [], r :: rs => (r.retypeCell nmPf Cell.emp) :: setVals [] rs
+  | v :: vs, [] => (cleanR.retypeCell nmPf (Cell.val v)) :: setVals vs []
+  | v :: vs, r :: rs => (r.retypeCell nmPf (Cell.val v)) :: setVals vs rs
   
-  (setVals vals (r :: rs), r.retypeCell c.2.2 Cell.emp) :: flattenOne rss c
+  (setVals vals (r :: rs), r.retypeCell nmPf Cell.emp) :: flattenOne rss c
 termination_by setVals vs rs => vs.length + rs.length
 
 -- TODO: could probably rewrite this to use the `selectMany` combinator
@@ -563,7 +914,8 @@ def transformColumn {τ₁ τ₂}
                     (f : Option τ₁ → Option τ₂)
     : Table (schema.retypeColumn (Schema.colImpliesName c.snd) τ₂) :=
   {rows := t.rows.map (λ (r : Row schema) =>
-    r.retypeCell c.snd (Cell.fromOption (f (getValue r c.fst c.snd)))
+    r.retypeCell (Schema.colImpliesName c.snd)
+      (Cell.fromOption (f (getValue r c.fst c.snd)))
   )}
 
 def renameColumns (t : Table schema)

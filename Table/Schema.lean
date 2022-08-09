@@ -23,6 +23,9 @@ def Subschema {η : Type u_η} (schm : @Schema η) :=
 def EqSubschema {η : Type u_η} (schm : @Schema η) :=
   List ((h : Header) × schm.HasCol (h.fst, h.snd) × DecidableEq h.2)
 
+def RetypedSubschema {η : Type u_η} (schm : @Schema η) :=
+  List ((h : Header) × schm.HasName h.1)
+
 def CertifiedName (schema : @Schema η) := ((c : η) × Schema.HasName c schema)
 def CertifiedHeader (schema : @Schema η) :=
   ((h : Header) × Schema.HasCol h schema)
@@ -88,6 +91,10 @@ def Subschema.toSchema {schm : @Schema η} : Subschema schm → @Schema η
 | ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
 
 def EqSubschema.toSchema {schm : @Schema η} : EqSubschema schm → @Schema η
+| [] => []
+| ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
+
+def RetypedSubschema.toSchema {schm : @Schema η} : RetypedSubschema schm → @Schema η
 | [] => []
 | ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
 
@@ -328,6 +335,23 @@ def Schema.retypeColumn {η : Type u_η} [DecidableEq η]
 | _, (nm, τ) :: cs, Schema.HasName.hd, τ' => (nm, τ') :: cs
 | _, c :: cs, Schema.HasName.tl h, τ' => c :: retypeColumn cs h τ'
 
+-- TODO: no need for this to be in tactic mode
+def Schema.retypedRetainsHasName {η : Type u_η} [DecidableEq η] {nm nm' : η} {τ} :
+  {schema : @Schema η} →
+  {h' : schema.HasName nm'} →
+  schema.HasName nm →
+  (schema.retypeColumn h' τ).HasName nm
+| (_, _) :: schema, HasName.hd, origPf =>
+  by simp only [retypeColumn]
+     cases origPf with
+     | hd => apply HasName.hd
+     | tl h => apply HasName.tl h
+| (curNm , curTp) :: schema, HasName.tl h, origPf =>
+  by simp only [retypeColumn]
+     cases origPf with
+     | hd => apply HasName.hd
+     | tl h => apply HasName.tl; apply retypedRetainsHasName h
+
 -- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
 def Schema.flattenList (schema : @Schema η)
   (c : ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))
@@ -407,6 +431,22 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
     apply Nat.lt.base;
   schemaHasSubschema h
 termination_by schemaHasSubschema h => sizeOf h
+
+def Schema.hasNameOfRTSubschemaName :
+  {nm : η} →
+  {schema : @Schema η} →
+  {subschema : RetypedSubschema schema} →
+  (h : subschema.toSchema.HasName nm) →
+  schema.HasName nm
+| _, s₁ :: ss₁, ⟨hdr, pf⟩ :: ss₂, HasName.hd => pf
+| _, schema₁, schema₂@(⟨hdr, pf⟩ :: ss), HasName.tl h =>
+    have term_helper : sizeOf h < sizeOf (HasName.tl (r := hdr) h) := by
+      simp
+      rw [Nat.add_comm]
+      apply Nat.lt.base
+  hasNameOfRTSubschemaName h
+termination_by hasNameOfRTSubschemaName h => sizeOf h
+decreasing_by assumption
 
 -- TODO: why does this depend on `Classical.choice`‽
 /--
