@@ -312,7 +312,11 @@ theorem dropColumn_spec1 : ∀ (t : Table sch) (c : CertifiedName sch),
   nrows (dropColumn t c) = nrows t :=
 λ t c => List.length_map _ _
 
--- TODO: dC spec 2 (not currently true because of duplicate issues)
+-- dC spec 2 is not currently true because of duplicate issues. This is the best
+-- approximation we can get instead:
+theorem dropColumn_spec2 : ∀ (t : Table sch) (c : CertifiedName sch),
+  header (dropColumn t c) = Schema.names (sch.removeName c.2) :=
+λ t c => rfl
 
 theorem dropColumn_spec3 : ∀ (t : Table sch) (c : CertifiedName sch),
   List.Sublist (schema (dropColumn t c)) (schema t) :=
@@ -323,7 +327,11 @@ theorem dropColumns_spec1 :
   nrows (dropColumns t cs) = nrows t :=
 λ t cs => List.length_map _ _
 
--- TODO: dCs spec 2 -- same issue as dC
+-- dCs spec 2 has the same issue as dC spec 2.
+theorem dropColumns_spec2 :
+  ∀ (t : Table sch) (cs : ActionList Schema.removeCertifiedName sch),
+  header (dropColumns t cs) = Schema.names (sch.removeNames cs) :=
+λ t cs => rfl
 
 theorem dropColumns_spec3 :
   ∀ (t : Table sch) (cs : ActionList Schema.removeCertifiedName sch),
@@ -426,7 +434,32 @@ theorem bin_spec3 [ToString η] :
 
 -- TODO: `pivotTable`
 
+-- Spec 1 is enforced by types
+theorem pivotTable_spec2 :
+  ∀ (t : Table sch)
+    (cs : List $ CertifiedHeader sch)
+    (inst : DecidableEq (Row (Schema.fromCHeaders cs)))
+    (aggs : List ((c' : Header) ×
+                  (c : CertifiedHeader sch) ×
+                  (List (Option c.fst.snd) → Option c'.snd))),
+  header (pivotTable t cs inst aggs) =
+  List.append (cs.map (·.1.1)) (aggs.map (·.1.1)) :=
+λ t cs inst aggs => List.map_map_append cs aggs Prod.fst Sigma.fst Sigma.fst
+   
+-- TODO: pivotTable specs 3 & 4
+
 -- TODO: `groupBy`
+-- Specs 1 and 2 are enforced by types
+-- Spec 3 is also enforced by types, but since it is actually expressible as an
+-- (albeit trivial) proof, we state it here for completeness
+theorem groupBy_spec3 {sch' : @Schema η} {κ ν} [DecidableEq κ] :
+  ∀ (t : Table sch)
+    (key : Row sch → κ)
+    (project : Row sch → ν)
+    (aggregate : κ → List ν → Row sch')
+    (k : κ) (vs : List ν),
+  schema (groupBy t key project aggregate) = (aggregate k vs).schema :=
+λ _ _ _ _ _ _ => rfl
 
 theorem completeCases_spec {τ : Type u} :
   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
