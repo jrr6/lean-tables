@@ -746,44 +746,10 @@ theorem List.uniqueAux_acc_append {α} [DecidableEq α] (xs : List α)
     apply congrArg
     rw [this]
 
--- Just a corollary of the above! Can prove that instead.
-theorem List.length_uniqueAux {α} [DecidableEq α] : (xs : List α) →
-  ∀ (acc : List α) (h : ∀ x, x ∈ xs → ¬ (x ∈ acc)),
-  length (uniqueAux xs acc) = length (unique xs) + length acc
-| [], acc, h => by simp only [unique, uniqueAux, length_reverse, length, Nat.zero_add]
-| x :: xs, acc, h => by
-  simp only [uniqueAux, unique, List.not_mem_nil, ite_false]
-  cases Decidable.em (x ∈ acc) with
-  | inl hin =>
-    apply absurd hin
-    apply h x
-    constructor
-  | inr hout =>
-    simp only [length, hout, ite_false]
-    rw [←length_append]
-    
-    
---   :=
--- by induction xs with
---    | nil =>
---      intros
---      simp only [unique, uniqueAux, length_reverse, length, Nat.zero_add]
---    | cons x xs ih =>
---      intros acc h
---      simp only [uniqueAux, unique, List.not_mem_nil, ite_false]
---      cases Decidable.em (x ∈ acc) with
---      | inl hin =>
---        apply absurd hin
---        apply h x
---        constructor
---      | inr hout =>
---        simp only [length, hout, ite_false]
---        rw [ih, ih]
---        simp only [length]
---        rw [Nat.add_comm (length acc), ←Nat.add_assoc]
---        . intro x' hx' hneg
---          have := h x' (List.Mem.tail x hx')
---        . admit
+theorem List.length_uniqueAux {α} [DecidableEq α]
+  (xs : List α) (acc : List α) (h : ∀ x, x ∈ xs → ¬ (x ∈ acc)) :
+  length (uniqueAux xs acc) = length (unique xs) + length acc := by
+  rw [uniqueAux_acc_append _ _ h, length_append, length_reverse, Nat.add_comm]
 
 theorem findMatches_fst_eq_filter_k_map_snd {κ ν} [inst : DecidableEq κ] :
   ∀ (xs : List (κ × ν)) (k : κ),
