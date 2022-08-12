@@ -207,7 +207,27 @@ theorem selectColumns1_spec1 :
 λ t bs h => List.sublist_of_map_sublist _ _ Prod.fst $ List.sieve_sublist bs sch
 
 -- TODO: sC1 spec 2 (I don't think this is actually currently true due to
--- uniqueness issues)
+-- uniqueness issues -- in particular, the same value may appear later in the
+-- header. The failed proof below illustrates where this goes wrong more
+-- clearly.)
+
+-- theorem List.sieve_mem_iff_true :
+--   List.get xs ⟨i, pf1⟩ ∈ List.sieve bs xs ↔ List.get bs ⟨i, pf2⟩ = true :=
+-- by apply Iff.intro
+--    . intro hf
+--      cases xs with
+--      | nil => contradiction
+--      | cons x xs =>
+--      cases bs with
+--      | nil => contradiction
+--      | cons b bs =>
+--      induction i with
+--      | zero =>
+--       simp only [get] at *
+--       cases b with
+--       | false =>
+--         simp only [sieve] at hf
+
 -- FIXME: there must be a better way
 theorem ncols_eq_header_length :
   ∀ (t : Table sch), ncols t = (header t).length :=
@@ -216,6 +236,21 @@ theorem selectColumns1_spec2 :
   ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t) (i : Nat) (h' : i < ncols t),
   (List.get (header t) ⟨i, (ncols_eq_header_length t).subst h'⟩) ∈ (header (selectColumns1 t bs h)) ↔
    List.get bs ⟨i, Eq.subst h.symm h'⟩ = true := sorry
+-- by intros t bs h i h'
+--    apply Iff.intro
+--    . intros hforward
+--      unfold Membership.mem at hforward
+--      unfold List.instMembershipList at hforward
+--      simp only [header, Schema.names] at hforward
+--      cases sch with
+--      | nil => contradiction
+--      | cons hdr sch' =>
+--      cases bs with
+--      | nil => contradiction
+--      | cons b bs' =>
+--      simp only [List.sieve, List.map] at hforward
+--      admit
+--     . admit
 
 theorem selectColumns1_spec3 :
   ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t),
@@ -460,6 +495,23 @@ theorem groupBy_spec3 {sch' : @Schema η} {κ ν} [DecidableEq κ] :
     (k : κ) (vs : List ν),
   schema (groupBy t key project aggregate) = (aggregate k vs).schema :=
 λ _ _ _ _ _ _ => rfl
+
+theorem groupBy_spec4 {sch' : @Schema η} {κ ν} [DecidableEq κ] :
+  ∀ (t : Table sch)
+    (key : Row sch → κ)
+    (project : Row sch → ν)
+    (aggregate : κ → List ν → Row sch'),
+  nrows (groupBy t key project aggregate) = (t.rows.map key).unique.length :=
+by intros t key proj agg
+   simp only [nrows, groupBy]
+   rw [List.length_map]
+  --  induction t.rows with
+  --  | nil => simp [groupBy.group, List.map, List.unique, List.uniqueAux]
+  --  | cons r rs ih =>
+  --    simp only [List.map, groupBy.group, List.unique, List.uniqueAux]
+  --    rw [List.length_reverse]
+  --    have h_not_elem : ¬(key r ∈ []) := List.not_mem_empty (key r)
+  --    simp only [ite_false, h_not_elem]
 
 theorem completeCases_spec {τ : Type u} :
   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
