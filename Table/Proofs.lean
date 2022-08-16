@@ -483,7 +483,6 @@ theorem pivotTable_spec2 :
    
 -- TODO: pivotTable specs 3 & 4
 
--- TODO: `groupBy`
 -- Specs 1 and 2 are enforced by types
 -- Spec 3 is also enforced by types, but since it is actually expressible as an
 -- (albeit trivial) proof, we state it here for completeness
@@ -504,14 +503,13 @@ theorem groupBy_spec4 {sch' : @Schema η} {κ ν} [DecidableEq κ] :
   nrows (groupBy t key project aggregate) = (t.rows.map key).unique.length :=
 by intros t key proj agg
    simp only [nrows, groupBy]
-   rw [List.length_map]
-  --  induction t.rows with
-  --  | nil => simp [groupBy.group, List.map, List.unique, List.uniqueAux]
-  --  | cons r rs ih =>
-  --    simp only [List.map, groupBy.group, List.unique, List.uniqueAux]
-  --    rw [List.length_reverse]
-  --    have h_not_elem : ¬(key r ∈ []) := List.not_mem_empty (key r)
-  --    simp only [ite_false, h_not_elem]
+   rw [List.length_map, List.length_groupByKey]
+   apply congrArg
+   apply congrArg
+   rw [List.map_map]
+   apply congr _ rfl
+   apply congrArg
+   simp only [Function.comp]
 
 theorem completeCases_spec {τ : Type u} :
   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),

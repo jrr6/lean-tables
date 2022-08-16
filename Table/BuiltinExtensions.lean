@@ -746,3 +746,403 @@ by intros x y
      cases y with
      | ofNat m => simp
      | negSucc m => simp [Nat.add_comm]
+
+-- BEGIN `groupByKey`
+-- (Contains infrastructure for `groupBy`, as well as some extra proofs that
+-- aren't used but might be useful in the future.)
+
+-- TODO: figure out where De Morgan's laws are hiding in the library...
+-- (There's `Decidable.not_and_iff_or_not`, but why should we require
+-- decidability?)
+theorem not_or_distrib : ¬ (a ∨ b) ↔ ¬a ∧ ¬b :=
+Iff.intro
+(λ h => And.intro (λ ha => h (Or.intro_left _ ha))
+                  (λ hb => h (Or.intro_right _ hb)))
+(λ h => λ hneg =>
+  match hneg with
+  | Or.inl ha => h.left ha
+  | Or.inr hb => h.right hb)
+
+-- Again, this must be in the library somewhere...
+theorem And.comm : p ∧ q ↔ q ∧ p :=
+  Iff.intro (λ h => And.intro h.right h.left) (λ h => And.intro h.right h.left)
+
+theorem Iff.not_iff_not_of_iff : (p ↔ q) → (¬ p ↔ ¬ q) := λ hpq =>
+  Iff.intro (λ hnp hq => hnp $ hpq.mpr hq) (λ hnq hp => hnq $ hpq.mp hp)
+
+theorem Decidable.prop_eq_of_decide_eq (p q : Prop)
+  [ip : Decidable p] [iq : Decidable q] :
+  p = q → decide p = decide q := λ h =>
+  by cases h
+     apply congr
+     . simp
+     . apply eq_of_heq
+       apply Subsingleton.helim
+       rfl
+
+def List.matchKey {κ ν} [DecidableEq κ]
+    : List (κ × ν) → κ → List ν × List (κ × ν)
+| [], _ => ([], [])
+| (k, v) :: kvs, x =>
+  let res := matchKey kvs x
+  if k = x
+  then (v :: res.1, res.2)
+  else (res.1, (k, v) :: res.2)
+
+theorem List.matchKey_snd_length {κ ν} [DecidableEq κ] :
+    ∀ (xs : List (κ × ν)) (k : κ), (matchKey xs k).2.length ≤ xs.length :=
+by intros xs k
+   induction xs with
+   | nil => exact Nat.le.refl
+   | cons x xs ih =>
+     simp only [matchKey]
+     apply @Decidable.byCases (x.1=k) _
+     . intros heq
+       simp only [heq]
+       rw [ite_true]
+       simp only [Prod.snd]
+       apply Nat.le_step
+       exact ih
+     . intros hneq
+       simp only [hneq]
+       rw [ite_false]
+       simp only [Prod.fst]
+       apply Nat.succ_le_succ
+       exact ih
+
+theorem List.matchKey_lengths_sum {κ ν} [inst : DecidableEq κ] :
+  ∀ (xs : List (κ × ν)) (k : κ),
+  (matchKey xs k).1.length + (matchKey xs k).2.length = xs.length :=
+by intros xs k
+   induction xs with
+   | nil => rfl
+   | cons x xs ih =>
+     simp only [matchKey]
+     cases inst x.1 k with
+     | isFalse hfalse =>
+       simp only [hfalse, ite_false, List.length]
+       rw [←Nat.add_assoc]
+       apply congrArg (·+1) ih
+     | isTrue htrue =>
+       simp only [htrue, ite_true, List.length]
+       rw [Nat.add_assoc, Nat.add_comm 1, ←Nat.add_assoc]
+       apply congrArg (·+1) ih
+
+theorem List.matchKey_snd_keys_neq_k_map [DecidableEq κ] (xs : List (κ × ν)) :
+  ∀ e, e ∈ (List.map Prod.fst (matchKey xs k).snd) → e ≠ k :=
+by intros e hsnd
+   induction xs with
+   | nil => cases hsnd
+   | cons x xs ih =>
+     cases Decidable.em (x.1 = k) with
+     | inl heq =>
+       apply ih
+       simp only [matchKey, heq, ite_true] at hsnd
+       exact hsnd
+     | inr hneq =>
+       simp only [matchKey, hneq, ite_false] at hsnd
+       cases hsnd with
+       | head => exact hneq
+       | tail _ hin => exact ih hin
+
+theorem List.fst_mem_of_pair_mem : ∀ (x : α) (y : β) (ps : List (α × β)),
+  (x, y) ∈ ps → x ∈ (map Prod.fst ps)
+| x, y, [], hxy => by contradiction
+| x, y, _ :: ps, List.Mem.head _ _ => List.Mem.head _ _
+| x, y, _ :: ps, List.Mem.tail a h => Mem.tail _ $ fst_mem_of_pair_mem x y ps h
+
+theorem List.matchKey_snd_keys_neq_k [DecidableEq κ] (xs : List (κ × ν)) :
+  ∀ e, e ∈ (matchKey xs k).snd → e.fst ≠ k := λ e he =>
+matchKey_snd_keys_neq_k_map xs e.fst
+  (List.fst_mem_of_pair_mem e.1 e.2 (matchKey xs k).snd he)
+
+-- TODO: should we use `List.eraseDups` instead? (Uses BEq instead of DEq.)
+def List.uniqueAux {α} [DecidableEq α] : List α → List α → List α
+| [], acc => acc.reverse
+| x :: xs, acc => if x ∈ acc then uniqueAux xs acc else uniqueAux xs (x :: acc)
+
+def List.unique {α} [DecidableEq α] (xs : List α) := uniqueAux xs []
+
+theorem List.all_pred {p : α → Prop} [DecidablePred p] {xs : List α} :
+  xs.all (λ x => decide (p x)) ↔ ∀ x, x ∈ xs → p x := by
+  simp only [all]
+  apply Iff.intro
+  . intros hforward x hx
+    induction hx with
+    | head a as =>
+      simp [foldr] at hforward
+      apply And.left hforward
+    | tail a h ih =>
+      apply ih
+      simp [foldr] at hforward
+      apply And.right hforward
+  . intros hbackward
+    induction xs with
+    | nil => simp [foldr]
+    | cons x xs ih =>
+      simp [foldr]
+      apply And.intro
+      . apply hbackward x (List.Mem.head _ _)
+      . apply ih
+        intro x' hx'
+        apply hbackward _ $ List.Mem.tail _ hx'
+
+-- This didn't end up getting used for the `groupByKey` proof, but I'm keeping
+-- it around just in case
+@[instance] def List.forAllDecidable (xs : List α) (p : α → Prop)
+  [DecidablePred p] : Decidable (∀x, x ∈ xs → p x) :=
+if h : xs.all (λ x => decide (p x))
+then Decidable.isTrue (List.all_pred.mp h)
+else Decidable.isFalse (h ∘ List.all_pred.mpr)
+
+def List.unique' {α} [DecidableEq α] : List α → List α
+| [] => []
+| x :: xs =>
+  let ys := unique' xs
+  if ∀ y, y ∈ ys → x ≠ y then x :: ys else ys
+
+theorem List.mem_singleton_iff (x y : α) : x ∈ [y] ↔ x = y := by
+  apply Iff.intro
+  . intros hin
+    cases hin
+    . rfl
+    . contradiction
+  . intros heq
+    rw [heq]
+    apply Mem.head
+
+theorem List.mem_cons_iff_mem_singleton_or_tail (y : α) (ys : List α) (x : α) :
+  x ∈ y :: ys ↔ x ∈ [y] ∨ x ∈ ys := by
+  apply Iff.intro
+  . intro hf
+    cases hf with
+    | head => apply Or.intro_left _ (Mem.head _ _)
+    | tail _ h => apply Or.intro_right _ h
+  . intro hb
+    cases hb with
+    | inl h => rw [(mem_singleton_iff x y).mp h]; apply Mem.head
+    | inr h => apply Mem.tail _ h
+
+-- TODO: it would make more sense to use `&&` instead of `∧` since this is a
+-- "data function." However, `∧` is better for the `groupByKey` proof, so I'm
+-- leaving it, at least for now.
+theorem List.filter_filter (p₁ p₂ : α → Bool) (xs : List α) :
+  filter p₁ (filter p₂ xs) = filter (λ x => p₂ x ∧ p₁ x) xs := by
+  -- filter p₁ (filter p₂ xs) = filter (λ x => p₂ x ∧ p₁ x) xs := by
+  rw [filter_eq_filterSpec, filter_eq_filterSpec, filter_eq_filterSpec]
+  induction xs with
+  | nil => simp [filterSpec]
+  | cons x xs ih =>
+    cases h₂ : p₂ x with
+    | false =>
+      simp only [filterSpec, h₂, ite_false]
+      exact ih
+    | true =>
+      simp only [filterSpec, h₂, ite_true]
+      cases h₁ : p₁ x with
+      | false =>
+        simp only [filterSpec, h₁, h₂, ite_false]
+        exact ih
+      | true =>
+        simp only [filterSpec, h₁, h₂, ite_true]
+        exact congrArg _ ih
+
+theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
+  ∀ (xs acc : List α),
+  uniqueAux xs acc = reverse acc ++ unique (xs.filter (· ∉ acc))
+| [], acc => by simp [uniqueAux, reverse, reverseAux, unique]
+| x :: xs, acc =>
+  have hterm : length (filter (λ a => !decide (a ∈ acc)) xs)
+                < Nat.succ (length xs) :=
+    Nat.lt_of_le_of_lt (m := length xs) (filter_length _ _) (Nat.lt.base _)
+  have ih₁ := uniqueAux_acc_append_filter xs acc
+  have ih₂ := uniqueAux_acc_append_filter xs (x :: acc)
+  have ih₃ :=
+    uniqueAux_acc_append_filter (filter (λ a => decide ¬a ∈ acc) xs) [x]
+  by
+    simp only [uniqueAux, filter, filterAux]
+    cases Decidable.em (x ∈ acc) with
+    | inl hin =>
+      simp only [hin, ite_true]
+      -- TODO: this shouldn't be necessary
+      have : decide False = false := rfl
+      rw [this]
+      simp only
+      rw [ih₁]
+      simp only [filter]
+    | inr hout =>
+      -- Case x is not already in the accumulator
+      simp only [hout, ite_false]
+      have : decide True = true := rfl
+      rw [this]
+      simp only [filterAux_spec, reverse_singleton, singleton_append, unique,
+                 uniqueAux, List.not_mem_nil, ite_false]
+      rw [ih₂]
+      simp only [reverse_cons, append_assoc, singleton_append]
+      apply congrArg
+      simp only [unique]
+      rw [ih₃]
+      rw [reverse_singleton, singleton_append, filter_filter]
+      have : (λ x_1 => decide (
+              (decide ¬x_1 ∈ acc) = true ∧ (decide ¬x_1 ∈ [x]) = true)
+             ) = (λ x_1 => decide (¬x_1 ∈ acc ∧ ¬x_1 ∈ [x])) :=
+        by simp
+      rw [this, ←unique]
+      apply congrArg
+      apply congrArg
+      have h_mem_iff := mem_cons_iff_mem_singleton_or_tail x acc
+      have h_mem_iff_neg := (λ x => Iff.not_iff_not_of_iff $ h_mem_iff x)
+      apply congr _ rfl
+      apply congr rfl
+      apply funext
+      intros a
+      apply Decidable.prop_eq_of_decide_eq
+      rw [h_mem_iff_neg, not_or_distrib, And.comm]
+termination_by uniqueAux_acc_append_filter xs ac => xs.length
+
+theorem List.uniqueAux_acc_append {α} [DecidableEq α] (xs : List α)
+  (acc : List α) (h : ∀ x, x ∈ xs → ¬ (x ∈ acc)) :
+  uniqueAux xs acc = reverse acc ++ unique xs := by
+  have : filter (fun a => decide ¬a ∈ acc) xs = xs := by
+    induction xs with
+    | nil => simp [filter, filterAux]
+    | cons x xs ih =>
+      simp only [filter, filterAux]
+      have : decide (¬x ∈ acc) = true := by simp [h x (Mem.head _ _)]
+      rw [this]
+      simp only
+      rw [filterAux_spec, ih, reverse_singleton, singleton_append]
+      . intros x hx
+        apply h x (Mem.tail _ hx)
+  rw [uniqueAux_acc_append_filter]
+  cases xs with
+  | nil => apply congrArg; simp [filter, filterAux]
+  | cons x xs =>
+    apply congrArg
+    rw [this]
+
+theorem List.length_uniqueAux {α} [DecidableEq α]
+  (xs : List α) (acc : List α) (h : ∀ x, x ∈ xs → ¬ (x ∈ acc)) :
+  length (uniqueAux xs acc) = length (unique xs) + length acc := by
+  rw [uniqueAux_acc_append _ _ h, length_append, length_reverse, Nat.add_comm]
+
+theorem List.matchKey_fst_eq_filter_k_map_snd {κ ν} [inst : DecidableEq κ] :
+  ∀ (xs : List (κ × ν)) (k : κ),
+    (matchKey xs k).1 = (xs.filter (λ x => x.1 = k)).map Prod.snd :=
+by intros xs k
+   simp only [List.filter]
+   induction xs with
+   | nil => rfl
+   | cons x xs ih =>
+     simp only [matchKey]
+     cases inst x.1 k with
+     | isFalse hfalse =>
+       simp only [hfalse, ite_false, List.filterAux, ih]
+       exact rfl
+     | isTrue htrue =>
+       simp only [htrue, ite_true, List.filterAux, ih]
+       -- TODO: why won't Lean reduce `match decide True with...` to the
+       -- `true` arm automatically? This workaround works but is ugly.
+       have h :
+        (x.2 :: List.map Prod.snd (List.filterAux
+            (λ x => decide (x.fst = k)) xs []) =
+          List.map Prod.snd
+            (match decide True with
+            | true => List.filterAux (fun x => decide (x.fst = k)) xs [x]
+            | false => List.filterAux (fun x => decide (x.fst = k)) xs []))
+        = (x.2 :: List.map Prod.snd (List.filterAux
+            (λ x => decide (x.fst = k)) xs []) =
+          List.map Prod.snd (List.filterAux
+            (fun x => decide (x.fst = k)) xs [x])) := rfl
+       simp only at h
+       apply cast (Eq.symm h)
+       have h_filterAux := List.filterAux_acc_eq_rev_append
+                            (λ x => decide (x.fst = k)) xs [x] []
+       rw [List.nil_append, List.reverse_singleton, List.singleton_append]
+        at h_filterAux
+       rw [h_filterAux]
+       simp only [List.map]
+
+def List.groupByKey {κ} [DecidableEq κ] {ν} : List (κ × ν) → List (κ × List ν)
+| [] => []
+| (k, v) :: kvs =>
+  have h_help : (matchKey kvs k).2.length < kvs.length.succ :=
+    Nat.lt_of_succ_le $ Nat.succ_le_succ $ matchKey_snd_length kvs k
+  
+  let fms := matchKey kvs k
+  (k, v :: fms.1) :: groupByKey fms.2
+termination_by groupByKey xs => xs.length
+decreasing_by assumption
+
+theorem List.groupByKey_matchKey_snd_length_cons [DecidableEq κ] 
+  (k : κ) (v : ν) (xs : List (κ × ν)) :
+  1 + length (groupByKey (matchKey ((k, v) :: xs) k).snd)
+    = (groupByKey ((k, v) :: xs)).length :=
+calc
+  1 + length (groupByKey (matchKey ((k, v) :: xs) k).2)
+  = 1 + length (groupByKey (matchKey xs k).2) :=
+    by simp only [matchKey, length, ite_true]
+  _ = length (groupByKey (matchKey xs k).2) + 1 := Nat.add_comm _ _
+  _ = length ((k, v :: (matchKey xs k).1) :: groupByKey (matchKey xs k).2) :=
+    rfl
+  _ = length (groupByKey ((k, v) :: xs)) := rfl
+
+theorem List.length_uniqueAux_matchKey {κ ν} [DecidableEq κ]
+  (xs : List (κ × ν)) (k : κ) :
+  ∀ (acc : List κ) (hk : k ∈ acc),
+  (uniqueAux (map Prod.fst xs) acc).length
+  = (uniqueAux (map Prod.fst (matchKey xs k).snd) acc).length :=
+by induction xs with
+   | nil => intros; simp [uniqueAux]
+   | cons x xs ih =>
+     intros acc hk
+     simp only [length, uniqueAux]
+     cases Decidable.em (x.fst ∈ acc) with
+     | inl hin =>
+       simp only [hin, ite_true, matchKey]
+       rw [ih _ hk]
+       cases Decidable.em (x.1 = k) with
+       | inl heq => simp only [heq, ite_true]
+       | inr hneq => simp only [hneq, ite_false, map, uniqueAux, hin, ite_true]
+     | inr hout =>
+       simp only [hout, ite_false, matchKey]
+       cases Decidable.em (x.1 = k) with
+       | inl heq =>
+         apply absurd hk
+         rw [heq] at hout
+         exact hout
+       | inr hneq =>
+         rw [ih _ (List.Mem.tail _ hk)]
+         simp only [hneq, ite_false, uniqueAux, hout]
+
+instance (y : Nat) : Decidable (∀ x : Nat, x - y = x) :=
+if h : y = 0
+then Decidable.isTrue (λ x => by rw [h]; simp)
+else Decidable.isFalse (λ x => by
+  have h1 : 1 - y = 1 := x 1
+  have : y > 0 := Nat.zero_lt_of_ne_zero h
+  have := Nat.sub_lt (Nat.lt.base 0) this
+  apply absurd h1
+  apply Nat.ne_of_lt this)
+
+theorem List.length_groupByKey {κ} [DecidableEq κ] {ν} :
+  ∀ (xs : List (κ × ν)),
+  length (groupByKey xs) = (xs.map Prod.fst).unique.length
+| [] => rfl
+| (k, v) :: xs => by
+  have hterm : length (matchKey xs k).snd < Nat.succ (length xs) :=
+    Nat.lt_of_succ_le $ Nat.succ_le_succ $ matchKey_snd_length xs k
+  have ih := length_groupByKey (matchKey xs k).2
+  simp only [map, unique, uniqueAux, List.not_mem_nil, ite_false, groupByKey]
+  -- This needs to be a separate `simp` to ensure proper ordering
+  simp only [length]
+  rw [length_uniqueAux_matchKey _ k _ $ List.Mem.head _ _]
+  rw [ih]
+  apply Eq.symm
+  apply List.length_uniqueAux (acc := [k])
+  intro x
+  rw [mem_singleton_iff]
+  apply matchKey_snd_keys_neq_k_map (k := k) xs
+termination_by length_groupByKey xs => length xs
+decreasing_by assumption
+-- END `groupByKey`
