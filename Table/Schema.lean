@@ -328,6 +328,13 @@ def Schema.retypeColumn {η : Type u_η} [DecidableEq η]
 | _, (nm, τ) :: cs, Schema.HasName.hd, τ' => (nm, τ') :: cs
 | _, c :: cs, Schema.HasName.tl h, τ' => c :: retypeColumn cs h τ'
 
+theorem Schema.retypeColumn_preserves_names :
+  ∀ (s : @Schema η) {nm : η} (h : s.HasName nm) (τ : Type _),
+  Schema.names (s.retypeColumn h τ) = Schema.names s
+| (.(nm), _) :: ss, nm, HasName.hd, τ => rfl
+| s :: ss, nm, HasName.tl h, τ =>
+  congrArg (s.1 :: ·) (retypeColumn_preserves_names ss h τ)
+
 -- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
 def Schema.flattenList (schema : @Schema η)
   (c : ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))

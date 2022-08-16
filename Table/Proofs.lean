@@ -532,3 +532,49 @@ theorem fillna_spec2 {τ : Type u} :
     (v : τ),
     nrows (fillna t c v) = nrows t :=
 λ _ _ _ => List.length_map _ _
+
+-- TODO: `pivotLonger` and `pivotWider`
+-- Specs 1 don't hold because of uniqueness issues, I think
+
+theorem flatten_spec1 :
+  ∀ (t : Table sch) (cs : ActionList Schema.flattenList sch),
+  header (flatten t cs) = header t := by
+  intros t cs
+  simp only [flatten, header, Schema.names]
+  induction cs with
+  | nil => simp only [Schema.flattenLists]
+  | cons c cs ih =>
+    simp only [Schema.flattenLists]
+    rw [ih]
+    simp only [Schema.flattenList]
+    apply Schema.retypeColumn_preserves_names
+    -- TODO: this shouldn't be necessary with more careful induction
+    exact Table.mk []
+
+-- TODO: `flatten` spec 2
+
+-- TODO: `transformColumn` specs 1 & 3
+theorem transformColumn_spec2 {τ₁ τ₂} :
+  ∀ (t : Table sch)
+    (c : (c : η) × sch.HasCol (c, τ₁))
+    (f : Option τ₁ → Option τ₂),
+  header (transformColumn t c f) = header t :=
+λ t c f => sch.retypeColumn_preserves_names _ _
+
+theorem transformColumn_spec4 :
+  ∀ (t : Table sch)
+    (c : (c : η) × sch.HasCol (c, τ₁))
+    (f : Option τ₁ → Option τ₂),
+  nrows (transformColumn t c f) = nrows t :=
+λ t c f => List.length_map _ _
+
+-- TODO: `renameColumns`
+
+-- The specification for `find` is contained in its type
+
+-- TODO: `groupByRetentive` specs 2–6 (in progress)
+theorem groupByRetentive_spec1 [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  header (groupByRetentive t c) = ["key", "groups"] :=
+λ _ _ => rfl
+

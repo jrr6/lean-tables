@@ -549,12 +549,12 @@ decreasing_by assumption
 -- inelegant.
 def find {schema : @Schema η}
          (subschema : EqSubschema schema) :
-    Table schema → Row (subschema.toSchema) → Option Nat
+    (t : Table schema) → Row (subschema.toSchema) → Option (Fin (nrows t))
 | {rows := []}, r => none
 | {rows := r :: rs}, r' =>
   if isSubRow r' r
-  then some 0
-  else (find subschema {rows := rs} r').map (λ n => n + 1)
+  then some ⟨0, Nat.zero_lt_succ rs.length⟩
+  else (find subschema {rows := rs} r').map (λ n => ⟨n.val, Nat.lt.step n.isLt⟩)
 
 def groupByRetentive {τ : Type u} [DecidableEq τ]
                      (t : Table schema)
