@@ -578,3 +578,74 @@ theorem groupByRetentive_spec1 [DecidableEq τ] :
   header (groupByRetentive t c) = ["key", "groups"] :=
 λ _ _ => rfl
 
+-- Figure out what's up with type universes here
+-- theorem groupByRetentive_spec2 [DecidableEq τ] :
+--   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+--   (schema (groupByRetentive t c)).lookupType ⟨"key", Schema.HasName.hd⟩ = ULift τ :=
+-- λ _ _ => rfl
+
+-- TODO: specs 3 and 5
+
+-- TODO: make prettier
+instance [inst : DecidableEq τ] : DecidableEq (ULift τ) :=
+λ x y =>
+match inst x.down y.down with
+| isTrue h => by
+  apply Decidable.isTrue
+  cases x with | up x =>
+  cases y with | up y =>
+  simp at h
+  apply congrArg _ h
+| isFalse h => by
+  apply Decidable.isFalse
+  intro hneg
+  apply h
+  apply congrArg _ hneg
+
+-- TODO: this should be an interesting challenge...
+-- theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
+--   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+--   (getColumn2 (groupByRetentive t c) "key" Schema.HasCol.hd).unique =
+--   getColumn2 (groupByRetentive t c) "key" Schema.HasCol.hd := by
+--   intros t c
+--   simp only [groupByRetentive]
+--   cases c with | mk c pf =>
+
+-- TODO: this should follow fairly directly from `groupBy_spec4`, but universe
+-- levels are getting in the way
+-- theorem groupByRetentive_spec6 {η} [DecidableEq η] {sch : @Schema η} [DecidableEq τ] :
+--   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+--   nrows (groupByRetentive t c) =
+--   (getColumn2 t c.1 c.2).unique.length := by
+--   intros t c
+--   simp only [groupByRetentive]
+--   have h := groupBy_spec4 t (λ r => getValue r c.1 c.2) (λ r => r) (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k)) (Row.cons (Cell.val (Table.mk vs)) Row.nil))
+
+-- TODO: `groupBySubtractive`
+
+-- TODO: `update` (once correctly implemented)
+
+-- Specs 1, 2, and 3 are enforced by types
+-- TODO: figure out `verifiedEnum_length`
+theorem select_spec4 {sch' : @Schema η} :
+  ∀ (t : Table sch) (f : Row sch → { n // n < nrows t } → Row sch'),
+  nrows (select t f) = nrows t := by
+  intros t f
+  simp only [select, nrows]
+  rw [List.length_map]
+  have : (List.length $ List.verifiedEnum t.rows) = List.length t.rows := sorry
+  rw [this]
+
+-- All `selectMany` specifications are enforced by types
+
+-- Specs 1 through 5 are enforced by types
+theorem groupJoin_spec6
+  {κ} [DecidableEq κ] {ν : Type _} {s₁ s₂ s₃ : @Schema η} :
+  ∀ (t₁ : Table s₁) (t₂ : Table s₂)
+    (getKey₁ : Row s₁ → κ) (getKey₂ : Row s₂ → κ)
+    (aggregate : Row s₁ → Table s₂ → Row s₃),
+  nrows (groupJoin t₁ t₂ getKey₁ getKey₂ aggregate) =
+  nrows t₁ :=
+λ _ _ _ _ _ => select_spec4 _ _
+
+-- All `join` specifications are enforced by types

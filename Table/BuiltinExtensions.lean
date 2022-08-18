@@ -131,19 +131,21 @@ def List.verifiedEnum : (xs : List α) → List ({n : Nat // n < xs.length} × �
                       → List ({n : Nat // n < xs.length} × α)
                       → List ({n : Nat // n < xs.length} × α)
     | ⟨[], h⟩, n, acc => acc
+    -- FIXME: this case is preventing the proof from going through
     | ⟨y :: ys, hys⟩, ⟨0, hn⟩, acc =>
-      ((⟨0, @Nat.lt_of_lt_of_le 0 (length ys + 1) (length xs)
-                                (Nat.zero_lt_succ (length ys)) hys⟩, y) :: acc)
+      (⟨0, Nat.lt_of_lt_of_le (Nat.zero_lt_succ (length ys)) hys⟩, y) :: acc
     | ⟨y :: ys, hys⟩, ⟨Nat.succ n, hn⟩, acc =>
-      vEnumFrom ⟨ys, @Nat.le_trans (length ys) (length ys + 1) (length xs)
-                                   (Nat.le_succ (length ys)) hys⟩
+      vEnumFrom ⟨ys, Nat.le_trans (Nat.le_succ (length ys)) hys⟩
                 ⟨n, Nat.lt_of_succ_lt_succ hn⟩
                 ((⟨Nat.succ n, Nat.lt_of_lt_of_le hn hys⟩, y) :: acc)
   vEnumFrom ⟨reverse xs, Nat.le_of_eq $ List.length_reverse xs⟩
             ⟨length xs - 1,
-             by rw [List.length_reverse]
-                apply Nat.sub_succ_lt_self
-                apply Nat.zero_lt_succ⟩
+              Eq.subst
+                (Eq.symm $ List.length_reverse xs)
+                (Nat.sub_succ_lt_self
+                  (length xs)
+                  0
+                  (Nat.zero_lt_succ $ length zs))⟩
             []
 termination_by vEnumFrom ys n acc => ys.val.length
 -- | [] => []
@@ -381,7 +383,6 @@ theorem List.length_take :
   by simp only [take, length]
      apply congrArg Nat.succ ih
 
--- TODO: remove these from `API.lean` once we sort out this proof
 theorem List.reverse_singleton (x : α) : reverse [x] = [x] := rfl
 
 theorem List.singleton_append (x : α) (xs : List α) : [x] ++ xs = x :: xs := rfl
@@ -505,6 +506,39 @@ theorem List.reverseAux_spec (xs acc : List α) :
     simp only [reverse, reverseAux]
     simp only [ih]
     rw [←singleton_append, append_assoc]
+
+-- TODO: this is false -- need to be more specific and possible rewrite the
+-- `n = 0` case of `vEnumFrom` to make it more amenable to proof
+theorem List.length_verifiedEnum_vEnumFrom :
+  ∀ (xs : List α)
+    (ys : {ys : List α // ys.length ≤ xs.length})
+    (n : {n : Nat // n < ys.val.length})
+    (acc : List ({n : Nat // n < xs.length} × α)),
+  (verifiedEnum.vEnumFrom xs ys n acc).length = ys.val.length + length acc := by
+  intros xs ys n acc
+  cases ys with | mk ys hys =>
+  induction ys generalizing acc with
+  | nil => simp [verifiedEnum.vEnumFrom]
+  | cons y ys ih =>
+    cases n with | mk n hn =>
+    cases n with
+    | zero =>
+      simp [verifiedEnum.vEnumFrom]
+    | succ n' =>
+      -- TODO: strict simp set?
+      simp [verifiedEnum.vEnumFrom, ih]
+      rw [←Nat.add_one, ←Nat.add_one, Nat.add_assoc, Nat.add_comm 1]
+
+theorem List.length_verifiedEnum : ∀ (xs : List α),
+  xs.verifiedEnum.length = xs.length
+| [] => rfl
+| x :: xs => by
+  simp only [length, verifiedEnum, reverse]
+  rw [length_verifiedEnum_vEnumFrom]
+  simp only [length]
+  rw [←reverse]
+  apply length_reverse
+  
 
 theorem List.filterAux_acc_eq_rev_append : ∀ (p : α → Bool) (xs as bs : List α),
   filterAux p xs (bs ++ as) = reverse as ++ filterAux p xs bs
@@ -861,7 +895,7 @@ def List.uniqueAux {α} [DecidableEq α] : List α → List α → List α
 | [], acc => acc.reverse
 | x :: xs, acc => if x ∈ acc then uniqueAux xs acc else uniqueAux xs (x :: acc)
 
-def List.unique {α} [DecidableEq α] (xs : List α) := uniqueAux xs []
+def List.unique {α} [inst : DecidableEq α] (xs : List α) := uniqueAux xs []
 
 theorem List.all_pred {p : α → Prop} [DecidablePred p] {xs : List α} :
   xs.all (λ x => decide (p x)) ↔ ∀ x, x ∈ xs → p x := by
