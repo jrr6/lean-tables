@@ -554,7 +554,8 @@ def find {schema : @Schema η}
 | {rows := r :: rs}, r' =>
   if isSubRow r' r
   then some ⟨0, Nat.zero_lt_succ rs.length⟩
-  else (find subschema {rows := rs} r').map (λ n => ⟨n.val, Nat.lt.step n.isLt⟩)
+  else (find subschema {rows := rs} r').map (λ n =>
+          ⟨n.val + 1, Nat.succ_lt_succ n.isLt⟩)
 
 def groupByRetentive {τ : Type u} [DecidableEq τ]
                      (t : Table schema)

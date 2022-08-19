@@ -919,7 +919,7 @@ Table.mk [
 #test
 find [⟨("age", Nat), by header, inferInstance⟩] students /["age" := 13]
 =
-some 2
+some ⟨2, by simp⟩
 
 #test
 find [⟨("age", _), by header, inferInstance⟩] students /["age" := 14]
