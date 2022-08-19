@@ -626,15 +626,10 @@ match inst x.down y.down with
 -- TODO: `update` (once correctly implemented)
 
 -- Specs 1, 2, and 3 are enforced by types
--- TODO: figure out `verifiedEnum_length`
 theorem select_spec4 {sch' : @Schema η} :
-  ∀ (t : Table sch) (f : Row sch → { n // n < nrows t } → Row sch'),
-  nrows (select t f) = nrows t := by
-  intros t f
-  simp only [select, nrows]
-  rw [List.length_map]
-  have : (List.length $ List.verifiedEnum t.rows) = List.length t.rows := sorry
-  rw [this]
+  ∀ (t : Table sch) (f : Row sch → Fin (nrows t) → Row sch'),
+  nrows (select t f) = nrows t :=
+λ t f => Eq.trans (List.length_map _ _) (List.length_verifiedEnum _)
 
 -- All `selectMany` specifications are enforced by types
 

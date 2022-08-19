@@ -352,14 +352,14 @@ def fillna {τ}
 
 def select {schema' : @Schema η}
            (t : Table schema)
-           (f : Row schema → {n : Nat // n < nrows t} → Row schema')
+           (f : Row schema → Fin (nrows t) → Row schema')
     : Table schema' :=
   {rows := t.rows.verifiedEnum.map (λ (n, r) => f r n)}
 
 def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
                {schema₂ : @Schema ζ} {schema₃ : @Schema θ}
                (t : Table schema)
-               (project : Row schema → {n : Nat // n < nrows t} → Table schema₂)
+               (project : Row schema → Fin (nrows t) → Table schema₂)
                (result : Row schema → Row schema₂ → Row schema₃)
     : Table schema₃ :=
 {rows :=
