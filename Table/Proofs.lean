@@ -586,13 +586,8 @@ theorem groupByRetentive_spec1 [DecidableEq τ] :
 
 -- TODO: specs 3 and 5
 
-instance [inst : DecidableEq τ] : DecidableEq (ULift τ) :=
-λ x y =>
-match inst x.down y.down with
-| isTrue h =>
-  match x, y with
-  | .up x, .up y => Decidable.isTrue (congrArg ULift.up h)
-| isFalse h => Decidable.isFalse (λ hneg => h (congrArg ULift.down hneg))
+-- Need decidable equality of `ULift`s for the `groupByXXXive`s
+deriving instance DecidableEq for ULift
 
 -- TODO: this should be an interesting challenge...
 -- theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
