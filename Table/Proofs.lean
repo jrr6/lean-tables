@@ -23,8 +23,10 @@ theorem addRows_spec2 :
 -- We omit the precondition because it is not required for this portion of the
 -- spec
 theorem addColumn_spec1 :
-  ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List $ Option τ),
-    header (addColumn t c vs) = List.append (header t) [c] := by
+  ∀ {τ : Type u} [DecidableEq τ]
+    (t : Table sch) (c : η) (vs : List $ Option τ),
+    header (addColumn t c vs) = List.append (header t) [c]
+:= by
   intros τ inst t c vs
   simp [header, addColumn, Schema.names]
   induction sch with
@@ -39,8 +41,10 @@ theorem addColumn_spec1 :
     simp only at ih
     rw [ih]
     simp [List.append]
-    -- FIXME: why does it want a Table ss?
-    exact Table.mk []
+    -- TODO: Can we avoid this somehow? (Arises because of induction on schema
+    -- used as index in Table type. Could use empty table instead, but this
+    -- seems more suggestive.)
+    exact dropColumn t ⟨_, Schema.HasName.hd⟩
 
 -- ⟨cc.val,
 -- by cases cc with | mk val prop =>
@@ -63,10 +67,18 @@ theorem addColumn_spec2 :
       (schema (addColumn t c vs)).lookup ⟨c', Schema.hasNameOfAppend h'⟩ :=
 λ t c vs c' h' h => Schema.lookup_eq_lookup_append _ _ _ _
 
--- FIXME: how to show c is certifed?
--- theorem addColumn_spec3 :
---   ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List τ),
---     (schema (addColumn t c vs)).lookup c = τ := rfl
+theorem addColumn_spec3 {τ : Type u} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : η) (vs : List $ Option τ),
+    (schema (addColumn t c vs)).lookupType
+      ⟨c, sch.hasAppendedSingletonName c τ⟩ = τ := by
+  intros t c vs
+  induction sch with
+  | nil =>
+    simp only [Schema.hasAppendedSingletonName, Schema.lookupType]
+  | cons s ss ih =>
+    simp only [Schema.hasAppendedSingletonName, Schema.lookupType]
+    -- TODO: again, could use `Table.mk []`, but this is more suggestive?
+    apply ih (dropColumn t ⟨_, Schema.HasName.hd⟩)
 
 theorem addColumn_spec4 :
   ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List $ Option τ),
@@ -467,8 +479,6 @@ theorem bin_spec3 [ToString η] :
       ⟨"count", Schema.HasName.tl Schema.HasName.hd⟩ = Nat :=
 λ _ _ _ => rfl
 
--- TODO: `pivotTable`
-
 -- Spec 1 is enforced by types
 theorem pivotTable_spec2 :
   ∀ (t : Table sch)
@@ -602,8 +612,7 @@ deriving instance DecidableEq for ULift
 -- levels are getting in the way
 -- theorem groupByRetentive_spec6 {η} [DecidableEq η] {sch : @Schema η} [DecidableEq τ] :
 --   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
---   nrows (groupByRetentive t c) =
---   (getColumn2 t c.1 c.2).unique.length := by
+--   nrows (groupByRetentive t c) = (getColumn2 t c.1 c.2).unique.length := by
 --   intros t c
 --   simp only [groupByRetentive]
 --   have h := groupBy_spec4 t (λ r => getValue r c.1 c.2) (λ r => r) (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k)) (Row.cons (Cell.val (Table.mk vs)) Row.nil))

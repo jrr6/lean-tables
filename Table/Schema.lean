@@ -149,6 +149,12 @@ def Schema.hasNameOfAppend : {sch : @Schema η} →
 | _, _, _, Schema.HasName.hd => Schema.HasName.hd
 | _, _, _, Schema.HasName.tl h => Schema.HasName.tl $ hasNameOfAppend h
 
+def Schema.hasAppendedSingletonName :
+  ∀ (sch : @Schema η) (c : η) (τ : Type _),
+  HasName c (List.append sch [(c, τ)])
+| [], _, _ => HasName.hd
+| s :: ss, c, τ => HasName.tl (hasAppendedSingletonName ss c τ)
+
 -- Schema functions
 def Schema.names {η : Type u_η} := List.map (@Prod.fst η (Type u))
 
