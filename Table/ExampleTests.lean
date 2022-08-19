@@ -1034,7 +1034,7 @@ Table.mk [
 
 -- `select`
 #test
-select students (λ (r : Row $ schema students) (n : {n // n < nrows students}) =>
+select students (λ (r : Row $ schema students) (n : Fin (nrows students)) =>
   let colorCell : Cell "COLOR" String := Cell.fromOption $ getValue r "favorite color" (by header)
   let ageCell : Cell "AGE" Nat := Cell.fromOption $ getValue r "age" (by header)
   (Row.cons (Cell.val n.val : Cell "ID" Nat) $
@@ -1049,7 +1049,7 @@ Table.mk [
 ]
 
 #test
-select gradebook (λ (r : Row $ schema gradebook) (n : {n // n < nrows gradebook}) =>
+select gradebook (λ (r : Row $ schema gradebook) (n : Fin (nrows gradebook)) =>
   let nameCell : Cell "full name" String :=
     Cell.fromOption $ (getValue r "name" (by header)).map (· ++ " Smith")
   let mf2 : Cell "(midterm + final) / 2" Nat :=
@@ -1087,7 +1087,7 @@ def repeatRow {sch : @Schema String} : Row sch → Nat → Table sch
 def decertify {sch : @Schema String}
               (f : Row sch → Nat → Table sch)
               (r : Row sch)
-              (nhn : {n // n < nrows gradebook}) :=
+              (nhn : Fin (nrows gradebook)) :=
 f r nhn.1
 
 #test
