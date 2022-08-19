@@ -586,21 +586,13 @@ theorem groupByRetentive_spec1 [DecidableEq τ] :
 
 -- TODO: specs 3 and 5
 
--- TODO: make prettier
 instance [inst : DecidableEq τ] : DecidableEq (ULift τ) :=
 λ x y =>
 match inst x.down y.down with
-| isTrue h => by
-  apply Decidable.isTrue
-  cases x with | up x =>
-  cases y with | up y =>
-  simp at h
-  apply congrArg _ h
-| isFalse h => by
-  apply Decidable.isFalse
-  intro hneg
-  apply h
-  apply congrArg _ hneg
+| isTrue h =>
+  match x, y with
+  | .up x, .up y => Decidable.isTrue (congrArg ULift.up h)
+| isFalse h => Decidable.isFalse (λ hneg => h (congrArg ULift.down hneg))
 
 -- TODO: this should be an interesting challenge...
 -- theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
