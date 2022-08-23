@@ -421,7 +421,6 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
   schemaHasSubschema h
 termination_by schemaHasSubschema h => sizeOf h
 
--- TODO: why does this depend on `Classical.choice`‽
 /--
 Takes an ActionList along with a "preservation" function that maps action list
 entries "in reverse" (i.e., enables them to be "lifted" to a schema prior to
@@ -433,7 +432,11 @@ def ActionList.toList {sch : @Schema η} {κ : @Schema η → Type u}
     (pres : ∀ (s : @Schema η) (k : κ s), κ (f s k) → κ s)
     : ActionList f sch → List (κ sch)
 | ActionList.nil => []
-| ActionList.cons hdr xs => hdr :: (toList pres xs).map (pres sch hdr)
+| ActionList.cons hdr xs =>
+  have : sizeOf xs < 1 + sizeOf xs := by rw [Nat.add_comm]; exact Nat.lt.base _
+  hdr :: (toList pres xs).map (pres sch hdr)
+-- The default tactic needlessly introduces classical reasoning
+decreasing_by assumption
 
 def BiActionList.toList {schs : @Schema η × @Schema η}
     {κ : @Schema η × @Schema η → Type u}
