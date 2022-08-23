@@ -148,7 +148,6 @@ def Row.pick : {schema : @Schema η} →
 | (s::ss), Row.cons cell rs, (c::cs) =>
   Row.cons (Row.getCell (Row.cons cell rs) c.2)
            (pick (Row.cons cell rs) cs)
-termination_by Row.pick r cs => List.length cs
 
 def Row.removeColumn {s : Schema} {c : η} :
     (h : s.HasName c) → Row s → Row (s.removeName h)

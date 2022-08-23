@@ -27,7 +27,6 @@ theorem Nat.lt_of_add_lt_add : ∀ (a m n : Nat), m + a < n + a → m < n
   have ih1 := lt_of_add_lt_add 1 (m + succ a') (n + succ a') h
   have ih := lt_of_add_lt_add (succ a') m n ih1
   ih
-termination_by Nat.lt_of_add_lt_add a m n h => a
 
 theorem Nat.add_lt_add_of_lt : ∀ (a m n : Nat), m < n → m + a < n + a :=
 by intros a m n h

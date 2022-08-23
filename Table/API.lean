@@ -541,7 +541,6 @@ def isSubRow : {schema : @Schema η} →
   if r.getCell pf = sc
   then isSubRow scs r
   else false
-termination_by isSubRow sr r => sizeOf sr
 decreasing_by assumption
 
 -- TODO: having to maually specify the schema is really annoying -- can we make

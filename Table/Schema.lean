@@ -419,7 +419,6 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
     rw [Nat.add_comm]
     apply Nat.lt.base;
   schemaHasSubschema h
-termination_by schemaHasSubschema h => sizeOf h
 
 /--
 Takes an ActionList along with a "preservation" function that maps action list
@@ -448,4 +447,3 @@ def BiActionList.toList {schs : @Schema η × @Schema η}
   have hterm : sizeOf xs < sizeOf (cons x xs) :=
     by simp; rw [Nat.add_comm, Nat.add_one]; apply Nat.lt.base
   x :: (toList pres xs).map (pres schs x)
-termination_by toList xs => sizeOf xs
