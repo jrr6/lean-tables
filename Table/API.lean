@@ -234,21 +234,14 @@ def orderBy (t : Table schema)
 def count {τ} [DecidableEq τ]
           (t : Table schema)
           (c : ((c : η) × schema.HasCol (c, τ)))
-    : Table [("value", τ), ("count", Nat)] :=
-  let rowListTp := List (Row [("value", τ), ("count", Nat)])
-  -- Helper function: increments the count in the row corresponding to v
-  let rec incr : rowListTp → τ → rowListTp :=
-    (λ | [], v => [Row.cons (Cell.val v) (Row.cons (Cell.val 1) Row.nil)]
-       | (r@(Row.cons (Cell.val t) (Row.cons (Cell.val n) Row.nil))::rs), v => 
-          if t = v
-          then Row.cons (Cell.val t) (Row.cons (Cell.val (n + 1)) Row.nil) :: rs
-          else r :: incr rs v
-       | rs, _ => rs) -- we ensure this case never arises
+    : Table [("value", Option τ), ("count", Nat)] :=
+  let rec pairsToRow :
+    List (Option τ × Nat) → List (Row [("value", Option τ), ("count", Nat)])
+  | [] => []
+  | (t, n) :: ps =>
+    Row.cons (Cell.val t) (Row.cons (Cell.val n) Row.nil) :: pairsToRow ps
   let col := getColumn2 t c.1 c.2
-  {rows :=
-    col.foldl (λ | acc, Option.none => acc
-                 | acc, Option.some v => incr acc v) []
-  }
+  {rows := pairsToRow $ col.counts}
 
 -- Once mathlib has been ported, we can find some suitable algebraic structure
 -- (or, at the very least, use `Int`s once the tooling for those has been

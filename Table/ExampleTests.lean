@@ -272,6 +272,16 @@ Table.mk [
   /[ "Williams"   , EMP           , EMP             ]
 ]
 
+#eval leftJoin
+(Table.mk [
+  /["name" := "Bob", "age" := 18]
+])
+(Table.mk [
+  /["name" := "Bob", "location" := "USA"],
+  /["name" := "Bob", "location" := "UK"]
+])
+A[⟨("name", _), inferInstance, by header, by header⟩]
+
 -- `nrows`
 #test nrows (@emptyTable String _) = 0
 
@@ -598,18 +608,18 @@ Table.mk [
 count students ⟨"favorite color", by header⟩
 =
 Table.mk [
-  /[ "blue"  , 1     ],
-  /[ "green" , 1     ],
-  /[ "red"   , 1     ]
+  /[ some "blue"  , 1     ],
+  /[ some "green" , 1     ],
+  /[ some "red"   , 1     ]
 ]
 
 #test
 count gradebook ⟨"age", by header⟩
 =
 Table.mk [
-  /[ 12    , 1     ],
-  /[ 17    , 1     ],
-  /[ 13    , 1     ]
+  /[ some 12    , 1     ],
+  /[ some 17    , 1     ],
+  /[ some 13    , 1     ]
 ]
 
 -- `bin`

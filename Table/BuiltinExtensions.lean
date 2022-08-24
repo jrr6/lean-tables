@@ -487,6 +487,19 @@ theorem List.reverseAux_spec (xs acc : List α) :
     simp only [ih]
     rw [←singleton_append, append_assoc]  
 
+def List.reverseSpec : List α → List α
+| [] => []
+| x :: xs => reverseSpec xs ++ [x]
+
+theorem List.reverse_eq_reverseSpec (xs : List α) :
+  reverse xs = reverseSpec xs := by
+  induction xs with
+  | nil => simp [reverse, reverseAux, reverseSpec]
+  | cons x xs ih =>
+    simp only [reverse, reverseSpec, reverseAux]
+    rw [reverseAux_spec]
+    exact congrArg (· ++ [x]) ih
+
 theorem List.filterAux_acc_eq_rev_append : ∀ (p : α → Bool) (xs as bs : List α),
   filterAux p xs (bs ++ as) = reverse as ++ filterAux p xs bs
 | p, [], as, bs => by simp [filterAux]
@@ -844,6 +857,71 @@ def List.uniqueAux {α} [DecidableEq α] : List α → List α → List α
 
 def List.unique {α} [inst : DecidableEq α] (xs : List α) := uniqueAux xs []
 
+def List.uniqueFoldl [DecidableEq α] (xs : List α) :=
+  xs.foldl (λ acc x => if x ∈ acc then acc else acc ++ [x]) []
+
+theorem List.mem_append_singleton : ∀ (x : α) (xs : List α), x ∈ xs ++ [x]
+| x, [] => List.Mem.head _ _
+| x, y :: ys => List.Mem.tail _ (mem_append_singleton x ys)
+
+theorem List.mem_append_front :
+  ∀ (x : α) (xs ys : List α), x ∈ xs → x ∈ xs ++ ys
+| x, _ :: xs, ys, List.Mem.head _ _ => List.Mem.head _ _
+| x, x' :: xs, ys, List.Mem.tail _ h =>
+  List.Mem.tail x' (mem_append_front x xs ys h)
+
+theorem List.mem_reverse_iff (x : α) (xs : List α) :
+  x ∈ xs ↔ x ∈ reverse xs := by
+  rw [reverse_eq_reverseSpec]
+  apply Iff.intro
+  . intro hf
+    induction hf with
+    | head x xs => 
+      simp only [reverseSpec]
+      apply mem_append_singleton
+    | @tail y x ys h_x_ys ih =>
+      simp only [reverseSpec]
+      apply mem_append_front _ _ _ ih
+  . intro hb
+    induction xs with
+    | nil => contradiction
+    | cons y ys ih =>
+      simp only [reverseSpec] at hb
+      admit      
+
+theorem List.unique_eq_uniqueFold_aux [DecidableEq α] :
+  ∀ (xs : List α) (acc : List α),
+  uniqueAux xs acc =
+    foldl (λ acc x => if x ∈ acc then acc else acc ++ [x]) (reverse acc) xs := sorry
+  --   by
+  -- intros xs acc
+  -- induction xs generalizing acc with
+  -- | nil => simp [uniqueAux, foldl]
+  -- | cons x xs ih =>
+  --   simp only [uniqueAux, foldl]
+  --   cases Decidable.em (x ∈ acc) with
+  --   | inl h =>
+  --     simp only [h, ite_true]
+  --     conv =>
+  --       rhs
+  --       lhs
+  --       have : (if x ∈ reverse acc then reverse acc else reverse acc ++ [x]) =
+  --              if x ∈ acc then reverse acc else reverse acc ++ [x] := by rw [mem_reverse_iff]
+      
+
+theorem List.unique_eq_uniqueFold [DecidableEq α] :
+  ∀ (xs : List α), unique xs = uniqueFoldl xs := by
+  intros xs
+  induction xs with
+  | nil => simp [unique, uniqueFoldl, uniqueAux, foldl]
+  | cons x xs ih =>
+    simp only [unique, uniqueFoldl, uniqueAux]
+    simp only [List.not_mem_nil, ite_false]
+    rw [unique_eq_uniqueFold_aux]
+    simp only [foldl]
+    apply congrArg
+    rfl
+
 theorem List.all_pred {p : α → Prop} [DecidablePred p] {xs : List α} :
   xs.all (λ x => decide (p x)) ↔ ∀ x, x ∈ xs → p x := by
   simp only [all]
@@ -1127,3 +1205,182 @@ theorem List.length_groupByKey {κ} [DecidableEq κ] {ν} :
 termination_by length_groupByKey xs => length xs
 decreasing_by assumption
 -- END `groupByKey`
+
+-- `List.counts`, helper functions, and associated theorems
+-- TODO: these proofs could probably be cleaned up a lot.
+def List.incrCounts {α} [DecidableEq α] :
+  List (α × Nat) → α → List (α × Nat)
+| [], v => [(v, 1)]
+| (t, n) :: rs, v =>
+  if t = v then (t, n + 1) :: rs else (t, n) :: incrCounts rs v
+
+def List.counts {α} [DecidableEq α] (xs : List α) : List (α × Nat) :=
+  xs.foldl (λ acc v => incrCounts acc v) []
+
+theorem List.map_fst_incrCounts_eq_map_fst [DecidableEq α] (x : α) :
+  ∀ (as : List (α × Nat)) (h : x ∈ map Prod.fst as),
+  map Prod.fst (incrCounts as x) = map Prod.fst as
+| (.(x), _) :: as, List.Mem.head _ _ => by simp only [map, incrCounts]
+| a :: as, List.Mem.tail _ h' =>
+  have ih := map_fst_incrCounts_eq_map_fst x as h'
+  match Decidable.em (a.1 = x) with
+  | .inl heq => by simp only [map, incrCounts, heq, ite_true, map]
+  | .inr hneq => by
+      simp only [hneq, ite_false, map, incrCounts]
+      exact congrArg _ ih
+
+theorem not_not (p : Prop) : p → ¬¬p := λ hp hneg => hneg hp
+
+theorem List.map_fst_incrCounts_eq_cons_fst [DecidableEq α] (x : α) :
+  ∀ (as : List (α × Nat)) (h : x ∉ map Prod.fst as),
+  map Prod.fst (incrCounts as x) = map Prod.fst as ++ [x] := by
+  intros as h
+  induction as with
+  | nil =>
+    simp only [incrCounts, map, HAppend.hAppend, Append.append, List.append]
+  | cons a as ih =>
+    simp only [map, incrCounts]
+    cases Decidable.em (a.1 = x) with
+    | inl heq =>
+      apply absurd h
+      apply not_not
+      simp only [map, heq]
+      apply List.Mem.head
+    | inr hneq =>
+      simp only [hneq, ite_false, map]
+      apply congrArg
+      apply ih
+      . intros hneg
+        apply h
+        apply List.Mem.tail _ hneg     
+
+#check List.mem_append_singleton
+
+theorem List.mem_append_back (x : α) : ∀ (xs ys : List α),
+  x ∈ ys → x ∈ xs ++ ys
+| [], ys, hin => hin
+| z :: xs, ys, hin => List.Mem.tail _ (mem_append_back x xs ys hin)
+
+theorem List.mem_append_iff {x : α} {xs ys : List α} :
+  (x ∈ xs ∨ x ∈ ys) ↔ x ∈ xs ++ ys := by
+  apply Iff.intro
+  . intros hf
+    cases hf with
+    | inl hxs => apply mem_append_front _ _ _ hxs
+    | inr hys => apply mem_append_back _ _ _ hys
+  . intros hb
+    induction xs with
+    | nil => exact Or.intro_right _ hb
+    | cons z xs ih =>
+      cases hb with
+      | head _ _ => apply Or.intro_left _ (List.Mem.head _ _)
+      | tail _ h' =>
+        cases ys with
+        | nil =>
+          apply Or.intro_left
+          apply List.Mem.tail
+          simp at h'
+          exact h'
+        | cons y ys =>
+          simp at h'
+          cases ih h' with
+          | inl hxxs =>
+            apply Or.intro_left
+            exact List.Mem.tail _ hxxs
+          | inr hxys =>
+            exact Or.intro_right _ hxys
+
+theorem List.length_uniqueAux_congr_append_cons_acc [DecidableEq α]
+  (x y : α) (as xs : List α) (cs : List α) :
+  length (uniqueAux xs (cs ++ x :: (as ++ [y]))) =
+  length (uniqueAux xs (cs ++ y :: x :: as)) := by
+  induction xs generalizing cs with
+  | nil =>
+    simp [uniqueAux]
+    rw [←Nat.add_one,
+        Nat.add_assoc,
+        Nat.add_comm (length cs),
+        ←Nat.add_assoc]
+  | cons z zs ih =>
+    have rearrange_mem :
+      (z ∈ cs ++ x :: (as ++ [y])) ↔ (z ∈ cs ++ y :: x :: as) := by
+      apply Iff.intro
+      . intros h
+        cases mem_append_iff.mpr h with
+        | inl hcs => exact List.mem_append_front _ _ _ hcs
+        | inr hcons =>
+          apply List.mem_append_back
+          rw [←cons_append] at hcons
+          cases mem_append_iff.mpr hcons with
+          | inl hxas => exact List.Mem.tail _ hxas
+          | inr hy =>
+            cases hy with
+            | tail _ _ => contradiction
+            | head _ _ => exact List.Mem.head _ _
+      . intros h
+        cases mem_append_iff.mpr h with
+        | inl hcs => exact List.mem_append_front _ _ _ hcs
+        | inr hcons =>
+          apply List.mem_append_back
+          cases hcons with
+          | head _ _ =>
+            apply List.Mem.tail
+            apply List.mem_append_back
+            apply (List.mem_singleton_iff y y).mpr rfl
+          | tail _ hcons' =>
+            rw [←cons_append]
+            exact List.mem_append_front _ _ _ hcons'
+        
+    simp only [uniqueAux]
+    cases Decidable.em (z ∈ cs ++ x :: (as ++ [y])) with
+    | inl hin =>
+      simp only [hin, rearrange_mem.mp hin, ite_true]
+      apply ih
+    | inr hout =>
+      simp only [hout, rearrange_mem.not_iff_not_of_iff.mp hout, ite_false]
+      have rw_help (stuff) : (z :: (cs ++ stuff)) = ((z :: cs) ++ stuff) := rfl
+      rw [rw_help, rw_help]
+      apply ih
+
+theorem List.length_counts_aux [DecidableEq α]
+  (xs : List α) (acc : List (α × Nat)) :
+  List.length (foldl (λ acc v => incrCounts acc v) acc xs) =
+  List.length (uniqueAux xs (acc.map Prod.fst)) := by
+  induction xs generalizing acc with
+  | nil => simp [foldl, uniqueAux]
+  | cons x xs ih =>
+    simp only [uniqueAux, foldl]
+    cases acc with
+    | nil =>
+      simp only [incrCounts, map, List.not_mem_nil, ite_false]
+      apply ih
+    | cons a as =>
+      simp only [incrCounts]
+      cases Decidable.em (a.1 = x) with
+      | inl htrue =>
+        simp only [htrue, ite_true, incrCounts, map]
+        rw [if_pos]
+        . apply ih
+        . exact List.Mem.head _ _
+      | inr hfalse =>
+        simp only [hfalse, ite_false, incrCounts, map]
+        rw [ih]
+        cases Decidable.em (x ∈ map Prod.fst as) with
+        | inl hin =>
+          have : x ∈ a.1 :: map Prod.fst as := List.Mem.tail _ hin
+          simp only [this, ite_true, map, uniqueAux]
+          apply congrArg
+          apply congrArg
+          apply congrArg
+          exact map_fst_incrCounts_eq_map_fst x as hin
+        | inr hout =>
+          have : ¬ (x ∈ a.1 :: map Prod.fst as) := by
+            intros hneg; cases hneg; repeat contradiction
+          simp only [this, ite_false, map]
+          rw [map_fst_incrCounts_eq_cons_fst _ _ hout]
+          apply List.length_uniqueAux_congr_append_cons_acc _ _ _ _ []
+
+theorem List.length_counts [DecidableEq α] (xs : List α) :
+  xs.counts.length = xs.unique.length :=
+  length_counts_aux xs []
+-- End `counts` work

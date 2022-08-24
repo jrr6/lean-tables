@@ -306,14 +306,6 @@ def Schema.lookup {η : Type u_η} [DecidableEq η]
 | hdr :: _, ⟨_, Schema.HasName.hd⟩ => hdr
 | _ :: hs, ⟨c, Schema.HasName.tl h'⟩ => lookup hs ⟨c, h'⟩
 
--- Returns the type associated with the given name.
--- Note: don't use this function to specify the return type of a function.
--- Instead, take the type implicitly and make that variable the return type.
-def Schema.lookupType {η : Type u_η} [DecidableEq η]
-    : (s : @Schema η) → CertifiedName s → Type u
-| (_, τ) :: _, ⟨_, Schema.HasName.hd⟩ => τ
-| _ :: hs, ⟨c, Schema.HasName.tl h'⟩ => lookupType hs ⟨c, h'⟩
-
 -- TODO: figure out what's going on here -- these should be auto-generated
 -- (also the field syntax isn't working, so using underscores instead)
 theorem Schema.lookup_eq_1 {η : Type u_η} [DecidableEq η]
@@ -323,6 +315,26 @@ theorem Schema.lookup_eq_1 {η : Type u_η} [DecidableEq η]
 theorem Schema.lookup_eq_2 {η : Type u_η} [DecidableEq η]
   (hd : @Header η) (tl : @Schema η) (c : η) {h : Schema.HasName c tl} :
   lookup (hd :: tl) ⟨c, HasName.tl h⟩ = lookup tl ⟨c, h⟩ := rfl
+
+-- Returns the type associated with the given name.
+-- Note: don't use this function to specify the return type of a function.
+-- Instead, take the type implicitly and make that variable the return type.
+def Schema.lookupType {η : Type u_η} [DecidableEq η]
+    : (s : @Schema η) → CertifiedName s → Type u
+| (_, τ) :: _, ⟨_, Schema.HasName.hd⟩ => τ
+| _ :: hs, ⟨c, Schema.HasName.tl h'⟩ => lookupType hs ⟨c, h'⟩
+
+theorem Schema.lookupType_eq_snd_lookup (s : @Schema η) (cn : CertifiedName s) :
+  lookupType s cn = (lookup s cn).snd := by
+  cases cn with | mk nm pf =>
+  induction pf with
+  | hd =>
+    simp only [lookupType]
+    rw [lookup_eq_1]
+  | tl h ih =>
+    simp only [lookupType]
+    rw [lookup_eq_2]
+    apply ih
 
 def Schema.pick {η : Type u_η} [DecidableEq η] (s : @Schema η)
     : List (CertifiedName s) → @Schema η

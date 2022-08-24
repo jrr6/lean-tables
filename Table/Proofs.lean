@@ -55,17 +55,20 @@ theorem addColumn_spec1 :
 --     simp only [schema, addColumn] at ih
 -- ⟩
 
+-- TODO: maybe use `lookupType` for this and `buildColumn_spec3`?
 theorem addColumn_spec2 :
   ∀ {τ : Type u}
     (t : Table sch)
     (c : η)
     (vs : List $ Option τ)
     (c' : η)
+    -- This is equivalent to `c ∈ header t`. (Unfortunately, we can't take the
+    -- hypothesis in that form beecause creating a `HasName` therefrom would
+    -- require large elimination from `Prop`)
     (h' : sch.HasName c'),
-    c ∈ header t →
       (schema t).lookup ⟨c', h'⟩ =
       (schema (addColumn t c vs)).lookup ⟨c', Schema.hasNameOfAppend h'⟩ :=
-λ t c vs c' h' h => Schema.lookup_eq_lookup_append _ _ _ _
+λ t c vs c' h' => Schema.lookup_eq_lookup_append _ _ _ _
 
 theorem addColumn_spec3 {τ : Type u} [DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (vs : List $ Option τ),
@@ -118,9 +121,33 @@ by intros τ t c f
     simp only at ih
     rw [ih]
     simp [List.append]
-    -- FIXME: why does it want all of this?
     exact Table.mk []
     exact (λ x => f (Row.cons Cell.emp x))
+
+theorem buildColumn_spec3 :
+  ∀ {τ : Type u}
+    (t : Table sch)
+    (c : η)
+    (f : Row sch → Option τ)
+    (c' : η)
+    (h' : sch.HasName c'),
+      (schema t).lookup ⟨c', h'⟩ =
+      (schema (buildColumn t c f)).lookup ⟨c', Schema.hasNameOfAppend h'⟩ :=
+λ t c vs c' h' => Schema.lookup_eq_lookup_append _ _ _ _
+
+theorem buildColumn_spec4 {τ : Type u} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : η) (f : Row sch → Option τ),
+    (schema (buildColumn t c f)).lookupType
+      ⟨c, sch.hasAppendedSingletonName c τ⟩ = τ := by
+  intros t c f
+  induction sch with
+  | nil =>
+    simp only [Schema.hasAppendedSingletonName, Schema.lookupType]
+  | cons s ss ih =>
+    simp only [Schema.hasAppendedSingletonName, Schema.lookupType]
+    apply ih
+    . exact (dropColumn t ⟨_, Schema.HasName.hd⟩)
+    . exact f ∘ (Row.cons Cell.emp)
 
 theorem buildColumn_spec5 :
   ∀ {τ : Type u} (t : Table sch) (c : η) (f : Row sch → Option τ),
@@ -130,8 +157,6 @@ by intros τ t c f
    rw [List.length_map, List.zip_length_eq_of_length_eq]
    apply Eq.symm
    apply List.length_map
-
--- TODO: come back to buildColumn
 
 theorem vcat_spec1 :
   ∀ (t1 : Table sch) (t2 : Table sch),
@@ -178,12 +203,66 @@ by intros sch₁ sch₂ t₁ t₂
    simp only [nrows, crossJoin, List.length_map]
    apply List.length_prod
 
+-- This is the closest we can approximate the spec given uniqueness issues
+theorem leftJoin_spec1 {s₁ s₂ : @Schema η} :
+  ∀ (t₁ : Table s₁) (t₂ : Table s₂) 
+    (cs : ActionList (Schema.removeOtherDecCH s₁) s₂),
+  schema (leftJoin t₁ t₂ cs) =
+  List.append (schema t₁)
+              (Schema.removeOtherDecCHs (schema t₁) (schema t₂) cs) :=
+λ _ _ _ => rfl
+
+-- TODO: again, should we use `lookupType`?
+theorem leftJoin_spec2 {s₁ s₂ : @Schema η} :
+  ∀ (t₁ : Table s₁) (t₂ : Table s₂) 
+    (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
+    (c : η)
+    (h : s₁.HasName c),
+      (schema t₁).lookup ⟨c, h⟩ =
+      (schema (leftJoin t₁ t₂ cs)).lookup ⟨c, Schema.hasNameOfAppend h⟩ :=
+λ _ _ _ _ _ => Schema.lookup_eq_lookup_append _ _ _ _
+
+-- TODO: spec 3
+
+-- TODO: Spec 4 appears to be wrong. Consider the following SQLite queries:
+/-
+CREATE TABLE demo (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  name VARCHAR(100) NOT NULL,
+  age INTEGER NOT NULL
+);
+
+CREATE TABLE demo2 (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  name VARCHAR(100) NOT NULL,
+  location VARCHAR(100) NOT NULL
+);
+
+INSERT INTO demo VALUES (NULL, "Bob", 18);
+INSERT INTO demo2 VALUES (NULL, "Bob", "USA");
+INSERT INTO demo2 VALUES (NULL, "Bob", "UK");
+
+SELECT *
+FROM demo
+LEFT JOIN demo2
+ON demo.name=demo2.name;
+-/
+-- theorem leftJoin_spec4 {s₁ s₂ : @Schema η} :
+--   ∀ (t₁ : Table s₁) (t₂ : Table s₂) 
+--     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂),
+--   nrows (leftJoin t₁ t₂ cs) = nrows t₁ := by
+--   intros t₁ t₂ cs
+--   simp only [leftJoin, nrows]
+
+-- The spec for `getValue` (as nearly as it can be approximated up to uniqueness
+-- issues) is enforced by types
+
 theorem getColumn1_spec1 :
   ∀ (t : Table sch) (n : Nat) (h : n < ncols t),
     List.length (getColumn1 t n h) = nrows t :=
 λ t n h => List.length_map _ _
 
--- TODO: gC1 spec 2
+-- Spec 2 is encoded in the return type of `getColumn1`
 
 -- TODO: gC2 spec 1
 theorem getColumn2_spec2 :
@@ -240,14 +319,14 @@ theorem selectColumns1_spec1 :
 --       | false =>
 --         simp only [sieve] at hf
 
--- FIXME: there must be a better way
-theorem ncols_eq_header_length :
-  ∀ (t : Table sch), ncols t = (header t).length :=
-λ t => Eq.symm (List.length_map _ _)
-theorem selectColumns1_spec2 :
-  ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t) (i : Nat) (h' : i < ncols t),
-  (List.get (header t) ⟨i, (ncols_eq_header_length t).subst h'⟩) ∈ (header (selectColumns1 t bs h)) ↔
-   List.get bs ⟨i, Eq.subst h.symm h'⟩ = true := sorry
+-- The original failed proof
+-- theorem ncols_eq_header_length :
+--   ∀ (t : Table sch), ncols t = (header t).length :=
+-- λ t => Eq.symm (List.length_map _ _)
+-- theorem selectColumns1_spec2 :
+--   ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t) (i : Nat) (h' : i < ncols t),
+--   (List.get (header t) ⟨i, (ncols_eq_header_length t).subst h'⟩) ∈ (header (selectColumns1 t bs h)) ↔
+--    List.get bs ⟨i, Eq.subst h.symm h'⟩ = true := sorry
 -- by intros t bs h i h'
 --    apply Iff.intro
 --    . intros hforward
@@ -441,21 +520,62 @@ theorem count_spec1 :
     header (count t c) = ["value", "count"] :=
 λ t c => rfl
 
--- TODO: specs 2, 3, 4
--- theorem count_spec2 :
---   ∀ {sch : @Schema η} {τ} [DecidableEq τ]
---     (t : Table sch) (c : ((c : η) × sch.HasCol (c, τ))),
---   (schema (count t c)).lookupType ⟨"value", Schema.HasName.hd⟩ =
---   sch.lookupType ⟨c.1, Schema.colImpliesName c.2⟩
--- | _ :: _, _, _, t, ⟨_, Schema.HasCol.hd⟩ => rfl
--- | _ :: _, _, _, t, ⟨c, Schema.HasCol.tl h⟩ => sorry
--- -- by intros τ inst t c
--- --    simp only [Schema.lookupType]
--- --    cases c with | mk c hc =>
--- --    cases hc with
--- --    | hd => simp only [Schema.lookupType]
--- --    | tl h =>
--- --     simp only [Schema.lookupType]
+-- This can't yet be in tactic mode because the `induction` tactic doesn't
+-- support `(nm, τ)` as an index
+theorem count_spec2 :
+  ∀ {sch : @Schema η} {τ} [DecidableEq τ]
+    (t : Table sch) (c : ((c : η) × sch.HasCol (c, τ))),
+  (schema (count t c)).lookupType ⟨"value", Schema.HasName.hd⟩ =
+  Option (sch.lookupType ⟨c.1, Schema.colImpliesName c.2⟩)
+| _ :: _, _, _, t, ⟨_, Schema.HasCol.hd⟩ => rfl
+  -- As with prior proofs, the table in the IH doesn't matter
+| _ :: _, τ, _, t, ⟨nm, Schema.HasCol.tl h⟩ => count_spec2 (Table.mk []) ⟨nm, h⟩
+
+theorem count_spec3 {τ} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  (schema (count t c)).lookupType ⟨"count", .tl .hd⟩ = Nat :=
+λ _ _ => rfl
+
+-- TODO: move this somewhere
+theorem length_count_pairsToRow : ∀ (xs : List (Option τ × Nat)),
+  List.length (count.pairsToRow xs) = xs.length
+| [] => rfl
+| x :: xs => congrArg (·+1) (length_count_pairsToRow xs)
+
+theorem count_spec4 {τ} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  nrows (count t c) = (getColumn2 t c.1 c.2).unique.length :=
+λ t c => Eq.trans (length_count_pairsToRow _) (List.length_counts _)
+
+  -- simp only [count, nrows]
+  -- have :
+  --   List.length (List.foldl (fun acc optV => count.incr acc optV) [] (getColumn2 t c.fst c.snd))
+  --   =
+  --   List.length (List.foldl (fun acc optV => count.incr acc optV) [] (getColumn2 t c.fst c.snd))
+  --   + List.length (List.unique ([] : List (Option τ))) := rfl
+  -- rw [this]
+  -- apply List.foldl_invariant
+  --   (λ acc xs => List.length acc + List.length xs.unique = (getColumn2 t c.1 c.2).unique.length)
+  -- -- Initialization
+  -- case h_init => simp only [getColumn2, List.length, Nat.zero_add]
+  -- -- Preservation
+  -- case h_pres =>
+  --   intros v x xs h
+  --   rw [List.unique, List.uniqueAux] at h
+  --   simp only [List.not_mem_nil, ite_false] at h
+  --   rw [List.length_uniqueAux] at h
+  --   simp only [List.length, Nat.zero_add] at h
+  --   cases v with
+  --   | nil =>
+  --     simp only [count.incr, List.length, Nat.zero_add]
+  --     simp only [List.length, Nat.zero_add] at h
+  --     rw [Nat.add_comm] at h
+  --     exact h
+  --   | cons v vs =>
+  --     unfold count.incr
+  --   admit
+  --   . intros y hy
+      
 
 theorem bin_spec1 [ToString η] :
   ∀ (t : Table sch)
