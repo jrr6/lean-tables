@@ -702,9 +702,16 @@ theorem transformColumn_spec4 :
   nrows (transformColumn t c f) = nrows t :=
 λ t c f => List.length_map _ _
 
--- TODO: `renameColumns`
+-- TODO: `renameColumns` specs 1 and 2
 
--- The specification for `find` is contained in its type
+theorem renameColumns_spec3 :
+  ∀ (t : Table sch)
+    (ccs : ActionList Schema.renameColumnCN sch),
+  nrows (renameColumns t ccs) = nrows t :=
+λ _ _ => List.length_map _ _
+
+-- The specification for `find` is contained in its type (`Option` corresponds
+-- to "Error," and `Fin` restricts the range of the output)
 
 -- TODO: `groupByRetentive` specs 2–6 (in progress)
 theorem groupByRetentive_spec1 [DecidableEq τ] :
