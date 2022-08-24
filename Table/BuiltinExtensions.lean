@@ -101,6 +101,12 @@ def List.toSingletons : List α → List (List α)
 | [] => []
 | x :: xs => [x] :: toSingletons xs
 
+-- TODO: better name?
+def List.somes : List (Option α) → List α
+| [] => []
+| none :: xs => somes xs
+| some x :: xs => x :: somes xs
+
 -- Based on `buffer.lt_aux_1` in Lean 3's `lib/lean/library/data/buffer.lean`
 theorem Nat.lt_of_lt_add_left {a b c : Nat} (h : a + c < b) : a < b :=
 Nat.lt_of_le_of_lt (Nat.le_add_right a c) h

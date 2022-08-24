@@ -620,7 +620,8 @@ theorem pivotTable_spec3 :
 -- Specs 1 and 2 are enforced by types
 -- Spec 3 is also enforced by types, but since it is actually expressible as an
 -- (albeit trivial) proof, we state it here for completeness
-theorem groupBy_spec3 {sch' : @Schema η} {κ ν} [DecidableEq κ] :
+theorem groupBy_spec3  {η'} [DecidableEq η'] {sch' : @Schema η'}
+                       {κ ν} [DecidableEq κ] :
   ∀ (t : Table sch)
     (key : Row sch → κ)
     (project : Row sch → ν)
@@ -629,7 +630,8 @@ theorem groupBy_spec3 {sch' : @Schema η} {κ ν} [DecidableEq κ] :
   schema (groupBy t key project aggregate) = (aggregate k vs).schema :=
 λ _ _ _ _ _ _ => rfl
 
-theorem groupBy_spec4 {sch' : @Schema η} {κ ν} [DecidableEq κ] :
+theorem groupBy_spec4 {η'} [DecidableEq η'] {sch' : @Schema η'}
+                      {κ ν} [DecidableEq κ] :
   ∀ (t : Table sch)
     (key : Row sch → κ)
     (project : Row sch → ν)
@@ -719,15 +721,22 @@ theorem groupByRetentive_spec1 [DecidableEq τ] :
   header (groupByRetentive t c) = ["key", "groups"] :=
 λ _ _ => rfl
 
--- Figure out what's up with type universes here
--- theorem groupByRetentive_spec2 [DecidableEq τ] :
---   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
---   (schema (groupByRetentive t c)).lookupType ⟨"key", Schema.HasName.hd⟩ = ULift τ :=
--- λ _ _ => rfl
+theorem groupByRetentive_spec2
+  {η : Type u_η} [DecidableEq η] {sch : @Schema η}
+  {τ : Type u} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  (schema (groupByRetentive t c)).lookupType ⟨"key", Schema.HasName.hd⟩
+    = ULift.{max (u+1) u_η} τ :=
+λ _ _ => rfl
 
--- TODO: specs 3 and 5
+theorem groupByRetentive_spec3
+  {η : Type u_η} [DecidableEq η] {sch : @Schema η}
+  {τ : Type u} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  (schema (groupByRetentive t c)).lookupType ⟨"groups", .tl .hd⟩ = Table sch :=
+λ _ _ => rfl
 
--- Need decidable equality of `ULift`s for the `groupByXXXive`s
+-- Need decidable equality of `ULift`s for `groupBy{Retentive,Subtractive}`
 deriving instance DecidableEq for ULift
 
 -- TODO: this should be an interesting challenge...
@@ -747,6 +756,27 @@ deriving instance DecidableEq for ULift
 --   intros t c
 --   simp only [groupByRetentive]
 --   have h := groupBy_spec4 t (λ r => getValue r c.1 c.2) (λ r => r) (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k)) (Row.cons (Cell.val (Table.mk vs)) Row.nil))
+theorem groupByRetentive_spec5
+  {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
+  {sch : @Schema η} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  ∀ t', t' ∈ (getColumn2 (groupByRetentive t c) "groups" (.tl .hd)).somes →
+  schema t' = sch :=
+λ _ _ _ _ => rfl
+
+theorem groupByRetentive_spec6
+  {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
+  {sch : @Schema η} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  nrows (groupByRetentive t c) = (getColumn2 t c.1 c.2).unique.length :=
+λ t c =>
+  groupBy_spec4 (sch' := [("key", ULift.{max (u+1) u_η} τ),
+                          ("groups", Table sch)])
+    t
+    (λ r => getValue r c.1 c.2)
+    (λ r => r)
+    (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k))
+                        (Row.cons (Cell.val (Table.mk vs)) Row.nil))
 
 -- TODO: `groupBySubtractive`
 
