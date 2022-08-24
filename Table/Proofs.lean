@@ -545,37 +545,7 @@ theorem length_count_pairsToRow : ∀ (xs : List (Option τ × Nat)),
 theorem count_spec4 {τ} [DecidableEq τ] :
   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
   nrows (count t c) = (getColumn2 t c.1 c.2).unique.length :=
-λ t c => Eq.trans (length_count_pairsToRow _) (List.length_counts _)
-
-  -- simp only [count, nrows]
-  -- have :
-  --   List.length (List.foldl (fun acc optV => count.incr acc optV) [] (getColumn2 t c.fst c.snd))
-  --   =
-  --   List.length (List.foldl (fun acc optV => count.incr acc optV) [] (getColumn2 t c.fst c.snd))
-  --   + List.length (List.unique ([] : List (Option τ))) := rfl
-  -- rw [this]
-  -- apply List.foldl_invariant
-  --   (λ acc xs => List.length acc + List.length xs.unique = (getColumn2 t c.1 c.2).unique.length)
-  -- -- Initialization
-  -- case h_init => simp only [getColumn2, List.length, Nat.zero_add]
-  -- -- Preservation
-  -- case h_pres =>
-  --   intros v x xs h
-  --   rw [List.unique, List.uniqueAux] at h
-  --   simp only [List.not_mem_nil, ite_false] at h
-  --   rw [List.length_uniqueAux] at h
-  --   simp only [List.length, Nat.zero_add] at h
-  --   cases v with
-  --   | nil =>
-  --     simp only [count.incr, List.length, Nat.zero_add]
-  --     simp only [List.length, Nat.zero_add] at h
-  --     rw [Nat.add_comm] at h
-  --     exact h
-  --   | cons v vs =>
-  --     unfold count.incr
-  --   admit
-  --   . intros y hy
-      
+λ t c => Eq.trans (length_count_pairsToRow _) (List.length_counts _)      
 
 theorem bin_spec1 [ToString η] :
   ∀ (t : Table sch)
