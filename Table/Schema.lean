@@ -132,9 +132,9 @@ def Schema.colImpliesName :
 def Schema.colImpliesName_eq_1 {sch' : @Schema η} {hdr : @Header η} :
   colImpliesName (schema := hdr :: sch') HasCol.hd = HasName.hd := rfl
 
-def Schema.colImpliesName_eq_2 {schema : @Schema η} {hdr : @Header η}
-                               {h : schema.HasCol hdr}:
-  colImpliesName (schema := hdr :: schema) (HasCol.tl h) =
+def Schema.colImpliesName_eq_2 {sch' : @Schema η} {s hdr : @Header η}
+                               {h : sch'.HasCol hdr}:
+  colImpliesName (schema := s :: sch') (HasCol.tl h) =
   HasName.tl (colImpliesName h) := rfl
 
 def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
@@ -316,6 +316,16 @@ theorem Schema.lookup_eq_2 {η : Type u_η} [DecidableEq η]
   (hd : @Header η) (tl : @Schema η) (c : η) {h : Schema.HasName c tl} :
   lookup (hd :: tl) ⟨c, HasName.tl h⟩ = lookup tl ⟨c, h⟩ := rfl
 
+theorem Schema.lookup_of_colImpliesName :
+  ∀ {sch : @Schema η} {hpf : sch.HasCol (nm, τ)},
+  Schema.lookup sch ⟨nm, Schema.colImpliesName hpf⟩ = (nm, τ)
+| _ :: ss, .hd => by
+  rw [colImpliesName_eq_1 (sch' := ss) (hdr := (nm, τ)),
+      lookup_eq_1]
+| _ :: ss, .tl h => by
+  rw [colImpliesName_eq_2, lookup_eq_2]
+  apply lookup_of_colImpliesName
+
 -- Returns the type associated with the given name.
 -- Note: don't use this function to specify the return type of a function.
 -- Instead, take the type implicitly and make that variable the return type.
@@ -431,6 +441,29 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
     rw [Nat.add_comm]
     apply Nat.lt.base;
   schemaHasSubschema h
+
+-- TODO: figure out why it won't let us name the proof in the first clause
+def Schema.hasNameOfFromCHeaders :
+  ∀ {sch : @Schema η} {cs : List $ CertifiedHeader sch} {nm : η},
+  Schema.HasName nm (Schema.fromCHeaders cs) → Schema.HasName nm sch
+| [], ⟨hdr, hpf⟩ :: _, _, _ => nomatch hpf
+| _ :: _, ⟨(.(nm), τ), _⟩ :: _, nm, .hd =>
+  Schema.colImpliesName (τ := τ) (by assumption)
+| _ :: _, ⟨hdr, hpf⟩ :: cs, nm, .tl h => hasNameOfFromCHeaders h
+
+theorem Schema.hasNameOfFromCHeaders_eq_1 :
+  @hasNameOfFromCHeaders η sch (⟨(nm, τ), hpf⟩ :: cs) nm HasName.hd =
+  colImpliesName hpf := by
+  cases sch with
+  | nil => contradiction
+  | cons s ss => simp [hasNameOfFromCHeaders]
+
+theorem Schema.hasNameOfFromCHeaders_eq_2 :
+  @hasNameOfFromCHeaders η sch (⟨hdr, hpf⟩ :: cs) nm (HasName.tl h) =
+  hasNameOfFromCHeaders h := by
+  cases sch with
+  | nil => contradiction
+  | cons s ss => simp [hasNameOfFromCHeaders]
 
 /--
 Takes an ActionList along with a "preservation" function that maps action list
