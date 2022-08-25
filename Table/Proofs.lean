@@ -689,7 +689,19 @@ theorem flatten_spec1 :
 
 -- TODO: `flatten` spec 2
 
--- TODO: `transformColumn` specs 1 & 3
+-- TODO: `transformColumn` spec 3
+
+theorem transformColumn_spec1 {τ₁ τ₂} :
+  ∀ (t : Table sch)
+    (c : (c : η) × sch.HasCol (c, τ₁))
+    (f : Option τ₁ → Option τ₂),
+  sch.lookupType ⟨c.1, Schema.colImpliesName c.2⟩ = τ₁ :=
+λ t c f => Eq.trans (Schema.lookupType_eq_snd_lookup sch
+                        ⟨c.1, Schema.colImpliesName c.2⟩)
+                    (Eq.subst (motive := λ a => a.snd = τ₁)
+                        (Eq.symm $ Schema.lookup_of_colImpliesName sch c.2)
+                        rfl)
+
 theorem transformColumn_spec2 {τ₁ τ₂} :
   ∀ (t : Table sch)
     (c : (c : η) × sch.HasCol (c, τ₁))
@@ -778,7 +790,60 @@ theorem groupByRetentive_spec6
     (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k))
                         (Row.cons (Cell.val (Table.mk vs)) Row.nil))
 
--- TODO: `groupBySubtractive`
+theorem groupBySubtractive_spec1 [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  header (groupBySubtractive t c) = ["key", "groups"] :=
+λ _ _ => rfl
+
+theorem groupBySubtractive_spec2
+  {η : Type u_η} [DecidableEq η] {sch : @Schema η}
+  {τ : Type u} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  (schema (groupBySubtractive t c)).lookupType ⟨"key", Schema.HasName.hd⟩
+    = ULift.{max (u+1) u_η} τ :=
+λ _ _ => rfl
+
+theorem groupBySubtractive_spec3
+  {η : Type u_η} [DecidableEq η] {sch : @Schema η}
+  {τ : Type u} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  (schema (groupBySubtractive t c)).lookupType ⟨"groups", .tl .hd⟩ =
+  Table (sch.removeName (Schema.colImpliesName c.snd)) :=
+λ _ _ => rfl
+
+-- TODO: `groupBySubtractive` spec 4
+
+-- Closest approximation possible given uniqueness issues
+theorem groupBySubtractive_spec5
+  {η : Type u_η} [DecidableEq η] {sch : @Schema η}
+  {τ : Type u} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  ∀ t', t' ∈ (getColumn2 (groupBySubtractive t c) "groups" (.tl .hd)).somes →
+  header t' = Schema.names (sch.removeName (Schema.colImpliesName c.2)) :=
+λ _ _ _ _ => rfl
+
+theorem groupBySubtractive_spec6
+  {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
+  {sch : @Schema η} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  ∀ t', t' ∈ (getColumn2 (groupBySubtractive t c) "groups" (.tl .hd)).somes →
+  List.Sublist (schema t') sch :=
+λ _ c _ _ => Schema.removeName_sublist sch c.1 (Schema.colImpliesName c.2)
+
+theorem groupBySubtractive_spec7
+  {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
+  {sch : @Schema η} [DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  nrows (groupBySubtractive t c) = (getColumn2 t c.1 c.2).unique.length :=
+λ t c =>
+  groupBy_spec4
+    t
+    (λ r => getValue r c.1 c.2)
+    (λ r => r)
+    (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k))
+                        (Row.cons (Cell.val (Table.mk (vs.map (λ r =>
+                          Row.removeColumn (Schema.colImpliesName c.snd) r))))
+                        Row.nil))
 
 -- TODO: `update` (once correctly implemented)
 

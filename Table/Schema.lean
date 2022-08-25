@@ -317,7 +317,7 @@ theorem Schema.lookup_eq_2 {η : Type u_η} [DecidableEq η]
   lookup (hd :: tl) ⟨c, HasName.tl h⟩ = lookup tl ⟨c, h⟩ := rfl
 
 theorem Schema.lookup_of_colImpliesName :
-  ∀ {sch : @Schema η} {hpf : sch.HasCol (nm, τ)},
+  ∀ (sch : @Schema η) (hpf : sch.HasCol (nm, τ)),
   Schema.lookup sch ⟨nm, Schema.colImpliesName hpf⟩ = (nm, τ)
 | _ :: ss, .hd => by
   rw [colImpliesName_eq_1 (sch' := ss) (hdr := (nm, τ)),
