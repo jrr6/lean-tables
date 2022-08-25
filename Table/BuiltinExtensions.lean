@@ -81,17 +81,11 @@ def List.sieve {α} : List Bool → List α → List α
 | true :: bs, x :: xs => x :: sieve bs xs
 | false :: bs, _ :: xs => sieve bs xs
 
--- TODO: Haven't actually done the big-O analysis, but it's probably more
--- efficient to make the recursive case x :: flatten (xs :: ys). Unfortunately,
--- the termination checker doesn't like that implementation.
--- Initial attempt was:
--- termination_by flatten xs => 
---   List.foldl (λ acc xs => acc + List.length xs + 1) 0 xs)
--- TODO: After all that, I don't think we even need this function after all...
+-- TODO: I don't think we even need this function after all...
 def List.flatten {α} : List (List α) → List α
 | [] => []
 | [] :: ys => flatten ys
-| (x :: xs) :: ys => (x :: xs) ++ flatten ys
+| (x :: xs) :: ys => x :: flatten (xs :: ys)
 
 def List.flatMap {α β} (f : α → List β) : List α → List β
 | [] => []
@@ -111,35 +105,28 @@ def List.somes : List (Option α) → List α
 theorem Nat.lt_of_lt_add_left {a b c : Nat} (h : a + c < b) : a < b :=
 Nat.lt_of_le_of_lt (Nat.le_add_right a c) h
 
-def List.verifiedEnum : (xs : List α) → List (Fin xs.length × α)
-| [] => []
-| z :: zs =>
-  let xs := z :: zs
-  let rec vEnumFrom : (ys : List α) →
-                      (n : Nat) →
-                      (n + ys.length ≤ xs.length) →
-                      List (Fin xs.length × α)
-  | [], _, _ => []
-  | y :: ys, n, pf => (⟨n, Nat.lt_of_lt_add_left pf⟩, y) ::
-    vEnumFrom ys (n + 1) (by
-      simp only [length] at pf
-      simp only [length]
-      rw [Nat.add_assoc, Nat.add_comm 1]
-      exact pf
-    )
-  vEnumFrom xs 0 (Eq.subst (Nat.zero_add _) (Nat.le_refl _))
+def List.vEnumFrom (xs : List α) :
+  (n : Nat) → (ys : List α) → (n + ys.length ≤ xs.length) →
+  List (Fin xs.length × α)
+| n, [], _ => []
+| n, y :: ys, pf =>
+  (⟨n, Nat.lt_of_lt_add_left pf⟩, y) ::
+  vEnumFrom xs (n + 1) ys (Eq.subst (motive := (· ≤ length xs))
+                  (Nat.add_right_comm n (length ys) 1) pf)
 
-theorem List.length_verifiedEnum_vEnumFrom (x : α) (xs : List α) :
-  ∀ (ys : List α) (n : Nat) (pf : n + ys.length ≤ (x :: xs).length),
-  (verifiedEnum.vEnumFrom x xs ys n pf).length = ys.length
+def List.verifiedEnum (xs : List α) : List (Fin xs.length × α) :=
+  vEnumFrom xs 0 xs (Eq.subst (Nat.zero_add _) (Nat.le_refl _))
+
+theorem List.length_vEnumFrom (xs : List α) :
+  ∀ (ys : List α) (n : Nat) (pf : n + ys.length ≤ xs.length),
+  (vEnumFrom xs n ys pf).length = ys.length
 | [], _, _ => rfl
-| y :: ys, n, pf =>
-  congrArg (·+1) (length_verifiedEnum_vEnumFrom x xs ys (n + 1) _)
+| y :: ys, n, pf => congrArg (·+1) (length_vEnumFrom xs ys (n + 1) _)
 
 theorem List.length_verifiedEnum : ∀ (xs : List α),
   xs.verifiedEnum.length = xs.length
 | [] => rfl
-| x :: xs => congrArg (·+1) (length_verifiedEnum_vEnumFrom _ _ _ _ _)
+| x :: xs => congrArg (·+1) (length_vEnumFrom _ _ _ _)
 
 theorem List.filter_length_aux {α} (g : α → Bool) (xs : List α) :
     ∀ rs : List α, List.length (List.filterAux g xs rs)
@@ -952,8 +939,8 @@ theorem List.all_pred {p : α → Prop} [DecidablePred p] {xs : List α} :
         intro x' hx'
         apply hbackward _ $ List.Mem.tail _ hx'
 
--- This didn't end up getting used for the `groupByKey` proof, but I'm keeping
--- it around just in case
+-- This didn't end up getting used for the `length_groupByKey` proof, but I'm
+-- keeping it around just in case
 @[instance] def List.forAllDecidable (xs : List α) (p : α → Prop)
   [DecidablePred p] : Decidable (∀x, x ∈ xs → p x) :=
 if h : xs.all (λ x => decide (p x))
@@ -989,8 +976,8 @@ theorem List.mem_cons_iff_mem_singleton_or_tail (y : α) (ys : List α) (x : α)
     | inr h => apply Mem.tail _ h
 
 -- TODO: it would make more sense to use `&&` instead of `∧` since this is a
--- "data function." However, `∧` is better for the `groupByKey` proof, so I'm
--- leaving it, at least for now.
+-- "data function." However, `∧` is better for the `length_groupByKey` proof, so
+-- I'm leaving it, at least for now.
 theorem List.filter_filter (p₁ p₂ : α → Bool) (xs : List α) :
   filter p₁ (filter p₂ xs) = filter (λ x => p₂ x ∧ p₁ x) xs := by
   -- filter p₁ (filter p₂ xs) = filter (λ x => p₂ x ∧ p₁ x) xs := by
