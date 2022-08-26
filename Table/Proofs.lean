@@ -751,23 +751,158 @@ theorem groupByRetentive_spec3
 -- Need decidable equality of `ULift`s for `groupBy{Retentive,Subtractive}`
 deriving instance DecidableEq for ULift
 
--- TODO: this should be an interesting challenge...
--- theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
---   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
---   (getColumn2 (groupByRetentive t c) "key" Schema.HasCol.hd).unique =
---   getColumn2 (groupByRetentive t c) "key" Schema.HasCol.hd := by
---   intros t c
---   simp only [groupByRetentive]
---   cases c with | mk c pf =>
+def Function.injective (f : α → β) := ∀ {x y}, f x = f y → x = y
+def Function.biInjective (f : α → β → γ) := ∀ x₁ x₂ y₁ y₂, f x₁ x₂ = f y₁ y₂ → x₁ = y₁ ∧ x₂ = y₂
 
--- TODO: this should follow fairly directly from `groupBy_spec4`, but universe
--- levels are getting in the way
--- theorem groupByRetentive_spec6 {η} [DecidableEq η] {sch : @Schema η} [DecidableEq τ] :
---   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
---   nrows (groupByRetentive t c) = (getColumn2 t c.1 c.2).unique.length := by
---   intros t c
---   simp only [groupByRetentive]
---   have h := groupBy_spec4 t (λ r => getValue r c.1 c.2) (λ r => r) (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k)) (Row.cons (Cell.val (Table.mk vs)) Row.nil))
+theorem List.groupByKey_fsts_no_duplicates [DecidableEq κ] (xs : List (κ × ν)) :
+  no_duplicates $ (groupByKey xs).map Prod.fst := sorry
+
+theorem groupBy_specPlus {η'} [DecidableEq η'] {sch' : @Schema η'}
+                      {κ ν} [DecidableEq κ] {τ} [DecidableEq τ] :
+  ∀ (t : Table sch)
+    (key : Row sch → κ)
+    (project : Row sch → ν)
+    (aggregate : κ → List ν → Row sch')
+    (nm : η')
+    (pf : sch'.HasCol (nm, τ)),
+    Function.biInjective aggregate →
+    ((groupBy t key project aggregate).rows.map (λ r => getValue r _ pf)).no_duplicates := by
+  intros t key project aggregate nm pf hbiinj
+  simp only [groupBy, List.no_duplicates]
+  
+
+theorem Cell.toOption_fromOption {nm : η} :
+  ∀ (v : Option τ), toOption (fromOption (nm := nm) v) = v
+| none => rfl
+| some x => rfl
+
+theorem List.no_duplicates_head_not_mem_tail
+  [DecidableEq α] (x : α) (xs : List α) :
+  no_duplicates (x :: xs) → x ∉ xs := by
+  intro hnodup
+  simp only [no_duplicates] at hnodup
+  induction xs with
+  | nil => exact List.not_mem_nil x
+  | cons y ys ih =>
+    admit
+
+#check List.Sublist.cons
+theorem List.no_duplicates_sublist [DecidableEq α] (xs ys : List α) :
+  no_duplicates xs → List.Sublist ys xs → no_duplicates ys := by
+  intros hnodup hsub
+  induction hsub with
+  | nil => rfl
+  | cons as bs a h ih =>
+    apply ih
+
+theorem List.no_duplicates_reverse [DecidableEq α] {xs : List α} :
+  no_duplicates xs ↔ no_duplicates (reverse xs) := by
+  rw [reverse_eq_reverseSpec]
+  apply Iff.intro
+  . intros hxs
+    induction xs with
+    | nil => simp [reverseSpec, unique, uniqueAux, no_duplicates]
+    | cons x xs ih =>
+      simp only [reverseSpec]
+      simp only [no_duplicates]
+
+theorem List.no_duplicates_of_cons [DecidableEq α] (x : α) (xs : List α) :
+  no_duplicates (x :: xs) → no_duplicates xs := by
+  intros hxxs
+  simp only [no_duplicates] at *
+  simp [unique, uniqueAux, List.not_mem_nil] at hxxs
+  rw [uniqueAux_acc_append] at hxxs
+  simp only [reverse_singleton, singleton_append] at hxxs
+  injection hxxs with _ taileq
+  exact taileq
+  . intros y hy
+    apply no_duplicates_head_not_mem_tail
+    apply no_duplicates_reverse.mpr
+    simp only [reverse_eq_reverseSpec, reverseSpec]
+    simp only [HAppend.hAppend, Append.append, List.append]
+    apply no_duplicates_sublist (x :: xs)
+    . apply hxxs
+    . apply Sublist.cons2
+      apply singleton_sublist_of_mem _ _ hy
+
+theorem List.no_dups_map_injective [DecidableEq α] [DecidableEq β]
+  (f : α → β) (hf : f.injective) (xs : List α) (hxs : no_duplicates xs) :
+  no_duplicates $ map f xs := by
+  induction xs with
+  | nil => simp [unique, uniqueAux, map, no_duplicates]
+  | cons x xs ih =>
+    simp only [no_duplicates, map, unique, uniqueAux, List.not_mem_nil, ite_false]
+    conv =>
+      rhs
+      rw [←ih]
+      skip
+      apply no_duplicates_of_cons _ _ hxs
+    apply uniqueAux_acc_append
+    . intros y hy
+      -- TODO: induction?...
+      apply no_duplicates_head_not_mem_tail
+
+    -- TODO: this information is somehow wrapped up in `hxs`? Maybe? Hopefully?
+    -- Will need `hf`, too (haven't used that yet)
+
+-- TODO: this should be an interesting challenge...
+-- set_option pp.explicit true
+theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  (getColumn2 (groupByRetentive t c) "key" Schema.HasCol.hd).no_duplicates := by
+  intros t c
+  simp only [groupByRetentive, groupBy, getColumn2]
+  rw [List.map_map]
+  simp only [Function.comp, getValue, Row.getCell]
+  conv =>
+    rhs
+    lhs
+    apply funext (f₂ := _) _
+    apply (λ x => Option.map ULift.up x.fst)
+    -- `intros` doesn't seem to be working in `conv` mode?
+    apply (λ x => Cell.toOption_fromOption _)
+  conv =>
+    rhs
+    lhs
+    apply funext (f₂ := _) _
+    apply (λ x => Option.map ULift.up ∘ Prod.fst)
+    apply (λ x => rfl)
+  rw [←List.map_map]
+  apply List.no_dups_map_injective
+  -- Show `Option.map ULift.up` is injective
+  . intros x y hxy
+    cases x
+    . cases y
+      . rfl
+      . contradiction
+    . cases y
+      . contradiction
+      . cases hxy; rfl
+  . apply List.groupByKey_fsts_no_duplicates
+
+  -- simp only [getColumn2]
+  -- simp only [groupByRetentive]
+  -- cases c with | mk c pf =>
+  -- simp only
+  -- apply groupBy_specPlus
+  -- intros x₁ x₂ y₁ y₂ heq
+  -- simp at heq
+  -- cases heq with | intro left right =>
+  -- apply And.intro
+  -- . have fromOpt_inj {η} [i : DecidableEq η] {nm : η} {δ} : Function.injective (Cell.fromOption (nm := nm) (τ := δ))
+  --   | some x, some y, heq => by cases heq; rfl
+  --   | none, none, heq => rfl
+  --   have optMap_inj {α β} (f : α → β) (h : f.injective) : Function.injective (Option.map f)
+  --   | some x, some y, heq => by
+  --     simp only [Option.map, Option.bind, Function.comp] at heq
+  --     injection heq with heq'
+  --     apply congrArg _ (h heq')
+  --   | none, none, _ => rfl
+  --   have := fromOpt_inj left
+  --   have := optMap_inj ULift.up (by intros x y hxy; cases hxy; rfl) this
+  --   exact this
+  -- . exact right
+  
 theorem groupByRetentive_spec5
   {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
   {sch : @Schema η} [DecidableEq τ] :

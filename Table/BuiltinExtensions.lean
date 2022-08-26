@@ -383,6 +383,12 @@ theorem List.nil_sublist : ∀ (xs : List α), Sublist [] xs
 | [] => Sublist.nil
 | x :: xs => Sublist.cons [] xs x $ nil_sublist xs
 
+theorem List.singleton_sublist_of_mem (y : α) :
+  ∀ (xs : List α), y ∈ xs → Sublist [y] xs
+| .(y) :: xs, List.Mem.head _ _ => Sublist.cons2 [] xs y (nil_sublist xs)
+| x :: xs, List.Mem.tail .(x) h =>
+  Sublist.cons _ xs x (singleton_sublist_of_mem y xs h)
+
 -- Adapted from ll. 953-962 of `data/list/basic.lean` of Mathlib 3
 theorem List.Sublist.trans {l₁ l₂ l₃ : List α}
   (h₁ : Sublist l₁ l₂) (h₂ : Sublist l₂ l₃) : Sublist l₁ l₃ :=
