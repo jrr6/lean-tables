@@ -13,6 +13,17 @@ inductive List.Sublist {α} : List α → List α → Prop
 | cons (xs ys x) : Sublist xs ys → Sublist xs (x :: ys)
 | cons2 (xs ys x) : Sublist xs ys → Sublist (x :: xs) (x :: ys)
 
+-- TODO: could solve schema woes...
+-- mutual 
+--   inductive UniqueList (α : Type _)
+--   | nil : UniqueList α
+--   | cons (x : α) (xs : UniqueList α) : ¬(UniqueList.Mem x xs) → UniqueList α
+
+--   inductive UniqueList.Mem (α : Type _) : α → UniqueList α → Prop
+--   | head (a : α) (as : UniqueList α) : Mem a (UniqueList.cons a as)
+--   | tail (a : α) {b : α} {as : List α} : Mem b as → Mem b (UniqueList.cons a as)
+-- end
+
 -- Nifty, but hard to write proofs over
 -- def List.prod {α β} (xs : List α) (ys : List β) : List (α × β) :=
 -- List.foldl List.append [] (List.map (λ x => List.map (λ y => (x, y)) ys) xs)
@@ -855,6 +866,12 @@ def List.uniqueAux {α} [DecidableEq α] : List α → List α → List α
 | x :: xs, acc => if x ∈ acc then uniqueAux xs acc else uniqueAux xs (x :: acc)
 
 def List.unique {α} [inst : DecidableEq α] (xs : List α) := uniqueAux xs []
+
+def List.no_duplicates [DecidableEq α] (xs : List α) := unique xs = xs
+
+inductive List.NoDuplicates {α} : List α → Prop
+| nil : NoDuplicates []
+| cons x xs : x ∉ xs → NoDuplicates xs → NoDuplicates (x :: xs)
 
 def List.uniqueFoldl [DecidableEq α] (xs : List α) :=
   xs.foldl (λ acc x => if x ∈ acc then acc else acc ++ [x]) []

@@ -755,101 +755,69 @@ def Function.injective (f : α → β) := ∀ {x y}, f x = f y → x = y
 def Function.biInjective (f : α → β → γ) := ∀ x₁ x₂ y₁ y₂, f x₁ x₂ = f y₁ y₂ → x₁ = y₁ ∧ x₂ = y₂
 
 theorem List.groupByKey_fsts_no_duplicates [DecidableEq κ] (xs : List (κ × ν)) :
-  no_duplicates $ (groupByKey xs).map Prod.fst := sorry
-
-theorem groupBy_specPlus {η'} [DecidableEq η'] {sch' : @Schema η'}
-                      {κ ν} [DecidableEq κ] {τ} [DecidableEq τ] :
-  ∀ (t : Table sch)
-    (key : Row sch → κ)
-    (project : Row sch → ν)
-    (aggregate : κ → List ν → Row sch')
-    (nm : η')
-    (pf : sch'.HasCol (nm, τ)),
-    Function.biInjective aggregate →
-    ((groupBy t key project aggregate).rows.map (λ r => getValue r _ pf)).no_duplicates := by
-  intros t key project aggregate nm pf hbiinj
-  simp only [groupBy, List.no_duplicates]
-  
+  NoDuplicates $ (groupByKey xs).map Prod.fst := sorry
 
 theorem Cell.toOption_fromOption {nm : η} :
   ∀ (v : Option τ), toOption (fromOption (nm := nm) v) = v
 | none => rfl
 | some x => rfl
 
-theorem List.no_duplicates_head_not_mem_tail
-  [DecidableEq α] (x : α) (xs : List α) :
-  no_duplicates (x :: xs) → x ∉ xs := by
-  intro hnodup
-  simp only [no_duplicates] at hnodup
-  induction xs with
-  | nil => exact List.not_mem_nil x
-  | cons y ys ih =>
-    admit
-
-#check List.Sublist.cons
-theorem List.no_duplicates_sublist [DecidableEq α] (xs ys : List α) :
-  no_duplicates xs → List.Sublist ys xs → no_duplicates ys := by
-  intros hnodup hsub
-  induction hsub with
-  | nil => rfl
-  | cons as bs a h ih =>
-    apply ih
-
-theorem List.no_duplicates_reverse [DecidableEq α] {xs : List α} :
-  no_duplicates xs ↔ no_duplicates (reverse xs) := by
-  rw [reverse_eq_reverseSpec]
+-- TODO: this cannot possibly be useful... delete?
+theorem List.mem_exists {x : α} {xs : List α} :
+  x ∈ xs ↔ ∃ y, y ∈ xs ∧ x = y := by
   apply Iff.intro
-  . intros hxs
-    induction xs with
-    | nil => simp [reverseSpec, unique, uniqueAux, no_duplicates]
-    | cons x xs ih =>
-      simp only [reverseSpec]
-      simp only [no_duplicates]
+  . intros hf
+    induction hf with
+    | head x xs =>
+      apply Exists.intro x
+      apply And.intro (List.Mem.head _ _) rfl
+    | tail x' xs ih =>
+      apply Exists.elim ih
+      intros yih hyih
+      apply Exists.intro yih
+      apply And.intro
+      . apply List.Mem.tail _ hyih.left
+      . apply hyih.right
+  . intros hb
+    apply Exists.elim hb
+    intros y hy
+    cases hy with | intro hmem heq =>
+    rw [heq]
+    apply hmem
 
-theorem List.no_duplicates_of_cons [DecidableEq α] (x : α) (xs : List α) :
-  no_duplicates (x :: xs) → no_duplicates xs := by
-  intros hxxs
-  simp only [no_duplicates] at *
-  simp [unique, uniqueAux, List.not_mem_nil] at hxxs
-  rw [uniqueAux_acc_append] at hxxs
-  simp only [reverse_singleton, singleton_append] at hxxs
-  injection hxxs with _ taileq
-  exact taileq
-  . intros y hy
-    apply no_duplicates_head_not_mem_tail
-    apply no_duplicates_reverse.mpr
-    simp only [reverse_eq_reverseSpec, reverseSpec]
-    simp only [HAppend.hAppend, Append.append, List.append]
-    apply no_duplicates_sublist (x :: xs)
-    . apply hxxs
-    . apply Sublist.cons2
-      apply singleton_sublist_of_mem _ _ hy
+theorem List.no_dups_of_cons : List.NoDuplicates (x :: xs) → List.NoDuplicates xs := sorry
 
-theorem List.no_dups_map_injective [DecidableEq α] [DecidableEq β]
-  (f : α → β) (hf : f.injective) (xs : List α) (hxs : no_duplicates xs) :
-  no_duplicates $ map f xs := by
-  induction xs with
-  | nil => simp [unique, uniqueAux, map, no_duplicates]
-  | cons x xs ih =>
-    simp only [no_duplicates, map, unique, uniqueAux, List.not_mem_nil, ite_false]
-    conv =>
-      rhs
-      rw [←ih]
-      skip
-      apply no_duplicates_of_cons _ _ hxs
-    apply uniqueAux_acc_append
-    . intros y hy
-      -- TODO: induction?...
-      apply no_duplicates_head_not_mem_tail
+theorem List.mem_of_mem_injective_map (f : α → β) (hf : f.injective) :
+  ∀ (x : α) (xs : List α),
+  f x ∈ map f xs → x ∈ xs := λ x xs h => sorry
+  -- List.Mem.recOn (motive := (λ a as hmem => x ∈ xs
+  --   -- hmem.casesOn (λ b bs => b ∈ bs) (λ b c bs mtv => b ∈ bs)
+  --   -- match hmem with
+  --   -- | Mem.head .(a) .(as) => sorry
+  --   -- | Mem.tail _ _ => sorry
+  -- )) h
+  --   (λ a as => sorry)
+  --   sorry
 
-    -- TODO: this information is somehow wrapped up in `hxs`? Maybe? Hopefully?
-    -- Will need `hf`, too (haven't used that yet)
+  -- := by
+  -- intros x xs hin
+  -- cases xs with | nil => contradiction | cons x' xs =>
+  -- simp only [map] at hin
+
+theorem List.no_dups_map_injective
+  (f : α → β) (hf : f.injective) : ∀ (xs : List α) (hxs : NoDuplicates xs),
+  NoDuplicates $ map f xs
+| [], hxs => NoDuplicates.nil
+| x :: xs, NoDuplicates.cons _ _ hxnin hndxs =>
+  NoDuplicates.cons (f x) (map f xs)
+    (λ hneg => absurd (mem_of_mem_injective_map f hf x xs hneg) hxnin)
+    (no_dups_map_injective f hf xs hndxs)
 
 -- TODO: this should be an interesting challenge...
 -- set_option pp.explicit true
 theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  (getColumn2 (groupByRetentive t c) "key" Schema.HasCol.hd).no_duplicates := by
+  (getColumn2 (groupByRetentive t c) "key" Schema.HasCol.hd).NoDuplicates := by
   intros t c
   simp only [groupByRetentive, groupBy, getColumn2]
   rw [List.map_map]
