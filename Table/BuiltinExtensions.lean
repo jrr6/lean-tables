@@ -140,19 +140,19 @@ theorem List.length_verifiedEnum : ∀ (xs : List α),
 | x :: xs => congrArg (·+1) (length_vEnumFrom _ _ _ _)
 
 theorem List.filter_length_aux {α} (g : α → Bool) (xs : List α) :
-    ∀ rs : List α, List.length (List.filterAux g xs rs)
+    ∀ rs : List α, List.length (List.filterTRAux g xs rs)
                    <= List.length xs + List.length rs :=
 by
   induction xs with
   | nil =>
     intro rs
-    simp only [filter, filterAux]
+    simp only [filter, filterTRAux]
     rw [List.length_reverse]
     simp only [length, Nat.zero_add]
     apply Nat.le.refl
   | cons x xs ih =>
     intro rs
-    simp only [filter, filterAux]
+    simp only [filter, filterTRAux]
     cases (g x) with
     | true => simp only
               apply Nat.le_trans (ih (x::rs))
@@ -170,7 +170,20 @@ by
 
 theorem List.filter_length {α} (g : α → Bool) (xs : List α) :
     List.length (List.filter g xs) <= List.length xs :=
-  List.filter_length_aux g xs []
+  -- List.filter_length_aux g xs []
+by induction xs with
+   | nil => simp [length]
+   | cons x xs ih =>
+      simp only [filter]
+      cases (g x) with
+      | true =>
+        simp only
+        apply Nat.succ_le_succ
+        exact ih
+      | false =>
+        simp only
+        apply Nat.le.step
+        exact ih
 
 -- Temporary merge sort algorithm until the full sorting library gets ported
 
@@ -445,48 +458,56 @@ theorem List.sublist_of_map_sublist :
 theorem List.removeAll_singleton_hd_eq [DecidableEq α] :
   ∀ (x: α) (xs : List α), removeAll (x :: xs) [x] = removeAll xs [x] :=
 by intros x xs
-   simp [removeAll, filter, filterAux, notElem, elem]
+   simp [removeAll, filter, notElem, elem] -- previous filterAux too
 
-theorem List.filterAux_spec : ∀ (p : α → Bool) (xs acc : List α),
-  filterAux p xs acc = (reverse acc) ++ filter p xs := by
-  intros p xs
-  induction xs with
-  | nil => intros acc; simp [filter, filterAux]
-  | cons x xs ih =>
-    intros acc
-    simp only [filterAux]
-    cases hp : p x
-    . simp only
-      rw [ih]
-      conv =>
-        rhs
-        simp only [filter, filterAux, hp]
-        rw [ih]
-    . simp only
-      apply (
-        -- TODO: get this out of calc mode eventually
-calc filterAux p xs (x :: acc)
-      = reverse (x :: acc) ++ filter p xs := ih _
-      _ = reverse acc ++ [x] ++ filter p xs := by simp
-      _ = reverse acc ++ reverse [x] ++ filter p xs := by simp
-      _ = reverse acc ++ filterAux p xs [x] := by rw [ih, append_assoc]
-      _ = reverse acc ++ filterAux p (x :: xs) [] := by simp [filterAux, hp]
-      )
+-- theorem List.filterAux_spec : ∀ (p : α → Bool) (xs acc : List α),
+--   filterAux p xs acc = (reverse acc) ++ filter p xs := by
+--   intros p xs
+--   induction xs with
+--   | nil => intros acc; simp [filter, filterAux]
+--   | cons x xs ih =>
+--     intros acc
+--     simp only [filterAux]
+--     cases hp : p x
+--     . simp only
+--       rw [ih]
+--       conv =>
+--         rhs
+--         simp only [filter, filterAux, hp]
+--         rw [ih]
+--     . simp only
+--       apply (
+--         -- TODO: get this out of calc mode eventually
+-- calc filterAux p xs (x :: acc)
+--       = reverse (x :: acc) ++ filter p xs := ih _
+--       _ = reverse acc ++ [x] ++ filter p xs := by simp
+--       _ = reverse acc ++ reverse [x] ++ filter p xs := by simp
+--       _ = reverse acc ++ filterAux p xs [x] := by rw [ih, append_assoc]
+--       _ = reverse acc ++ filterAux p (x :: xs) [] := by simp [filterAux, hp]
+--       )
 
 def List.filterSpec (p : α → Bool) : List α → List α
 | [] => []
 | x :: xs => if p x then x :: filterSpec p xs else filterSpec p xs
 
-theorem List.filter_eq_filterSpec : filter p xs = filterSpec p xs := by
-  induction xs with
-  | nil => simp only [filter, filterAux, filterSpec, reverse, reverseAux]
-  | cons x xs ih =>
-    simp only [filter, filterAux, filterSpec]
-    cases p x with
-    | true =>
-      simp only [ite_true]
-      rw [filterAux_spec, reverse_singleton, singleton_append, ih]
-    | false => simp only [ite_false]; rw [←filter, ih]
+theorem List.filter_eq_filterSpec : filter p xs = filterSpec p xs :=
+by induction xs with
+   | nil => simp [filter, filterSpec]
+   | cons x xs ih =>
+     simp only [filter, filterSpec]
+     cases p x with
+     | true => simp only [ite_true, ih]
+     | false => simp only [ite_false, ih]
+-- by
+--   induction xs with
+--   | nil => simp only [filter, filterAux, filterSpec, reverse, reverseAux]
+--   | cons x xs ih =>
+--     simp only [filter, filterAux, filterSpec]
+--     cases p x with
+--     | true =>
+--       simp only [ite_true]
+--       rw [filterAux_spec, reverse_singleton, singleton_append, ih]
+--     | false => simp only [ite_false]; rw [←filter, ih]
 
 theorem List.reverseAux_spec (xs acc : List α) :
   reverseAux xs acc = reverse xs ++ acc := by
@@ -510,24 +531,25 @@ theorem List.reverse_eq_reverseSpec (xs : List α) :
     rw [reverseAux_spec]
     exact congrArg (· ++ [x]) ih
 
-theorem List.filterAux_acc_eq_rev_append : ∀ (p : α → Bool) (xs as bs : List α),
-  filterAux p xs (bs ++ as) = reverse as ++ filterAux p xs bs
-| p, [], as, bs => by simp [filterAux]
-| p, xs, [], bs => by simp [filterAux]
-| p, x :: xs, a :: as, bs =>
-  have ih_true := filterAux_acc_eq_rev_append p xs (a :: as) (x :: bs)
-  have ih_false := filterAux_acc_eq_rev_append p xs (a :: as) bs
-  by simp only [filterAux]
-     cases p x with
-     | true => simp only; apply ih_true
-     | false => simp only; apply ih_false
+-- theorem List.filterAux_acc_eq_rev_append : ∀ (p : α → Bool) (xs as bs : List α),
+--   filterAux p xs (bs ++ as) = reverse as ++ filterAux p xs bs
+-- | p, [], as, bs => by simp [filterAux]
+-- | p, xs, [], bs => by simp [filterAux]
+-- | p, x :: xs, a :: as, bs =>
+--   have ih_true := filterAux_acc_eq_rev_append p xs (a :: as) (x :: bs)
+--   have ih_false := filterAux_acc_eq_rev_append p xs (a :: as) bs
+--   by simp only [filterAux]
+--      cases p x with
+--      | true => simp only; apply ih_true
+--      | false => simp only; apply ih_false
 
 theorem List.removeAll_singleton_hd_neq {α : Type _} [BEq α] :
   ∀ (x : α) (y : α) (xs : List α),
     ((x == y) = false) → removeAll (x :: xs) [y] = x :: removeAll xs [y] :=
 by intros x y xs hneq
-   simp only [removeAll, filter, filterAux, notElem, elem, hneq]
-   exact filterAux_acc_eq_rev_append _ xs [x] []
+   simp only [removeAll, filter, notElem, elem, hneq, not]
+  --  simp only [removeAll, filter, filterAux, notElem, elem, hneq]
+  --  exact filterAux_acc_eq_rev_append _ xs [x] []
 
 theorem List.sieve_removeAll : (bs : List Bool) → (xs : List α) →
   length bs = length xs →
@@ -768,8 +790,8 @@ Iff.intro
   | Or.inr hb => h.right hb)
 
 -- Again, this must be in the library somewhere...
-theorem And.comm : p ∧ q ↔ q ∧ p :=
-  Iff.intro (λ h => And.intro h.right h.left) (λ h => And.intro h.right h.left)
+-- theorem And.comm : p ∧ q ↔ q ∧ p :=
+--   Iff.intro (λ h => And.intro h.right h.left) (λ h => And.intro h.right h.left)
 
 theorem Iff.not_iff_not_of_iff : (p ↔ q) → (¬ p ↔ ¬ q) := λ hpq =>
   Iff.intro (λ hnp hq => hnp $ hpq.mpr hq) (λ hnq hp => hnq $ hpq.mp hp)
@@ -1035,7 +1057,7 @@ theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
   have ih₃ :=
     uniqueAux_acc_append_filter (filter (λ a => decide ¬a ∈ acc) xs) [x]
   by
-    simp only [uniqueAux, filter, filterAux]
+    simp only [uniqueAux, filter]  -- previously filterAux
     cases Decidable.em (x ∈ acc) with
     | inl hin =>
       simp only [hin, ite_true]
@@ -1044,13 +1066,14 @@ theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
       rw [this]
       simp only
       rw [ih₁]
-      simp only [filter]
+      -- simp only [filter]
     | inr hout =>
       -- Case x is not already in the accumulator
       simp only [hout, ite_false]
       have : decide True = true := rfl
       rw [this]
-      simp only [filterAux_spec, reverse_singleton, singleton_append, unique,
+      -- next line previously filterAux
+      simp only [reverse_singleton, singleton_append, unique,
                  uniqueAux, List.not_mem_nil, ite_false]
       rw [ih₂]
       simp only [reverse_cons, append_assoc, singleton_append]
@@ -1080,18 +1103,19 @@ theorem List.uniqueAux_acc_append {α} [DecidableEq α] (xs : List α)
   uniqueAux xs acc = reverse acc ++ unique xs := by
   have : filter (fun a => decide ¬a ∈ acc) xs = xs := by
     induction xs with
-    | nil => simp [filter, filterAux]
+    | nil => simp [filter] -- previously filterAux
     | cons x xs ih =>
-      simp only [filter, filterAux]
+      simp only [filter]  -- previously filterAux
       have : decide (¬x ∈ acc) = true := by simp [h x (Mem.head _ _)]
       rw [this]
       simp only
-      rw [filterAux_spec, ih, reverse_singleton, singleton_append]
+      rw [ih]
+      -- rw [filterAux_spec, ih, reverse_singleton, singleton_append]
       . intros x hx
         apply h x (Mem.tail _ hx)
   rw [uniqueAux_acc_append_filter]
   cases xs with
-  | nil => apply congrArg; simp [filter, filterAux]
+  | nil => apply congrArg; simp [filter] -- previously filterAux
   | cons x xs =>
     apply congrArg
     rw [this]
@@ -1112,31 +1136,33 @@ by intros xs k
      simp only [matchKey]
      cases inst x.1 k with
      | isFalse hfalse =>
-       simp only [hfalse, ite_false, List.filterAux, ih]
+      --  simp only [hfalse, ite_false, List.filterAux, ih]
+       simp only [hfalse, ite_false, ih, filter]
        exact rfl
      | isTrue htrue =>
-       simp only [htrue, ite_true, List.filterAux, ih]
+       simp [htrue, ite_true, filter, ih, map]
+      --  simp only [htrue, ite_true, List.filterAux, ih]
        -- TODO: why won't Lean reduce `match decide True with...` to the
        -- `true` arm automatically? This workaround works but is ugly.
-       have h :
-        (x.2 :: List.map Prod.snd (List.filterAux
-            (λ x => decide (x.fst = k)) xs []) =
-          List.map Prod.snd
-            (match decide True with
-            | true => List.filterAux (fun x => decide (x.fst = k)) xs [x]
-            | false => List.filterAux (fun x => decide (x.fst = k)) xs []))
-        = (x.2 :: List.map Prod.snd (List.filterAux
-            (λ x => decide (x.fst = k)) xs []) =
-          List.map Prod.snd (List.filterAux
-            (fun x => decide (x.fst = k)) xs [x])) := rfl
-       simp only at h
-       apply cast (Eq.symm h)
-       have h_filterAux := List.filterAux_acc_eq_rev_append
-                            (λ x => decide (x.fst = k)) xs [x] []
-       rw [List.nil_append, List.reverse_singleton, List.singleton_append]
-        at h_filterAux
-       rw [h_filterAux]
-       simp only [List.map]
+      --  have h :
+      --   (x.2 :: List.map Prod.snd (List.filterAux
+      --       (λ x => decide (x.fst = k)) xs []) =
+      --     List.map Prod.snd
+      --       (match decide True with
+      --       | true => List.filterAux (fun x => decide (x.fst = k)) xs [x]
+      --       | false => List.filterAux (fun x => decide (x.fst = k)) xs []))
+      --   = (x.2 :: List.map Prod.snd (List.filterAux
+      --       (λ x => decide (x.fst = k)) xs []) =
+      --     List.map Prod.snd (List.filterAux
+      --       (fun x => decide (x.fst = k)) xs [x])) := rfl
+      --  simp only at h
+      --  apply cast (Eq.symm h)
+      --  have h_filterAux := List.filterAux_acc_eq_rev_append
+      --                       (λ x => decide (x.fst = k)) xs [x] []
+      --  rw [List.nil_append, List.reverse_singleton, List.singleton_append]
+      --   at h_filterAux
+      --  rw [h_filterAux]
+      --  simp only [List.map]
 
 def List.groupByKey {κ} [DecidableEq κ] {ν} : List (κ × ν) → List (κ × List ν)
 | [] => []
@@ -1400,3 +1426,30 @@ theorem List.length_counts [DecidableEq α] (xs : List α) :
   xs.counts.length = xs.unique.length :=
   length_counts_aux xs []
 -- End `counts` work
+
+theorem List.length_uniqueAux_le [DecidableEq α] (xs : List α) :
+  ∀ as, length (uniqueAux xs as) ≤ length xs + length as := by
+  simp only [unique]
+  induction xs with
+  | nil => simp [uniqueAux]
+  | cons x xs ih =>
+    intros as
+    cases Decidable.em (x ∈ as) with
+    | inl h =>
+      simp only [length, uniqueAux, h, ite_true]
+      apply Nat.le_trans
+      apply ih
+      rw [Nat.add_assoc, Nat.add_comm 1, ←Nat.add_assoc]
+      apply Nat.le_step
+      simp
+    | inr h =>
+      simp only [length, uniqueAux, h, ite_false]
+      apply Nat.le_trans
+      apply ih
+      simp only [length]
+      rw [Nat.add_comm _ 1, Nat.add_assoc]
+      apply Nat.le_refl
+
+theorem List.length_unique_le [DecidableEq α] (xs : List α) :
+  length (unique xs) ≤ length xs :=
+List.length_uniqueAux_le xs []

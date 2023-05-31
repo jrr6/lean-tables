@@ -38,7 +38,7 @@ unsafe def elabTest : Lean.Elab.Command.CommandElab
       -- Need to do this here so we can ensure the type is correct and return
       -- a meaningful error message otherwise
       let (e, _) ← Lean.Elab.Term.levelMVarToParam
-                    (← Lean.Meta.instantiateMVars e)
+                    (← Lean.instantiateMVars e)
       let e_type ← Lean.Meta.inferType e
       if (← Lean.Meta.isProp e) then
         Lean.Meta.mkDecide e
@@ -47,14 +47,14 @@ unsafe def elabTest : Lean.Elab.Command.CommandElab
       else
         throwError m!"Tests must be of type Bool or Prop, but got '{e_type}'"
     let elabEval : Lean.Elab.Command.CommandElabM Unit :=
-    Lean.Elab.Command.runTermElabM (some n) (λ _ => do
+    Lean.Elab.Command.runTermElabM (λ _ => Lean.Elab.Term.withDeclName n do
       let e ← elabEvalTerm
       let env ← Lean.getEnv
       let res ← try addAndCompile e; Lean.evalConst Bool n
                 finally Lean.setEnv env
       if res
-      then Lean.Elab.logInfoAt tk "Test passed"
-      else Lean.Elab.logErrorAt tk "Test failed")
+      then Lean.logInfoAt tk "Test passed"
+      else Lean.logErrorAt tk "Test failed")
     elabEval
 | _ => Lean.Elab.throwUnsupportedSyntax
 
