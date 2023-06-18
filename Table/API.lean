@@ -145,7 +145,7 @@ def selectColumns3 (t : Table schema) (cs : List (CertifiedHeader schema))
     : Table (Schema.fromCHeaders cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
--- TODO: quotient or proof? (should standardize this for other functions, too)
+-- TODO: subtype or proof? (should standardize this for other functions, too)
 -- Once again, since drop/take doesn't require it, we don't strictly *need* the
 -- proof...
 def head (t : Table schema) (z : {z : Int // z.abs < nrows t}) : Table schema :=

@@ -751,77 +751,16 @@ theorem groupByRetentive_spec3
 -- Need decidable equality of `ULift`s for `groupBy{Retentive,Subtractive}`
 deriving instance DecidableEq for ULift
 
-def Function.injective (f : α → β) := ∀ {x y}, f x = f y → x = y
-def Function.biInjective (f : α → β → γ) := ∀ x₁ x₂ y₁ y₂, f x₁ x₂ = f y₁ y₂ → x₁ = y₁ ∧ x₂ = y₂
-
-theorem List.groupByKey_fsts_no_duplicates [DecidableEq κ] (xs : List (κ × ν)) :
-  NoDuplicates $ (groupByKey xs).map Prod.fst := sorry
-
-theorem Cell.toOption_fromOption {nm : η} :
-  ∀ (v : Option τ), toOption (fromOption (nm := nm) v) = v
-| none => rfl
-| some x => rfl
-
--- TODO: this cannot possibly be useful... delete?
-theorem List.mem_exists {x : α} {xs : List α} :
-  x ∈ xs ↔ ∃ y, y ∈ xs ∧ x = y := by
-  apply Iff.intro
-  . intros hf
-    induction hf with
-    | head x xs =>
-      apply Exists.intro x
-      apply And.intro (List.Mem.head _ _) rfl
-    | tail x' xs ih =>
-      apply Exists.elim ih
-      intros yih hyih
-      apply Exists.intro yih
-      apply And.intro
-      . apply List.Mem.tail _ hyih.left
-      . apply hyih.right
-  . intros hb
-    apply Exists.elim hb
-    intros y hy
-    cases hy with | intro hmem heq =>
-    rw [heq]
-    apply hmem
-
-theorem List.no_dups_of_cons : List.NoDuplicates (x :: xs) → List.NoDuplicates xs := sorry
-
-theorem List.mem_of_mem_injective_map (f : α → β) (hf : f.injective) :
-  ∀ (x : α) (xs : List α),
-  f x ∈ map f xs → x ∈ xs := λ x xs h => sorry
-  -- List.Mem.recOn (motive := (λ a as hmem => x ∈ xs
-  --   -- hmem.casesOn (λ b bs => b ∈ bs) (λ b c bs mtv => b ∈ bs)
-  --   -- match hmem with
-  --   -- | Mem.head .(a) .(as) => sorry
-  --   -- | Mem.tail _ _ => sorry
-  -- )) h
-  --   (λ a as => sorry)
-  --   sorry
-
-  -- := by
-  -- intros x xs hin
-  -- cases xs with | nil => contradiction | cons x' xs =>
-  -- simp only [map] at hin
-
-theorem List.no_dups_map_injective
-  (f : α → β) (hf : f.injective) : ∀ (xs : List α) (hxs : NoDuplicates xs),
-  NoDuplicates $ map f xs
-| [], hxs => NoDuplicates.nil
-| x :: xs, NoDuplicates.cons _ _ hxnin hndxs =>
-  NoDuplicates.cons (f x) (map f xs)
-    (λ hneg => absurd (mem_of_mem_injective_map f hf x xs hneg) hxnin)
-    (no_dups_map_injective f hf xs hndxs)
-
--- TODO: this should be an interesting challenge...
--- set_option pp.explicit true
 theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
   (getColumn2 (groupByRetentive t c) "key" Schema.HasCol.hd).NoDuplicates := by
   intros t c
   simp only [groupByRetentive, groupBy, getColumn2]
   rw [List.map_map]
-  simp only [Function.comp, getValue, Row.getCell]
+  -- FIXME: trying to unfold `Row.getCell` causes Lean to throw an assertion
+  -- violation (this is a Lean bug)
+  simp only [Function.comp, getValue]
+  -- simp only [Function.comp, getValue, Row.getCell]
   conv =>
     rhs
     lhs
@@ -848,29 +787,6 @@ theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
       . cases hxy; rfl
   . apply List.groupByKey_fsts_no_duplicates
 
-  -- simp only [getColumn2]
-  -- simp only [groupByRetentive]
-  -- cases c with | mk c pf =>
-  -- simp only
-  -- apply groupBy_specPlus
-  -- intros x₁ x₂ y₁ y₂ heq
-  -- simp at heq
-  -- cases heq with | intro left right =>
-  -- apply And.intro
-  -- . have fromOpt_inj {η} [i : DecidableEq η] {nm : η} {δ} : Function.injective (Cell.fromOption (nm := nm) (τ := δ))
-  --   | some x, some y, heq => by cases heq; rfl
-  --   | none, none, heq => rfl
-  --   have optMap_inj {α β} (f : α → β) (h : f.injective) : Function.injective (Option.map f)
-  --   | some x, some y, heq => by
-  --     simp only [Option.map, Option.bind, Function.comp] at heq
-  --     injection heq with heq'
-  --     apply congrArg _ (h heq')
-  --   | none, none, _ => rfl
-  --   have := fromOpt_inj left
-  --   have := optMap_inj ULift.up (by intros x y hxy; cases hxy; rfl) this
-  --   exact this
-  -- . exact right
-  
 theorem groupByRetentive_spec5
   {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
   {sch : @Schema η} [DecidableEq τ] :
@@ -914,7 +830,7 @@ theorem groupBySubtractive_spec3
   Table (sch.removeName (Schema.colImpliesName c.snd)) :=
 λ _ _ => rfl
 
--- TODO: `groupBySubtractive` spec 4
+-- TODO: `groupBySubtractive` spec 4  
 
 -- Closest approximation possible given uniqueness issues
 theorem groupBySubtractive_spec5
