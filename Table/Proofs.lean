@@ -727,7 +727,6 @@ theorem renameColumns_spec3 :
 -- The specification for `find` is contained in its type (`Option` corresponds
 -- to "Error," and `Fin` restricts the range of the output)
 
--- TODO: `groupByRetentive` specs 2–6 (in progress)
 theorem groupByRetentive_spec1 [DecidableEq τ] :
   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
   header (groupByRetentive t c) = ["key", "groups"] :=
@@ -830,7 +829,44 @@ theorem groupBySubtractive_spec3
   Table (sch.removeName (Schema.colImpliesName c.snd)) :=
 λ _ _ => rfl
 
--- TODO: `groupBySubtractive` spec 4  
+-- TODO: See if there's a way to unify this with `groupByRetentive_spec4` rather
+-- than copy/pasting
+theorem groupBySubtractive_spec4 [inst : DecidableEq τ] :
+  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
+  (getColumn2 (groupBySubtractive t c) "key" Schema.HasCol.hd).NoDuplicates :=
+  by
+  intros t c
+  simp only [groupBySubtractive, groupBy, getColumn2]
+  rw [List.map_map]
+  -- FIXME: trying to unfold `Row.getCell` causes Lean to throw an assertion
+  -- violation (this is a Lean bug)
+  simp only [Function.comp, getValue]
+  -- simp only [Function.comp, getValue, Row.getCell]
+  conv =>
+    rhs
+    lhs
+    apply funext (f₂ := _) _
+    apply (λ x => Option.map ULift.up x.fst)
+    -- `intros` doesn't seem to be working in `conv` mode?
+    apply (λ x => Cell.toOption_fromOption _)
+  conv =>
+    rhs
+    lhs
+    apply funext (f₂ := _) _
+    apply (λ x => Option.map ULift.up ∘ Prod.fst)
+    apply (λ x => rfl)
+  rw [←List.map_map]
+  apply List.no_dups_map_injective
+  -- Show `Option.map ULift.up` is injective
+  . intros x y hxy
+    cases x
+    . cases y
+      . rfl
+      . contradiction
+    . cases y
+      . contradiction
+      . cases hxy; rfl
+  . apply List.groupByKey_fsts_no_duplicates
 
 -- Closest approximation possible given uniqueness issues
 theorem groupBySubtractive_spec5
