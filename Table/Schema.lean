@@ -363,6 +363,14 @@ theorem Schema.retypeColumn_preserves_names :
 | s :: ss, nm, HasName.tl h, τ =>
   congrArg (s.1 :: ·) (retypeColumn_preserves_names ss h τ)
 
+def Schema.hasRetypedCol {τ₁ τ₂} : ∀ {sch : @Schema η}
+  (c : (c : η) × sch.HasCol (c, τ₁)),
+  HasCol (c.1, τ₂) (retypeColumn sch (colImpliesName c.snd) τ₂)
+| [], ⟨_, pf⟩ => nomatch pf
+| _ :: _, ⟨_, .hd⟩ => Schema.HasCol.hd
+| _ :: _, ⟨nm, Schema.HasCol.tl htl⟩ =>
+  Schema.HasCol.tl $ hasRetypedCol ⟨nm, htl⟩
+
 -- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
 def Schema.flattenList (schema : @Schema η)
   (c : ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))

@@ -264,7 +264,8 @@ theorem getColumn1_spec1 :
 
 -- Spec 2 is encoded in the return type of `getColumn1`
 
--- TODO: gC2 spec 1
+-- Spec 1 is encoded in the return type of `getColumn2`
+
 theorem getColumn2_spec2 :
   ∀ {τ : Type u} (t : Table sch) (c : η) (h : sch.HasCol (c, τ)),
     List.length (getColumn2 t c h) = nrows t :=
@@ -708,6 +709,32 @@ theorem transformColumn_spec2 {τ₁ τ₂} :
     (f : Option τ₁ → Option τ₂),
   header (transformColumn t c f) = header t :=
 λ t c f => sch.retypeColumn_preserves_names _ _
+
+-- Closest approximation given uniqueness issues
+-- The first bullet point in the written spec is ensured by the type
+theorem transformColumn_spec3 : ∀ {sch} {τ₁ τ₂}
+    (t : Table sch)
+    (c : (c : η) × sch.HasCol (c, τ₁))
+    (f : Option τ₁ → Option τ₂),
+  (schema $ transformColumn t c f).removeHeader (Schema.hasRetypedCol c) =
+    sch.removeHeader c.2
+| _, _, _, t, ⟨_, .hd⟩, f => rfl
+| _, _, _, t, ⟨nm, .tl htl⟩, f =>
+  have ih := transformColumn_spec3 (Table.mk []) ⟨nm, htl⟩ f
+  congrArg _ ih
+  
+  /- Tactic mode:
+  rename_i τ₁ τ₂ hdr hs
+  simp only [schema]
+  simp only [Schema.removeHeader]
+  simp only [Schema.retypeColumn]
+  have h := @Schema.colImpliesName_eq_2 η hs hdr (nm, τ₁) htl
+  simp only [h]
+  simp only [Schema.removeName]
+  apply congrArg
+  apply ih
+  -/
+
 
 theorem transformColumn_spec4 :
   ∀ (t : Table sch)
