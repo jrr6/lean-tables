@@ -590,17 +590,50 @@ def pivotLonger {τ : Type u_η}
       Row.append remainingCells r₂
     )
 
-def pivotWider [inst : Inhabited η]
-               (t : Table schema)
+def pivotWider (t : Table schema)
                (c1 : (c : η) × Schema.HasCol (c, η) schema)
                (c2 : CertifiedHeader (schema.removeHeader c1.2))
-    : Table (List.append
-      (schema.removeHeaders $ ActionList.cons ⟨(c1.1, η), c1.2⟩
-                                (ActionList.cons c2 ActionList.nil))
-      -- FIXME: this is wrong -- we instead want the *unique* entries in c1
-      (t.rows.map (λ (r : Row schema) =>
-        (Option.orDefault (getValue r c1.fst c1.snd), η)
-      ))) := sorry
+-- TODO: "Foist resolution of ugly typeclass onto user" (probably) isn't a 
+-- solution
+               [DecidableEq $ Row (schema.removeNames
+                  (ActionList.cons (Schema.cNameOfCHead ⟨(c1.fst, η), c1.snd⟩)
+                  (ActionList.cons (Schema.cNameOfCHead c2) ActionList.nil)))]
+    : Table $
+      List.append
+        (schema.removeHeaders $ ActionList.cons ⟨(c1.1, η), c1.2⟩
+                                  (ActionList.cons c2 ActionList.nil))
+        -- This should be right, but boy is it going to be painful to inhabit
+        ((t.rows.map (λ (r : Row schema) =>
+          getValue r c1.fst c1.snd
+        )).somes.unique.map (λ x => (x, c2.1.2))) :=
+groupBy t
+  (λ r => r.removeColumns <|
+    ActionList.cons (Schema.cNameOfCHead ⟨(c1.1, η), c1.2⟩)
+      (ActionList.cons (Schema.cNameOfCHead c2) ActionList.nil))
+  (λ r => r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
+  (λ k vs =>
+    Row.append k (Row.empty _)
+    |> vs.foldl (λ acc r =>
+        -- This would be nice, but Lean's pattern matcher isn't up to the task:
+        -- | acc, Row.cons (Cell.val nm) (Row.cons val Row.nil) => 
+        let nmCell := r.getCell .hd
+        let valCell := r.getCell (.tl .hd)
+        match nmCell with
+          | .val nm =>
+            acc.setCell (c := nm) (Schema.hasColOfPrepend (
+              -- Key idea: nm is in the c1.fst column of t.rows
+              -- We need a proof of this!
+              /-
+              ⊢ Schema.HasCol
+                (nm, c2.fst.snd)
+                (List.map (fun x => (x, c2.fst.snd))
+                  (List.unique (List.somes (
+                    List.map (fun r => getValue r c1.fst c1.snd) t.rows))))
+              -/
+              sorry
+            )) (valCell.rename nm)
+          | _ => acc)
+  )
 
 -- TODO: a lot of stuff to fix here...
 -- TODO: we should really be able to synthesize the DecidableEq instance

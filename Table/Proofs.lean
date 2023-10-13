@@ -380,6 +380,16 @@ by intros t cs
      . exact ih
 
 -- TODO: sc3 spec 2
+#check @selectColumns3
+
+variable (t : table sch) (cs : List (CertifiedHeader sch))
+
+theorem selectColumns3_spec2 :
+  ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
+    ∀ c, c ∈ cs →
+      (schema t).lookup (Schema.cNameOfCHead c) =
+      (schema (selectColumns3 t cs)).lookup
+        ⟨c.1.1, Schema.colImpliesName c.2⟩ := sorry
 
 theorem selectColumns3_spec3 :
   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
@@ -670,8 +680,13 @@ theorem fillna_spec2 {τ : Type u} :
     nrows (fillna t c v) = nrows t :=
 λ _ _ _ => List.length_map _ _
 
--- TODO: `pivotLonger` and `pivotWider`
--- Specs 1 don't hold because of uniqueness issues, I think
+-- TODO: `pivotLonger`
+-- Spec 1 may not hold because of uniqueness issues?
+
+-- Specs 3 and 4 are enforced by types
+
+-- TODO: `pivotWider`
+-- Spec 1 may not hold because of uniqueness issues?
 
 theorem flatten_spec1 :
   ∀ (t : Table sch) (cs : ActionList Schema.flattenList sch),
@@ -689,8 +704,6 @@ theorem flatten_spec1 :
     exact Table.mk []
 
 -- TODO: `flatten` spec 2
-
--- TODO: `transformColumn` spec 3
 
 theorem transformColumn_spec1 {τ₁ τ₂} :
   ∀ (t : Table sch)
@@ -722,7 +735,6 @@ theorem transformColumn_spec3 : ∀ {sch} {τ₁ τ₂}
 | _, _, _, t, ⟨nm, .tl htl⟩, f =>
   have ih := transformColumn_spec3 (Table.mk []) ⟨nm, htl⟩ f
   congrArg _ ih
-  
   /- Tactic mode:
   rename_i τ₁ τ₂ hdr hs
   simp only [schema]
@@ -734,7 +746,6 @@ theorem transformColumn_spec3 : ∀ {sch} {τ₁ τ₂}
   apply congrArg
   apply ih
   -/
-
 
 theorem transformColumn_spec4 :
   ∀ (t : Table sch)

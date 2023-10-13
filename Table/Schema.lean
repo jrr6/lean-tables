@@ -137,6 +137,10 @@ def Schema.colImpliesName_eq_2 {sch' : @Schema η} {s hdr : @Header η}
   colImpliesName (schema := s :: sch') (HasCol.tl h) =
   HasName.tl (colImpliesName h) := rfl
 
+def Schema.cNameOfCHead {schema : @Schema η} :
+      CertifiedHeader schema → CertifiedName schema
+| ⟨(nm, τ), pf⟩ => ⟨nm, Schema.colImpliesName pf⟩
+
 def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
   schema.certify.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) =>
                         ⟨c, colImpliesName h⟩)
@@ -148,6 +152,24 @@ def Schema.hasNameOfAppend : {sch : @Schema η} →
   Schema.HasName nm (sch.append hs)
 | _, _, _, Schema.HasName.hd => Schema.HasName.hd
 | _, _, _, Schema.HasName.tl h => Schema.HasName.tl $ hasNameOfAppend h
+
+def Schema.hasColOfAppend : {sch : @Schema η} →
+                                 {nm : η} →
+                                 {τ : Type u} →
+                                 {hs : List Header} →
+                                 sch.HasCol (nm, τ) →
+  Schema.HasCol (nm, τ) (sch.append hs)
+| _, _, _, _, Schema.HasCol.hd => Schema.HasCol.hd
+| _, _, _, _, Schema.HasCol.tl h => Schema.HasCol.tl $ hasColOfAppend h
+
+def Schema.hasColOfPrepend : {sch : @Schema η} →
+                                 {nm : η} →
+                                 {τ : Type u} →
+                                 {hs : List Header} →
+                                 sch.HasCol (nm, τ) →
+  Schema.HasCol (nm, τ) (hs.append sch)
+| _, _, _, [], pf => pf
+| _, _, _, _ :: hs', pf => .tl $ hasColOfPrepend (hs := hs') pf
 
 def Schema.hasAppendedSingletonName :
   ∀ (sch : @Schema η) (c : η) (τ : Type _),
@@ -449,6 +471,13 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
     rw [Nat.add_comm]
     apply Nat.lt.base;
   schemaHasSubschema h
+
+-- def Schema.hasColFromHeadersOfHasCol {c : η} {τ : Type u} :
+--   (cs : List (CertifiedHeader sch)) →
+--   (pf : sch.HasCol (c, τ)) →
+--   pf ∈ cs.map (·.2) → 
+--   (Schema.fromCHeaders cs).HasCol (c, τ)
+-- | .head, c :: cs, .hd => .hd
 
 -- TODO: figure out why it won't let us name the proof in the first clause
 def Schema.hasNameOfFromCHeaders :
