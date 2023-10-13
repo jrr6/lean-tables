@@ -143,7 +143,6 @@ def Row.pick : {schema : @Schema η} →
                (cs : List (CertifiedHeader schema)) →
                Row (Schema.fromCHeaders cs)
 | _, Row.nil, [] => Row.nil
-| _, Row.nil, (⟨c, h⟩::cs) => by cases h
 | _, Row.cons cell rs, [] => Row.nil
 | (s::ss), Row.cons cell rs, (c::cs) =>
   Row.cons (Row.getCell (Row.cons cell rs) c.2)
