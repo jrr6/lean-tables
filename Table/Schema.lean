@@ -502,6 +502,23 @@ theorem Schema.hasNameOfFromCHeaders_eq_2 :
   | nil => contradiction
   | cons s ss => simp [hasNameOfFromCHeaders]
 
+-- `pivotWider` stuff
+def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
+  | .hd _ _ => .hd
+  | .tl _ htl => .tl $ hasColOfMemT htl
+
+def Schema.hasColOfMemPivotCol {τ : Type u} {t : Table schema} {lblCol : η} {lblEntry : η}
+  : (hc : schema.HasCol (lblCol, η)) →
+    (hmem : List.MemT (some lblEntry) (getColumn2 t lblCol hc)) →
+    Schema.HasCol (lblEntry, τ) $
+    (getColumn2 t lblCol hc).somes.unique.map (λ x => (x, τ)) :=
+  λ hc hmem =>
+    let hmemT :=
+      hmem |> List.memT_somes_of_memT
+           |> List.memT_unique_of_memT
+           |> List.memT_map_of_memT (λ x => (x, τ))
+    Schema.hasColOfMemT hmemT
+
 /--
 Takes an ActionList along with a "preservation" function that maps action list
 entries "in reverse" (i.e., enables them to be "lifted" to a schema prior to

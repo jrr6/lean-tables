@@ -13,6 +13,14 @@ inductive List.Sublist {α} : List α → List α → Prop
 | cons (xs ys x) : Sublist xs ys → Sublist xs (x :: ys)
 | cons2 (xs ys x) : Sublist xs ys → Sublist (x :: xs) (x :: ys)
 
+inductive List.MemT {α : Type u} : α → List α → Type u
+| hd (x : α) (xs : List α) : List.MemT x (x :: xs)
+| tl (x : α) {y : α} {xs : List α} : List.MemT y xs → List.MemT y (x :: xs)
+
+def List.mem_of_memT {x : α} {xs : List α} : List.MemT x xs → List.Mem x xs
+| .hd _ _ => .head _ _
+| .tl _ h => .tail _ $ mem_of_memT h
+
 infix:65    " <+ " => List.Sublist
 
 -- TODO: could solve schema woes...
@@ -113,6 +121,17 @@ def List.somes : List (Option α) → List α
 | [] => []
 | none :: xs => somes xs
 | some x :: xs => x :: somes xs
+
+def List.memT_somes_of_memT {α} : ∀ {x : α} {xs : List (Option α)},
+  List.MemT (some x) xs → List.MemT x xs.somes
+| x, .(some x) :: xs, .hd .(some x) .(xs) => .hd x xs.somes
+| x, (some y) :: xs, .tl .(some y) htl => .tl y $ memT_somes_of_memT htl
+| x, none :: xs, .tl _ htl => @memT_somes_of_memT α x xs htl
+
+def List.memT_map_of_memT {α β} (f : α → β) {x : α} :
+  ∀ {xs : List α}, MemT x xs → MemT (f x) (map f xs)
+| .(x) :: xs, .hd _ _ => .hd _ _
+| _ :: xs, .tl _ htl => .tl _ <| memT_map_of_memT _ htl
 
 -- Based on `buffer.lt_aux_1` in Lean 3's `lib/lean/library/data/buffer.lean`
 theorem Nat.lt_of_lt_add_left {a b c : Nat} (h : a + c < b) : a < b :=
@@ -1172,6 +1191,58 @@ theorem List.length_uniqueAux {α} [DecidableEq α]
   (xs : List α) (acc : List α) (h : ∀ x, x ∈ xs → ¬ (x ∈ acc)) :
   length (uniqueAux xs acc) = length (unique xs) + length acc := by
   rw [uniqueAux_acc_append _ _ h, length_append, length_reverse, Nat.add_comm]
+
+def List.memT_filter_false_of_memT {α} {x : α} {p : α → Bool} :
+  ∀ {xs : List α}, MemT x xs → p x = true → MemT x (filter p xs)
+| _, .hd _ _, heq => by
+  simp only [filter, heq]
+  apply MemT.hd
+| x' :: xs, .tl _ htl, heq =>
+  if h : p x'
+  then by
+    simp only [filter, h]
+    apply MemT.tl
+    apply memT_filter_false_of_memT htl heq
+  else by
+    simp only [filter, h]
+    apply memT_filter_false_of_memT htl heq
+
+-- TODO: if we want `pivotWider` to run in a reasonable amount of time, probably
+-- want to write this as a proof term
+def List.memT_unique_of_memT {α} [DecidableEq α]
+  : ∀ {x : α} {xs : List α}, MemT x xs → MemT x xs.unique
+| x, _, .hd _ _ => by
+  simp only [unique, uniqueAux, not_mem_nil, ite_false]
+  rw [uniqueAux_acc_append_filter]
+  simp only [reverse_singleton, singleton_append]
+  apply .hd _ _
+| x, y :: xs, .tl .(y) htl =>
+  -- TODO: we keep using this...probably make it a separate simp lemma
+  have hterm : length (filter (λ a => !decide (a ∈ [y])) xs)
+                < Nat.succ (length xs) :=
+    Nat.lt_of_le_of_lt (m := length xs) (filter_length _ _) (Nat.lt.base _)
+  by
+  simp only [unique, uniqueAux, not_mem_nil, ite_false]
+  simp only [uniqueAux_acc_append_filter]
+  simp only [reverse_singleton, singleton_append]
+  apply Decidable.byCases (p := x = y)
+  . intro heq
+    rw [←heq]
+    apply MemT.hd
+  . intro hneq
+    apply MemT.tl
+    apply memT_unique_of_memT
+    apply memT_filter_false_of_memT
+    exact htl
+    have hnin : ¬ x ∈ [y] := by
+      intro hneg
+      cases hneg <;>
+      contradiction
+    simp only [hnin]
+termination_by List.memT_unique_of_memT x xs hmem => xs.length
+  -- let ih : MemT x (unique (filter (fun a => decide ¬a ∈ [y]) xs)) :=
+  --   memT_unique_of_memT _
+  -- apply .tl _ ih
 
 theorem List.matchKey_fst_eq_filter_k_map_snd {κ ν} [inst : DecidableEq κ] :
   ∀ (xs : List (κ × ν)) (k : κ),

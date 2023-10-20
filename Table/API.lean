@@ -603,22 +603,30 @@ def pivotWider (t : Table schema)
         (schema.removeHeaders $ ActionList.cons ⟨(c1.1, η), c1.2⟩
                                   (ActionList.cons c2 ActionList.nil))
         -- This should be right, but boy is it going to be painful to inhabit
-        ((t.rows.map (λ (r : Row schema) =>
-          getValue r c1.fst c1.snd
-        )).somes.unique.map (λ x => (x, c2.1.2))) :=
+        ((getColumn2 t c1.1 c1.2).somes.unique.map (λ x => (x, c2.1.2))) :=
+let gather := (λ r => r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
 groupBy t
+  (ν :=
+    Row (Schema.fromCHeaders [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
+      -- × (r : Row schema) × (List.MemT r t.rows))
+  )
   (λ r => r.removeColumns <|
     ActionList.cons (Schema.cNameOfCHead ⟨(c1.1, η), c1.2⟩)
       (ActionList.cons (Schema.cNameOfCHead c2) ActionList.nil))
-  (λ r => r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
+  gather
+  -- TODO: certify `vs` (change type of `group`)
+  -- Better idea: when we project, we want `ν` to not just be `Row schema.fromCHeaders ...`
+  -- but rather `(Row schema.from ...) × (proof...)`
+  -- This may (will) still require certifying that `r` comes from `t.rows` in `groupBy`
   (λ k vs =>
     Row.append k (Row.empty _)
     |> vs.foldl (λ acc r =>
         -- This would be nice, but Lean's pattern matcher isn't up to the task:
         -- | acc, Row.cons (Cell.val nm) (Row.cons val Row.nil) => 
+        let h : List.MemT r (t.rows.map λ ro => ro.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]) := sorry
         let nmCell := r.getCell .hd
         let valCell := r.getCell (.tl .hd)
-        match nmCell with
+        match hnmc : nmCell with
           | .val nm =>
             acc.setCell (c := nm) (Schema.hasColOfPrepend (
               -- Key idea: nm is in the c1.fst column of t.rows
@@ -628,12 +636,23 @@ groupBy t
                 (nm, c2.fst.snd)
                 (List.map (fun x => (x, c2.fst.snd))
                   (List.unique (List.somes (
-                    List.map (fun r => getValue r c1.fst c1.snd) t.rows))))
+                    (getColumn2 t c1.1 c1.2))))
+
+              Now:
+              ⊢ List.MemT (some nm) (List.map (fun r => Cell.toOption (Row.getCell r c1.snd)) t.rows)
               -/
-              sorry
+              Schema.hasColOfMemPivotCol c1.2 (by
+                rw [getColumn2]
+                have hdefeq : nmCell = r.getCell .hd := sorry
+                simp only [getValue]
+                rw [←hdefeq]
+                sorry
+              )
             )) (valCell.rename nm)
           | _ => acc)
   )
+
+#print axioms pivotWider
 
 -- TODO: a lot of stuff to fix here...
 -- TODO: we should really be able to synthesize the DecidableEq instance
