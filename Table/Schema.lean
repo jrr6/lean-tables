@@ -80,7 +80,7 @@ def CertifiedHeader.val (h : CertifiedHeader schema) := Sigma.fst h
 def CertifiedHeader.property (h : CertifiedHeader schema) := Sigma.snd h
 
 -- This will make proofs difficult
--- def Subschema.toSchema {schm : @Schema η} (s : Subschema schm) : @Schema η := 
+-- def Subschema.toSchema {schm : @Schema η} (s : Subschema schm) : @Schema η :=
 --   s.map (λ x => x.fst)
 
 def Subschema.toSchema {schm : @Schema η} : Subschema schm → @Schema η
@@ -319,7 +319,7 @@ def Schema.removeOtherCHPres :
     HasCol hdr s × HasCol hdr schema₁) →
   (hdr : Header) × DecidableEq hdr.snd ×
     HasCol hdr (removeOtherDecCH schema₁ s k) × HasCol hdr schema₁ →
-  (hdr : Header) × DecidableEq hdr.snd × HasCol hdr s × HasCol hdr schema₁ := 
+  (hdr : Header) × DecidableEq hdr.snd × HasCol hdr s × HasCol hdr schema₁ :=
 λ _ _ c => ⟨c.1, c.2.1, removeHeaderPres c.2.2.1, c.2.2.2⟩
 
 -- Returns the schema entry with the specified name
@@ -475,7 +475,7 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
 -- def Schema.hasColFromHeadersOfHasCol {c : η} {τ : Type u} :
 --   (cs : List (CertifiedHeader sch)) →
 --   (pf : sch.HasCol (c, τ)) →
---   pf ∈ cs.map (·.2) → 
+--   pf ∈ cs.map (·.2) →
 --   (Schema.fromCHeaders cs).HasCol (c, τ)
 -- | .head, c :: cs, .hd => .hd
 
@@ -506,18 +506,6 @@ theorem Schema.hasNameOfFromCHeaders_eq_2 :
 def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
   | .hd _ _ => .hd
   | .tl _ htl => .tl $ hasColOfMemT htl
-
-def Schema.hasColOfMemPivotCol {τ : Type u} {t : Table schema} {lblCol : η} {lblEntry : η}
-  : (hc : schema.HasCol (lblCol, η)) →
-    (hmem : List.MemT (some lblEntry) (getColumn2 t lblCol hc)) →
-    Schema.HasCol (lblEntry, τ) $
-    (getColumn2 t lblCol hc).somes.unique.map (λ x => (x, τ)) :=
-  λ hc hmem =>
-    let hmemT :=
-      hmem |> List.memT_somes_of_memT
-           |> List.memT_unique_of_memT
-           |> List.memT_map_of_memT (λ x => (x, τ))
-    Schema.hasColOfMemT hmemT
 
 /--
 Takes an ActionList along with a "preservation" function that maps action list

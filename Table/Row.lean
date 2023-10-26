@@ -49,7 +49,7 @@ def Row.certifiedFoldr {β} : {schema : @Schema η} →
               (z  : β) →
     Row schema → β
 | [], _, z, Row.nil => z
-| (c, τ)::ss, f, z, @Row.cons _ _ _ _ _ cell rs => 
+| (c, τ)::ss, f, z, @Row.cons _ _ _ _ _ cell rs =>
   f cell Schema.HasCol.hd (@certifiedFoldr β ss (λ {nm α} cell' h acc =>
     f cell' (Schema.HasCol.tl h) acc
   ) z rs)
@@ -136,18 +136,14 @@ def Row.renameCells {schema : @Schema η}
       Row schema →
       Row (schema.renameColumns cs)
 | ActionList.nil, r => r
-| ActionList.cons c cs, r => renameCells cs (renameCell r c.1.2 c.2) 
+| ActionList.cons c cs, r => renameCells cs (renameCell r c.1.2 c.2)
 
-def Row.pick : {schema : @Schema η} →
+def Row.pick {schema : @Schema η} :
                Row schema →
                (cs : List (CertifiedHeader schema)) →
                Row (Schema.fromCHeaders cs)
-| _, Row.nil, [] => Row.nil
-| _, Row.nil, (⟨c, h⟩::cs) => by cases h
-| _, Row.cons cell rs, [] => Row.nil
-| (s::ss), Row.cons cell rs, (c::cs) =>
-  Row.cons (Row.getCell (Row.cons cell rs) c.2)
-           (pick (Row.cons cell rs) cs)
+| r, [] => Row.nil
+| r, (c::cs) => Row.cons (Row.getCell r c.2) (pick r cs)
 
 def Row.removeColumn {s : Schema} {c : η} :
     (h : s.HasName c) → Row s → Row (s.removeName h)

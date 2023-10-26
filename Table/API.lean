@@ -156,7 +156,7 @@ def head (t : Table schema) (z : {z : Int // z.abs < nrows t}) : Table schema :=
   }
 
 -- TODO: same decidability issues as `find` (not dealing with for now)
-def distinct [DecidableEq (Row schema)] : Table schema → Table schema 
+def distinct [DecidableEq (Row schema)] : Table schema → Table schema
 | {rows := []} => {rows := []}
 | {rows := r :: rs} =>
   -- Help the termination checker
@@ -196,7 +196,7 @@ def tsort {τ} [Ord τ]
   | false, Ordering.gt => Ordering.lt
   | _    , ordering    => ordering
 {rows :=
-  t.rows.mergeSortWith (λ r₁ r₂ => 
+  t.rows.mergeSortWith (λ r₁ r₂ =>
     let ov₁ := getValue r₁ c.1 c.2
     let ov₂ := getValue r₂ c.1 c.2
     match (ov₁, ov₂) with
@@ -280,7 +280,7 @@ def bin [ToString η]
     by apply Nat.lt_of_sub_add
        . exact Nat.lt_of_not_ge _ _ h
        . exact n.property
-       
+
     (k, cnt) :: kthBin (k + n.val) rest
   let bins := kthBin (n * (s / n + 1)) (s :: ss)
   {rows := bins.map (λ (k, cnt) =>
@@ -409,6 +409,25 @@ def groupBy {η'} [DecidableEq η']
   let grouped := projected.groupByKey
 {rows := grouped.map (λ klv => aggregate klv.1 klv.2)}
 
+def List.certifiedMap {α β} :
+  (xs : List α) → ((x : α) → List.MemT x xs → β) → List β
+| [], f => []
+| x :: xs, f =>
+  f x (MemT.hd x xs) :: certifiedMap xs (λ x' pf => f x' $ MemT.tl _ pf)
+
+
+def groupBy_certified {η'} [DecidableEq η']
+            {schema' : @Schema η'}
+            {κ ν} [DecidableEq κ]
+            (t : Table schema)
+            (key : (r : Row schema) → (List.MemT r t.rows) → κ)
+            (project : (r : Row schema) → (List.MemT r t.rows) → ν)
+            (aggregate : κ → List ν → Row schema')
+    : Table schema' :=
+  let projected := t.rows.certifiedMap (λ r pf => (key r pf, project r pf))
+  let grouped := projected.groupByKey
+{rows := grouped.map (λ klv => aggregate klv.1 klv.2)}
+
 /--
 `flattenOne` takes a list of row copies and clean-row templates (i.e., a list of
 row list-row tuples) `rss` and applies a flatten for the specified column `c`.
@@ -444,7 +463,7 @@ def flattenOne {schema : @Schema η} :
   | [], r :: rs => (r.retypeCell c.2.2 Cell.emp) :: setVals [] rs
   | v :: vs, [] => (cleanR.retypeCell c.2.2 (Cell.val v)) :: setVals vs []
   | v :: vs, r :: rs => (r.retypeCell c.2.2 (Cell.val v)) :: setVals vs rs
-  
+
   (setVals vals (r :: rs), r.retypeCell c.2.2 Cell.emp) :: flattenOne rss c
 termination_by setVals vs rs => vs.length + rs.length
 
@@ -590,11 +609,29 @@ def pivotLonger {τ : Type u_η}
       Row.append remainingCells r₂
     )
 
+-- TODO: we can't put this in `Schema.lean` because it depends on API functions
+def Schema.hasColOfMemPivotCol {τ : Type u} {t : Table schema} {lblCol : η} {lblEntry : η}
+  : (hc : schema.HasCol (lblCol, η)) →
+    (hmem : List.MemT (some lblEntry) (getColumn2 t lblCol hc)) →
+    Schema.HasCol (lblEntry, τ) $
+    (getColumn2 t lblCol hc).somes.unique.map (λ x => (x, τ)) :=
+  λ hc hmem =>
+    let hmemT :=
+      hmem |> List.memT_somes_of_memT
+           |> List.memT_unique_of_memT
+           |> List.memT_map_of_memT (λ x => (x, τ))
+    Schema.hasColOfMemT hmemT
+
+
+theorem List.map_comp (f : β → γ) (g : α → β) :
+  ∀ (xs : List α), List.map (f ∘ g) xs = List.map f (List.map g xs)
+| [] => rfl
+| x :: xs => congrArg _ $ List.map_comp f g xs
+
 def pivotWider (t : Table schema)
                (c1 : (c : η) × Schema.HasCol (c, η) schema)
                (c2 : CertifiedHeader (schema.removeHeader c1.2))
--- TODO: "Foist resolution of ugly typeclass onto user" (probably) isn't a 
--- solution
+               -- This looks ugly, but it should be doable with `inst`
                [DecidableEq $ Row (schema.removeNames
                   (ActionList.cons (Schema.cNameOfCHead ⟨(c1.fst, η), c1.snd⟩)
                   (ActionList.cons (Schema.cNameOfCHead c2) ActionList.nil)))]
@@ -602,57 +639,67 @@ def pivotWider (t : Table schema)
       List.append
         (schema.removeHeaders $ ActionList.cons ⟨(c1.1, η), c1.2⟩
                                   (ActionList.cons c2 ActionList.nil))
-        -- This should be right, but boy is it going to be painful to inhabit
         ((getColumn2 t c1.1 c1.2).somes.unique.map (λ x => (x, c2.1.2))) :=
-let gather := (λ r => r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
-groupBy t
+let gather := (λ r pf => ⟨r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩], (
+    -- Lean infers the wrong mapping function here if you omit this. No idea why
+    List.memT_map_of_memT (λ r' =>
+        r'.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
+      pf
+)⟩)
+groupBy_certified t
   (ν :=
-    Row (Schema.fromCHeaders [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
+    -- Row (Schema.fromCHeaders [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
       -- × (r : Row schema) × (List.MemT r t.rows))
+    ((r : Row (Schema.fromCHeaders [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]))
+      × (List.MemT r (t.rows.map (λ r' =>
+        r'.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]))))
   )
-  (λ r => r.removeColumns <|
+  (λ r _ => r.removeColumns <|
     ActionList.cons (Schema.cNameOfCHead ⟨(c1.1, η), c1.2⟩)
       (ActionList.cons (Schema.cNameOfCHead c2) ActionList.nil))
   gather
-  -- TODO: certify `vs` (change type of `group`)
-  -- Better idea: when we project, we want `ν` to not just be `Row schema.fromCHeaders ...`
-  -- but rather `(Row schema.from ...) × (proof...)`
-  -- This may (will) still require certifying that `r` comes from `t.rows` in `groupBy`
   (λ k vs =>
     Row.append k (Row.empty _)
-    |> vs.foldl (λ acc r =>
+    |> vs.foldl (λ acc rowWithMem =>
         -- This would be nice, but Lean's pattern matcher isn't up to the task:
-        -- | acc, Row.cons (Cell.val nm) (Row.cons val Row.nil) => 
-        let h : List.MemT r (t.rows.map λ ro => ro.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]) := sorry
+        -- | acc, Row.cons (Cell.val nm) (Row.cons val Row.nil) =>
+        let r := rowWithMem.1
+        let hr := rowWithMem.2
         let nmCell := r.getCell .hd
         let valCell := r.getCell (.tl .hd)
         match hnmc : nmCell with
           | .val nm =>
             acc.setCell (c := nm) (Schema.hasColOfPrepend (
-              -- Key idea: nm is in the c1.fst column of t.rows
-              -- We need a proof of this!
-              /-
-              ⊢ Schema.HasCol
-                (nm, c2.fst.snd)
-                (List.map (fun x => (x, c2.fst.snd))
-                  (List.unique (List.somes (
-                    (getColumn2 t c1.1 c1.2))))
-
-              Now:
-              ⊢ List.MemT (some nm) (List.map (fun r => Cell.toOption (Row.getCell r c1.snd)) t.rows)
-              -/
               Schema.hasColOfMemPivotCol c1.2 (by
                 rw [getColumn2]
-                have hdefeq : nmCell = r.getCell .hd := sorry
                 simp only [getValue]
-                rw [←hdefeq]
-                sorry
+                have hsomenm : some nm = Cell.toOption nmCell := hnmc ▸ rfl
+                rw [hsomenm]
+                have hcelleq : nmCell = r.getCell .hd := rfl
+                have hreq : r = rowWithMem.fst := rfl
+
+                have hfeq : (λ (r : Row schema) => r.getCell c1.2) =
+                            (λ (r : Row schema) => Row.getCell (r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]) .hd) := rfl
+
+                let hcell : List.MemT nmCell $ List.map (λ r => r.getCell c1.2) t.rows := by
+                  rw [hcelleq]
+                  rw [hfeq]
+                  have hcomp : (λ (r : Row schema) => Row.getCell (r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]) .hd) =
+                    (λ (r : Row schema) => (λ r' => Row.getCell r' .hd) ∘ (λ r' => r'.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]) $ r) := rfl
+                  rw [hcomp, List.map_comp]
+                  apply List.memT_map_of_memT (f := (λ (r : Row (Schema.fromCHeaders [⟨(c1.fst, η), c1.snd⟩, ⟨c2.fst, Schema.removeHeaderPres c2.snd⟩])) =>
+                    Row.getCell r .hd))
+                  rw [hreq]
+                  exact hr
+
+                have hcomp : (λ r => Cell.toOption (Row.getCell r c1.snd)) = (λ r => (Cell.toOption ∘ (λ r' => Row.getCell r' c1.snd)) r) := rfl
+                rw [hcomp, List.map_comp]
+                apply List.memT_map_of_memT
+                apply hcell
               )
             )) (valCell.rename nm)
           | _ => acc)
   )
-
-#print axioms pivotWider
 
 -- TODO: a lot of stuff to fix here...
 -- TODO: we should really be able to synthesize the DecidableEq instance

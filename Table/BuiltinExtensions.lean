@@ -24,7 +24,7 @@ def List.mem_of_memT {x : α} {xs : List α} : List.MemT x xs → List.Mem x xs
 infix:65    " <+ " => List.Sublist
 
 -- TODO: could solve schema woes...
--- mutual 
+-- mutual
 --   inductive UniqueList (α : Type _)
 --   | nil : UniqueList α
 --   | cons (x : α) (xs : UniqueList α) : ¬(UniqueList.Mem x xs) → UniqueList α
@@ -63,7 +63,7 @@ def List.prod {α β} : List α → List β → List (α × β)
 | _, [] => []
 | [x], y :: ys => (x, y) :: prod [x] ys
 | x :: x' :: xs, ys =>
-  have h₁ : Nat.succ 0 + length ys <  
+  have h₁ : Nat.succ 0 + length ys <
             Nat.succ (Nat.succ (length xs)) + length ys :=
     by apply Nat.add_lt_add_of_lt
        apply Nat.succ_lt_succ $ Nat.succ_pos (length xs)
@@ -92,7 +92,7 @@ def List.dropLastN {α} : Nat → List α → List α :=
 
 -- This is slick, but unfortunately, it breaks type inference
 -- def List.sieve' {α} (bs : List Bool) (xs : List α) : List α :=
---   xs |> List.zip bs 
+--   xs |> List.zip bs
 --      |> List.filter Prod.fst
 --      |> List.map Prod.snd
 
@@ -127,6 +127,8 @@ def List.memT_somes_of_memT {α} : ∀ {x : α} {xs : List (Option α)},
 | x, .(some x) :: xs, .hd .(some x) .(xs) => .hd x xs.somes
 | x, (some y) :: xs, .tl .(some y) htl => .tl y $ memT_somes_of_memT htl
 | x, none :: xs, .tl _ htl => @memT_somes_of_memT α x xs htl
+
+def Injective (f : α → β) := ∀ a a', f a = f a' → a = a'
 
 def List.memT_map_of_memT {α β} (f : α → β) {x : α} :
   ∀ {xs : List α}, MemT x xs → MemT (f x) (map f xs)
@@ -316,8 +318,8 @@ def List.mergeSortWith {α} : (α → α → Ordering) → List α → List α
         by simp only [length] at *
            apply Nat.lt.step
            apply Nat.succ_lt_succ
-           exact h 
-  
+           exact h
+
   let xs_split := split (x₁ :: x₂ :: xs)
   mergeWith cmp (mergeSortWith cmp (xs_split.fst),
                   mergeSortWith cmp (xs_split.snd))
@@ -537,7 +539,7 @@ theorem List.reverseAux_spec (xs acc : List α) :
   | cons x xs ih =>
     simp only [reverse, reverseAux]
     simp only [ih]
-    rw [←singleton_append, append_assoc]  
+    rw [←singleton_append, append_assoc]
 
 def List.reverseSpec : List α → List α
 | [] => []
@@ -717,7 +719,7 @@ theorem Nat.lt_of_sub_add : ∀ (m k n : Nat),
   n > 0 →
   m - (k + n) < m - k := by
   intros m k n hkm hn
-  -- have h1 : m - (k + n) ≤ m - k - n :=     
+  -- have h1 : m - (k + n) ≤ m - k - n :=
   apply Nat.lt_of_le_of_lt (m := m - k - n)
   . apply Nat.le_of_eq (@Nat.sub_add_eq_sub_sub m k n)
   . apply Nat.sub_lt
@@ -975,7 +977,7 @@ theorem List.mem_reverse_iff (x : α) (xs : List α) :
   apply Iff.intro
   . intro hf
     induction hf with
-    | head x xs => 
+    | head x xs =>
       simp only [reverseSpec]
       apply mem_append_singleton
     | @tail y x ys h_x_ys ih =>
@@ -1010,7 +1012,7 @@ theorem List.mem_reverse_iff (x : α) (xs : List α) :
   --       lhs
   --       have : (if x ∈ reverse acc then reverse acc else reverse acc ++ [x]) =
   --              if x ∈ acc then reverse acc else reverse acc ++ [x] := by rw [mem_reverse_iff]
-      
+
 
 -- theorem List.unique_eq_uniqueFold [DecidableEq α] :
 --   ∀ (xs : List α), unique xs = uniqueFoldl xs := by
@@ -1293,13 +1295,13 @@ def List.groupByKey {κ} [DecidableEq κ] {ν} : List (κ × ν) → List (κ ×
 | (k, v) :: kvs =>
   have h_help : (matchKey kvs k).2.length < kvs.length.succ :=
     matchKey_length_lt k kvs
-  
+
   let fms := matchKey kvs k
   (k, v :: fms.1) :: groupByKey fms.2
 termination_by groupByKey xs => xs.length
 decreasing_by assumption
 
-theorem List.groupByKey_matchKey_snd_length_cons [DecidableEq κ] 
+theorem List.groupByKey_matchKey_snd_length_cons [DecidableEq κ]
   (k : κ) (v : ν) (xs : List (κ × ν)) :
   1 + length (groupByKey (matchKey ((k, v) :: xs) k).snd)
     = (groupByKey ((k, v) :: xs)).length :=
@@ -1377,7 +1379,7 @@ decreasing_by assumption
 -- BEGIN `groupByRetentive` spec 4 (this might simplify some stuff above?)
 
 def Function.injective (f : α → β) := ∀ {x y}, f x = f y → x = y
-def Function.biInjective (f : α → β → γ) := ∀ x₁ x₂ y₁ y₂, 
+def Function.biInjective (f : α → β → γ) := ∀ x₁ x₂ y₁ y₂,
   f x₁ x₂ = f y₁ y₂ → x₁ = y₁ ∧ x₂ = y₂
 
 theorem List.matchKey_snd_sublist [DecidableEq κ] :
@@ -1465,7 +1467,7 @@ theorem List.mem_fst_matchKey_key_or_snd [DecidableEq κ]
           have : x ∈ map Prod.fst (matchKey ys k).snd := by
             cases hx with
             | head => contradiction
-            | tail _ htail => 
+            | tail _ htail =>
               have := mem_fst_matchKey_key_or_snd htail k
               cases this with
               | inl => contradiction
@@ -1515,7 +1517,7 @@ theorem List.mem_fst_groupByKey_key_or_snd [DecidableEq κ]
           have : x ∈ map Prod.fst (matchKey ys k).snd := by
             cases hx with
             | head => contradiction
-            | tail _ htail => 
+            | tail _ htail =>
               have := mem_fst_matchKey_key_or_snd htail k
               cases this with
               | inl => contradiction
@@ -1627,7 +1629,7 @@ theorem List.mem_fsts_of_mem_fsts_groupByKey [DecidableEq κ] (kvs : List (κ ×
 
 -- Instead of being separate, this could just be folded into
 -- `groupByKey_fsts_no_duplicates`
-theorem List.key_not_mem_fst_groupByKey_matchKey_snd [DecidableEq κ] 
+theorem List.key_not_mem_fst_groupByKey_matchKey_snd [DecidableEq κ]
   (kvs : List (κ × ν)) (k : κ) :
   k ∉ map Prod.fst (groupByKey (matchKey kvs k).snd) :=
   mt (List.mem_fsts_of_mem_fsts_groupByKey (matchKey kvs k).snd)
@@ -1649,7 +1651,7 @@ decreasing_by assumption
 
 -- This is stated in Lean 3 mathlib's mathlib/src/data/list/basic.lean, line 114
 theorem List.mem_map {f : α → β} {b : β} : ∀ {l : List α},
-  b ∈ map f l ↔ ∃ a, a ∈ l ∧ f a = b 
+  b ∈ map f l ↔ ∃ a, a ∈ l ∧ f a = b
 | [] => Iff.intro (λ h => nomatch h) (λ h => h.elim (λ x hx => nomatch hx.left))
 | x :: xs => by
   have ih := @mem_map α β f b xs
@@ -1743,7 +1745,7 @@ theorem List.map_fst_incrCounts_eq_cons_fst [DecidableEq α] (x : α) :
       apply ih
       . intros hneg
         apply h
-        apply List.Mem.tail _ hneg     
+        apply List.Mem.tail _ hneg
 
 #check List.mem_append_singleton
 
@@ -1821,7 +1823,7 @@ theorem List.length_uniqueAux_congr_append_cons_acc [DecidableEq α]
           | tail _ hcons' =>
             rw [←cons_append]
             exact List.mem_append_front _ _ _ hcons'
-        
+
     simp only [uniqueAux]
     cases Decidable.em (z ∈ cs ++ x :: (as ++ [y])) with
     | inl hin =>
