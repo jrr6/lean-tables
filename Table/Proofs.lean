@@ -205,7 +205,7 @@ by intros sch₁ sch₂ t₁ t₂
 
 -- This is the closest we can approximate the spec given uniqueness issues
 theorem leftJoin_spec1 {s₁ s₂ : @Schema η} :
-  ∀ (t₁ : Table s₁) (t₂ : Table s₂) 
+  ∀ (t₁ : Table s₁) (t₂ : Table s₂)
     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂),
   schema (leftJoin t₁ t₂ cs) =
   List.append (schema t₁)
@@ -214,7 +214,7 @@ theorem leftJoin_spec1 {s₁ s₂ : @Schema η} :
 
 -- TODO: again, should we use `lookupType`?
 theorem leftJoin_spec2 {s₁ s₂ : @Schema η} :
-  ∀ (t₁ : Table s₁) (t₂ : Table s₂) 
+  ∀ (t₁ : Table s₁) (t₂ : Table s₂)
     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
     (c : η)
     (h : s₁.HasName c),
@@ -248,7 +248,7 @@ LEFT JOIN demo2
 ON demo.name=demo2.name;
 -/
 -- theorem leftJoin_spec4 {s₁ s₂ : @Schema η} :
---   ∀ (t₁ : Table s₁) (t₂ : Table s₂) 
+--   ∀ (t₁ : Table s₁) (t₂ : Table s₂)
 --     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂),
 --   nrows (leftJoin t₁ t₂ cs) = nrows t₁ := by
 --   intros t₁ t₂ cs
@@ -384,12 +384,12 @@ by intros t cs
 
 variable (t : table sch) (cs : List (CertifiedHeader sch))
 
-theorem selectColumns3_spec2 :
-  ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
-    ∀ c, c ∈ cs →
-      (schema t).lookup (Schema.cNameOfCHead c) =
-      (schema (selectColumns3 t cs)).lookup
-        ⟨c.1.1, Schema.colImpliesName c.2⟩ := sorry
+-- theorem selectColumns3_spec2 :
+--   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
+--     ∀ c, c ∈ cs →
+--       (schema t).lookup (Schema.cNameOfCHead c) =
+--       (schema (selectColumns3 t cs)).lookup
+--         ⟨c.1.1, Schema.colImpliesName c.2⟩ := sorry
 
 theorem selectColumns3_spec3 :
   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
@@ -556,7 +556,7 @@ theorem length_count_pairsToRow : ∀ (xs : List (Option τ × Nat)),
 theorem count_spec4 {τ} [DecidableEq τ] :
   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
   nrows (count t c) = (getColumn2 t c.1 c.2).unique.length :=
-λ t c => Eq.trans (length_count_pairsToRow _) (List.length_counts _)      
+λ t c => Eq.trans (length_count_pairsToRow _) (List.length_counts _)
 
 theorem bin_spec1 [ToString η] :
   ∀ (t : Table sch)
@@ -594,7 +594,7 @@ theorem pivotTable_spec2 :
 
 -- TODO: get rid of `Classical.choice` (termination proof)
 theorem pivotTable_spec3_aux :
-  ∀ (cs : List $ CertifiedHeader sch) 
+  ∀ (cs : List $ CertifiedHeader sch)
     (aggs : List ((c' : Header) × (c : CertifiedHeader sch) ×
                   (List (Option c.fst.snd) → Option c'.snd)))
     (cn : CertifiedName (Schema.fromCHeaders cs)),
@@ -701,6 +701,7 @@ theorem flatten_spec1 :
     simp only [Schema.flattenList]
     apply Schema.retypeColumn_preserves_names
     -- TODO: this shouldn't be necessary with more careful induction
+    exact []
     exact Table.mk []
 
 -- TODO: `flatten` spec 2
