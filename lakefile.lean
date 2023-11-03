@@ -5,4 +5,8 @@ package table {
   -- add configuration options here
 }
 
-lean_lib Table {}
+@[defaultTarget]
+lean_lib Table {
+  roots := #[`Table]
+  globs := #[Glob.submodules `Table]
+}
