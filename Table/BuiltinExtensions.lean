@@ -13,6 +13,10 @@ inductive List.Sublist {α} : List α → List α → Prop
 | cons (xs ys x) : Sublist xs ys → Sublist xs (x :: ys)
 | cons2 (xs ys x) : Sublist xs ys → Sublist (x :: xs) (x :: ys)
 
+inductive List.Unique {α} : List α → Prop
+  | nil : List.Unique []
+  | cons {x xs} : x ∉ xs → List.Unique xs → List.Unique (x :: xs)
+
 inductive List.MemT {α : Type u} : α → List α → Type u
 | hd (x : α) (xs : List α) : List.MemT x (x :: xs)
 | tl (x : α) {y : α} {xs : List α} : List.MemT y xs → List.MemT y (x :: xs)
@@ -1904,3 +1908,136 @@ theorem List.length_uniqueAux_le [DecidableEq α] (xs : List α) :
 theorem List.length_unique_le [DecidableEq α] (xs : List α) :
   length (unique xs) ≤ length xs :=
 List.length_uniqueAux_le xs []
+
+-- Lemmas for selectColumns1_spec2
+
+theorem List.eq_or_mem_tail_of_mem {x x' : α} {xs : List α} :
+  x ∈ x' :: xs → x = x' ∨ x ∈ xs
+| .head _ _ => .inl rfl
+| .tail _ h => .inr h
+
+theorem List.get_mem : ∀ (xs : List α) (i : Fin (length xs)), xs.get i ∈ xs
+  | x :: xs, ⟨0, hn⟩ => Mem.head _ _
+  | x :: xs, ⟨.succ n, hn⟩ => Mem.tail _ $ get_mem xs ⟨n, _⟩
+
+theorem List.neq_of_mem_not_mem {x y : α} {xs : List α} :
+  x ∈ xs → y ∉ xs → x ≠ y :=
+  λ hxs => mt (λ heq => heq ▸ hxs)
+
+theorem List.get_helper_thing {y :α} {xs ys : List α} {i} :
+  xs.get i ∈ y :: ys → y ∉ xs → xs.get i ∈ ys :=
+  λ hget hnmem =>
+  have hget_lem := get_mem xs i
+  have hneq_lem := neq_of_mem_not_mem hget_lem hnmem
+  match eq_or_mem_tail_of_mem hget with
+  | .inr htl => htl
+  | .inl heq => absurd heq hneq_lem
+
+theorem List.sieve_mem_iff_true_unique :
+  ∀  {i} {xs : List α} {bs : List Bool} (pf1 pf2) (hu : List.Unique xs),
+  xs.get ⟨i, pf1⟩ ∈ bs.sieve xs ↔ bs.get ⟨i, pf2⟩ = true
+| 0, x :: xs, false :: bs, pf1, pf2, .cons hnmem hu' =>
+  Iff.intro
+    (λ hf =>
+      have not_mem_sieve_of_not_mem :=
+        mt (mem_of_mem_sublist (sieve_sublist bs xs))
+      False.rec $ not_mem_sieve_of_not_mem hnmem hf)
+    (λ hb => nomatch hb)
+| 0, x :: xs, true :: bs, pf1, pf2, .cons hnmem hu' =>
+  Iff.intro
+    (λ _ => rfl)
+    (λ _ => List.Mem.head _ _)
+| .succ n, x :: xs, false :: bs, pf1, pf2, .cons hnmem hu' =>
+  Iff.intro
+    (λ hf =>
+      (sieve_mem_iff_true_unique
+        (Nat.lt_of_succ_lt_succ pf1)
+        (Nat.lt_of_succ_lt_succ pf2)
+        hu').mp hf)
+    (λ hb => (sieve_mem_iff_true_unique pf1 pf2 (.cons hnmem hu')).mpr hb)
+| .succ n, x :: xs, true :: bs, pf1, pf2, .cons hnmem hu' =>
+  Iff.intro
+    (λ hf => by
+      simp only [get, sieve] at *
+      apply Iff.mp
+      apply sieve_mem_iff_true_unique
+      . apply Nat.lt_of_succ_lt_succ pf1
+      . exact hu'
+      . exact List.get_helper_thing hf hnmem)
+    (λ hb => by
+      simp only [get, sieve] at *
+      apply Mem.tail
+      apply Iff.mpr
+      apply sieve_mem_iff_true_unique
+      . apply Nat.lt_of_succ_lt_succ pf2
+      . exact hu'
+      . exact hb)
+
+theorem List.mem_map_sieve_of_mem_map {f : α → β} {x : α}
+  : ∀ {xs : List α} {bs : List Bool}, f x ∈ map f (sieve bs xs) → f x ∈ map f xs
+| [], [], h => nomatch h
+| x' :: xs, [], h => h
+| x' :: xs, false :: bs, h => Mem.tail _ $ mem_map_sieve_of_mem_map h
+| x' :: xs, true :: bs, h =>
+  match eq_or_mem_tail_of_mem h with
+  | .inl heq => heq ▸ Mem.head _ _
+  | .inr hmem => Mem.tail _ $ mem_map_sieve_of_mem_map hmem
+
+theorem List.sieve_map_mem_iff_true_unique :
+  ∀ {i} {xs : List α} {bs : List Bool} (pf1 pf2) (f : α → β)
+    (hu : List.Unique (xs.map f)),
+  (xs.map f).get ⟨i, length_map xs f ▸ pf1⟩ ∈ (bs.sieve xs).map f
+  ↔ bs.get ⟨i, pf2⟩ = true := by
+  intro i xs bs pf1 pf2 f hu
+  apply Iff.intro
+  . intro hf
+    induction i generalizing xs bs with
+    | zero =>
+      match bs, xs, hu with
+      | b :: bs, x :: xs, .cons hnmem hu =>
+      cases b with
+      | true => simp only [get, sieve] at *
+      | false =>
+        simp only [get, sieve] at *
+        exact mt mem_map_sieve_of_mem_map hnmem hf
+    | succ i ih =>
+      match bs, xs, hu with
+      | b :: bs, x :: xs, .cons hnmem hu =>
+      cases b with
+      | true =>
+        simp only [get, sieve, map] at *
+        apply ih
+        . exact hu
+        . apply get_helper_thing hf hnmem
+        . apply Nat.lt_of_succ_lt_succ pf1
+      | false =>
+        simp only [get, sieve, map] at *
+        apply ih
+        . exact hu
+        . exact hf
+        . apply Nat.lt_of_succ_lt_succ pf1
+  . intro hget
+    induction i generalizing xs bs with
+    | zero =>
+      match bs, xs with
+      | b :: bs, x :: xs =>
+      cases b with
+      | true => exact Mem.head _ _
+      | false => simp only [get, map] at hget
+    | succ i ih =>
+      match bs, xs, hu with
+      | b :: bs, x :: xs, .cons hnmem hu =>
+      cases b with
+      | true =>
+        simp only [get, sieve, map] at *
+        apply Mem.tail
+        apply ih
+        . apply Nat.lt_of_succ_lt_succ pf1
+        . exact hu
+        . exact hget
+      | false =>
+        simp only [get, map, sieve] at *
+        apply ih
+        . apply Nat.lt_of_succ_lt_succ pf1
+        . exact hu
+        . exact hget

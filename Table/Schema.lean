@@ -178,7 +178,9 @@ def Schema.hasAppendedSingletonName :
 | s :: ss, c, τ => HasName.tl (hasAppendedSingletonName ss c τ)
 
 -- Schema functions
-def Schema.names {η : Type u_η} := List.map (@Prod.fst η (Type u))
+-- Note: if written point-free, dot notation fails
+def Schema.names {η : Type u_η} (sch : @Schema η) :=
+  List.map (@Prod.fst η (Type u)) sch
 
 -- TODO: when we come back to do uniqueness, this might be helpful
 -- def Schema.removeName :
@@ -506,6 +508,22 @@ theorem Schema.hasNameOfFromCHeaders_eq_2 :
 def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
   | .hd _ _ => .hd
   | .tl _ htl => .tl $ hasColOfMemT htl
+
+
+-- Unique schemata
+-- A *unique* schema is one with distinct header names. Unique schemata are
+-- required by the B2T2 spec.
+def Schema.Unique {η : Type u_η} (ss : @Schema η) := List.Unique ss.names
+
+-- -- TODO: prove agrees with `lookup` when uniqueness criterion above holds
+-- def Schema.lookup? {η : Type u_η} [DecidableEq η] :
+--   @Schema η → η → Option (Type u)
+--   | [], _ => none
+--   | (n, τ) :: ss, nm => if n = nm then τ else lookup? ss nm
+
+-- theorem Schema.lookup_eq_lookup?_unique {η : Type u_η} [DecidableEq η] :
+--   ∀ s : @Schema η, s.Unique → ∀ (nm : η), s.lookup? nm =
+-- TODO: prove equivalence with non-unique schema functions like lookup
 
 /--
 Takes an ActionList along with a "preservation" function that maps action list

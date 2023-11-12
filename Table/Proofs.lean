@@ -298,51 +298,19 @@ theorem selectColumns1_spec1 :
     List.Sublist (header (selectColumns1 t bs h)) (header t) :=
 λ t bs h => List.sublist_of_map_sublist _ _ Prod.fst $ List.sieve_sublist bs sch
 
--- TODO: sC1 spec 2 (I don't think this is actually currently true due to
--- uniqueness issues -- in particular, the same value may appear later in the
--- header. The failed proof below illustrates where this goes wrong more
--- clearly.)
+-- Helper for `selectColumns1_spec2`
+theorem ncols_eq_header_length :
+  ∀ (t : Table sch), ncols t = (header t).length :=
+λ t => Eq.symm (List.length_map _ _)
 
--- theorem List.sieve_mem_iff_true :
---   List.get xs ⟨i, pf1⟩ ∈ List.sieve bs xs ↔ List.get bs ⟨i, pf2⟩ = true :=
--- by apply Iff.intro
---    . intro hf
---      cases xs with
---      | nil => contradiction
---      | cons x xs =>
---      cases bs with
---      | nil => contradiction
---      | cons b bs =>
---      induction i with
---      | zero =>
---       simp only [get] at *
---       cases b with
---       | false =>
---         simp only [sieve] at hf
-
--- The original failed proof
--- theorem ncols_eq_header_length :
---   ∀ (t : Table sch), ncols t = (header t).length :=
--- λ t => Eq.symm (List.length_map _ _)
--- theorem selectColumns1_spec2 :
---   ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t) (i : Nat) (h' : i < ncols t),
---   (List.get (header t) ⟨i, (ncols_eq_header_length t).subst h'⟩) ∈ (header (selectColumns1 t bs h)) ↔
---    List.get bs ⟨i, Eq.subst h.symm h'⟩ = true := sorry
--- by intros t bs h i h'
---    apply Iff.intro
---    . intros hforward
---      unfold Membership.mem at hforward
---      unfold List.instMembershipList at hforward
---      simp only [header, Schema.names] at hforward
---      cases sch with
---      | nil => contradiction
---      | cons hdr sch' =>
---      cases bs with
---      | nil => contradiction
---      | cons b bs' =>
---      simp only [List.sieve, List.map] at hforward
---      admit
---     . admit
+theorem selectColumns1_spec2 :
+  ∀ (hs : Schema.Unique sch) (t : Table sch) (bs : List Bool)
+    (h : bs.length = ncols t) (i : Nat) (hlt : i < ncols t),
+  (header t).get ⟨i, ncols_eq_header_length t ▸ hlt⟩
+    ∈ header (selectColumns1 t bs h)
+  ↔ bs.get ⟨i, h ▸ hlt⟩ = true :=
+λ hu t bs h i hlt =>
+  List.sieve_map_mem_iff_true_unique hlt (h.symm ▸ hlt) Prod.fst hu
 
 theorem selectColumns1_spec3 :
   ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t),
