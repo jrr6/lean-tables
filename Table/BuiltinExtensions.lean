@@ -88,8 +88,8 @@ def List.nth {α} : (xs : List α) → (n : Nat) → (n < List.length xs) → α
 
 def List.nths {α}
               (xs : List α)
-              (ns : List {n : Nat // n < List.length xs}) : List α :=
-  List.map (λ n => List.nth xs n.val n.property) ns
+              (ns : List (Fin (List.length xs))) : List α :=
+  List.map (λ n => List.nth xs n.1 n.2) ns
 
 def List.dropLastN {α} : Nat → List α → List α :=
   (λ n => reverse ∘ List.drop n ∘ reverse)
@@ -1924,6 +1924,7 @@ theorem List.neq_of_mem_not_mem {x y : α} {xs : List α} :
   x ∈ xs → y ∉ xs → x ≠ y :=
   λ hxs => mt (λ heq => heq ▸ hxs)
 
+-- TODO: rename
 theorem List.get_helper_thing {y :α} {xs ys : List α} {i} :
   xs.get i ∈ y :: ys → y ∉ xs → xs.get i ∈ ys :=
   λ hget hnmem =>

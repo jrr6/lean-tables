@@ -135,7 +135,7 @@ def selectColumns1 (t : Table schema)
   {rows := t.rows.map (λ r => Row.sieve bs r)}
 
 def selectColumns2 (t : Table schema)
-                   (ns : List {n : Nat // n < ncols t})
+                   (ns : List (Fin (ncols t)))
     : Table (List.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 

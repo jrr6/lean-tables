@@ -323,14 +323,14 @@ theorem selectColumns1_spec4 :
 λ t bs h => List.length_map _ _
 
 theorem selectColumns2_spec1 :
-  ∀ (t : Table sch) (ns : List {n // n < ncols t}),
+  ∀ (t : Table sch) (ns : List (Fin (ncols t))),
     ncols (selectColumns2 t ns) = ns.length :=
 λ t ns => List.length_map _ _
 
 -- TODO: sc2 specs 2 and 3
 
 theorem selectColumns2_spec4 :
-  ∀ (t : Table sch) (ns : List {n // n < ncols t}),
+  ∀ (t : Table sch) (ns : List (Fin (ncols t))),
     nrows (selectColumns2 t ns) = nrows t :=
 λ t ns => List.length_map _ _
 

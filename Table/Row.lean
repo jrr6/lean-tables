@@ -96,14 +96,13 @@ def Row.nth {schema} : (rs : @Row η dec_η schema) →
 | Row.cons r rs, Nat.succ n, h => nth rs n (Nat.le_of_succ_le_succ h)
 
 def Row.nths {schema} :
-    (ns : List {n : Nat // n < List.length schema})
+    (ns : List (Fin schema.length))
       → Row schema
       → @Row η dec_η (List.nths schema ns)
 | [], Row.nil => Row.nil
 | [], Row.cons x xs => Row.nil
-| n::ns, Row.nil => absurd n.property
-                          (by intro nh; simp [List.length] at nh; contradiction)
-| n::ns, r => Row.cons (Row.nth r n.val n.property) (nths ns r)
+| n::ns, Row.nil => nomatch n.2
+| n::ns, r => Row.cons (Row.nth r n.val n.2) (nths ns r)
 
 def Row.getCell {schema : @Schema η} {c : η} {τ : Type u}
     : Row schema → Schema.HasCol (c, τ) schema → Cell c τ
