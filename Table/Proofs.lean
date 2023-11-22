@@ -327,7 +327,25 @@ theorem selectColumns2_spec1 :
     ncols (selectColumns2 t ns) = ns.length :=
 λ t ns => List.length_map _ _
 
--- TODO: sc2 specs 2 and 3
+-- Helper for `selectColumns2_spec2`
+def finHeaderLengthOfFinNcols (t : Table sch) : Fin (ncols t) →
+  Fin ((header t).length)
+| ⟨i, hi⟩ => ⟨i, ncols_eq_header_length t ▸ hi⟩
+
+-- TODO: Why does this depend on `Classical.choice`?
+theorem selectColumns2_spec2 :
+  ∀ (t : Table sch) (ns : List (Fin (ncols t))) (i : Nat) (hi : i < ns.length),
+    (header (selectColumns2 t ns)).get
+      ⟨i, ncols_eq_header_length (selectColumns2 t ns)
+          ▸ selectColumns2_spec1 t ns
+          ▸ hi⟩
+    = (header t).get (finHeaderLengthOfFinNcols t $ ns.get ⟨i, hi⟩) := by
+  intro t ns i hi
+  simp only [header]
+  simp only [finHeaderLengthOfFinNcols]
+  apply List.get_map_nths_eq_get_get
+
+-- TODO: sc2 spec 3
 
 theorem selectColumns2_spec4 :
   ∀ (t : Table sch) (ns : List (Fin (ncols t))),
