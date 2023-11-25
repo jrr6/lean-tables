@@ -290,8 +290,8 @@ theorem selectRows2_spec1 :
 
 theorem selectRows2_spec2 :
   ∀ (t : Table sch) (bs : List Bool) (h : bs.length = nrows t),
-    nrows (selectRows2 t bs h) = (bs.removeAll [false]).length :=
-λ t bs h => List.sieve_removeAll _ _ h
+    nrows (selectRows2 t bs h) = (bs.removeAllEq [false]).length :=
+λ t bs h => List.sieve_removeAllEq _ _ h
 
 theorem selectColumns1_spec1 :
   ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t),
@@ -441,6 +441,46 @@ theorem dropColumn_spec2 : ∀ (t : Table sch) (c : CertifiedName sch),
   header (dropColumn t c) = Schema.names (sch.removeName c.2) :=
 λ t c => rfl
 
+theorem dropColumn_spec2_unique :
+  ∀ (hsch : sch.Unique) (t : Table sch) (c : CertifiedName sch),
+  header (dropColumn t c) = List.removeAllEq (header t) [c.1] := by
+  intro hsch t c
+  simp only [List.removeAll, header]
+  unfold Schema.Unique at hsch
+  cases c with | mk c hc =>
+  induction hc with
+  | @hd nm s' τ =>
+    simp only [Schema.removeName]
+    simp only [List.filter, List.notElem, List.elem]
+    simp
+    cases hsch with | cons hnmem hu =>
+    simp only at hnmem
+    simp only [Schema.names, List.map]
+    rw [List.removeAllEq_singleton_hd_eq]
+    rw [List.removeAllEq_singleton_nonelem_eq]
+    exact hnmem
+  | @tl hdr nm s' h ih =>
+    simp only [Schema.names, List.map]
+    cases hdr with | mk nm₁ τ₁ =>
+    cases Decidable.em (nm₁ = nm) with
+    | inl heq =>
+      rw [heq] at hsch
+      cases hsch with | cons hnmem hu =>
+      simp only at hnmem
+      have := Schema.mem_map_of_HasName h
+      contradiction
+    | inr hneq =>
+      -- simp only [Schema.removeName, List.filter, List.notElem, List.elem]
+      -- simp
+      simp only
+      rw [List.removeAllEq_singleton_hd_neq]
+      . congr
+        apply ih
+        . cases hsch; assumption
+        -- TODO: extracting the "real" proof would prevent the need for this
+        . exact Table.mk []
+      . exact hneq
+
 theorem dropColumn_spec3 : ∀ (t : Table sch) (c : CertifiedName sch),
   List.Sublist (schema (dropColumn t c)) (schema t) :=
 λ _ c => Schema.removeName_sublist sch c.val c.property
@@ -450,7 +490,7 @@ theorem dropColumns_spec1 :
   nrows (dropColumns t cs) = nrows t :=
 λ t cs => List.length_map _ _
 
--- dCs spec 2 has the same issue as dC spec 2.
+-- TODO: might be able to more closely approximate for a unique schema
 theorem dropColumns_spec2 :
   ∀ (t : Table sch) (cs : ActionList Schema.removeCertifiedName sch),
   header (dropColumns t cs) = Schema.names (sch.removeNames cs) :=
@@ -533,7 +573,7 @@ theorem count_spec3 {τ} [DecidableEq τ] :
   (schema (count t c)).lookupType ⟨"count", .tl .hd⟩ = Nat :=
 λ _ _ => rfl
 
--- TODO: move this somewhere
+-- Helper lemma for `count_spec4`
 theorem length_count_pairsToRow : ∀ (xs : List (Option τ × Nat)),
   List.length (count.pairsToRow xs) = xs.length
 | [] => rfl
@@ -687,7 +727,7 @@ theorem flatten_spec1 :
     simp only [Schema.flattenList]
     apply Schema.retypeColumn_preserves_names
     -- TODO: this shouldn't be necessary with more careful induction
-    exact []
+    -- exact []
     exact Table.mk []
 
 -- TODO: `flatten` spec 2

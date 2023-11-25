@@ -509,6 +509,19 @@ def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
   | .hd _ _ => .hd
   | .tl _ htl => .tl $ hasColOfMemT htl
 
+-- Used in `dropColumn_spec2` proof
+theorem Schema.mem_map_of_HasName : ∀ (sch : @Schema η) (nm : η),
+  Schema.HasName nm sch → nm ∈ sch.map Prod.fst := by
+  intro sch nm h
+  induction h with
+  | hd =>
+    simp only [List.map]
+    apply List.Mem.head
+  | tl _ ih =>
+    simp only [List.map]
+    apply List.Mem.tail
+    apply ih
+
 
 -- Unique schemata
 -- A *unique* schema is one with distinct header names. Unique schemata are

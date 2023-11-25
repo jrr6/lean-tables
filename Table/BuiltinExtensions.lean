@@ -491,11 +491,6 @@ theorem List.sublist_of_map_sublist :
   have ih := sublist_of_map_sublist xs ys f h
   Sublist.cons2 (map f xs) (map f ys) (f x) ih
 
-theorem List.removeAll_singleton_hd_eq [DecidableEq α] :
-  ∀ (x: α) (xs : List α), removeAll (x :: xs) [x] = removeAll xs [x] :=
-by intros x xs
-   simp [removeAll, filter, notElem, elem] -- previous filterAux too
-
 -- theorem List.filterAux_spec : ∀ (p : α → Bool) (xs acc : List α),
 --   filterAux p xs acc = (reverse acc) ++ filter p xs := by
 --   intros p xs
@@ -579,32 +574,87 @@ theorem List.reverse_eq_reverseSpec (xs : List α) :
 --      | true => simp only; apply ih_true
 --      | false => simp only; apply ih_false
 
+def List.removeAllEq [DecidableEq α] (xs ys : List α) : List α :=
+  xs.filter (fun x => x ∉ ys)
+
 theorem List.removeAll_singleton_hd_neq {α : Type _} [BEq α] :
   ∀ (x : α) (y : α) (xs : List α),
     ((x == y) = false) → removeAll (x :: xs) [y] = x :: removeAll xs [y] :=
 by intros x y xs hneq
    simp only [removeAll, filter, notElem, elem, hneq, not]
-  --  simp only [removeAll, filter, filterAux, notElem, elem, hneq]
-  --  exact filterAux_acc_eq_rev_append _ xs [x] []
 
-theorem List.sieve_removeAll : (bs : List Bool) → (xs : List α) →
+theorem List.removeAll_singleton_hd_eq [DecidableEq α] :
+  ∀ (x: α) (xs : List α), removeAll (x :: xs) [x] = removeAll xs [x] :=
+by intros x xs
+   simp [removeAll, filter, notElem, elem] -- previous filterAux too
+
+theorem List.mem_singleton_iff (x y : α) : x ∈ [y] ↔ x = y := by
+  apply Iff.intro
+  . intro hmem
+    cases hmem
+    . rfl
+    . contradiction
+  . intro heq
+    rw [heq]
+    constructor
+
+theorem decide_true : decide True = true := rfl
+
+theorem List.removeAllEq_singleton_hd_eq [DecidableEq α] :
+  ∀ (x: α) (xs : List α), removeAllEq (x :: xs) [x] = removeAllEq xs [x] := by
+  intros x xs
+  simp [removeAllEq, filter, notElem, elem] -- previous filterAux too
+  have hmem : x ∈ [x] := by constructor
+  simp only [hmem, decide_true, not]
+
+theorem List.removeAllEq_singleton_hd_neq {α : Type _} [DecidableEq α] :
+  ∀ (x : α) (y : α) (xs : List α),
+    x ≠ y → removeAllEq (x :: xs) [y] = x :: removeAllEq xs [y] :=
+by intro x y xs hneq
+   simp only [removeAllEq, filter, notElem, elem, hneq, not]
+   cases Decidable.em (x ∈ [y]) with
+   | inl hmem =>
+      rw [mem_singleton_iff] at hmem
+      contradiction
+   | inr hnmem =>
+      simp only [hnmem, decide_true]
+
+theorem List.sieve_removeAllEq : (bs : List Bool) → (xs : List α) →
   length bs = length xs →
-    length (sieve bs xs) = length (removeAll bs [false])
+    length (sieve bs xs) = length (removeAllEq bs [false])
 | [], [], h => rfl
 | b :: bs, [], h => by cases h
 | [], x :: xs, h => by cases h
 | true :: bs, x :: xs, h =>
-  have ih := sieve_removeAll bs xs (Nat.succ.inj h)
-  by rw [removeAll_singleton_hd_neq]
+  have ih := sieve_removeAllEq bs xs (Nat.succ.inj h)
+  by rw [removeAllEq_singleton_hd_neq]
      . simp only [length]
        apply congrArg (λ x => x + 1)
        exact ih
      . simp only
 | false :: bs, x :: xs, h =>
-  have ih := sieve_removeAll bs xs (Nat.succ.inj h)
-  by rw [removeAll_singleton_hd_eq]
+  have ih := sieve_removeAllEq bs xs (Nat.succ.inj h)
+  by rw [removeAllEq_singleton_hd_eq]
      . simp only [length, sieve]
        exact ih
+
+theorem List.removeAllEq_singleton_nonelem_eq {α} [DecidableEq α] :
+  ∀ (xs : List α) (x : α), x ∉ xs → List.removeAllEq xs [x] = xs := by
+  intro xs x hnmem
+  induction xs with
+  | nil => rfl
+  | cons x' xs ih =>
+    rw [removeAllEq_singleton_hd_neq]
+    congr
+    apply ih
+    intro hneg
+    apply hnmem
+    apply Mem.tail
+    . exact hneg
+    . intro hneg'
+      rw [hneg'] at hnmem
+      apply hnmem
+      apply Mem.head
 
 theorem List.length_mergeWith : ∀ (cmp : α → α → Ordering)
                                    (xs ys : List α),
@@ -1077,16 +1127,6 @@ def List.unique' {α} [DecidableEq α] : List α → List α
 | x :: xs =>
   let ys := unique' xs
   if ∀ y, y ∈ ys → x ≠ y then x :: ys else ys
-
-theorem List.mem_singleton_iff (x y : α) : x ∈ [y] ↔ x = y := by
-  apply Iff.intro
-  . intros hin
-    cases hin
-    . rfl
-    . contradiction
-  . intros heq
-    rw [heq]
-    apply Mem.head
 
 theorem List.mem_cons_iff_mem_singleton_or_tail (y : α) (ys : List α) (x : α) :
   x ∈ y :: ys ↔ x ∈ [y] ∨ x ∈ ys := by
