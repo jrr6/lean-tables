@@ -3,7 +3,7 @@ import Table.API
 import Table.Notation
 
 macro "inst" : tactic =>
-  `(repeat (first
+  `(tactic| repeat (first
     | apply instDecidableEqTable (inst := _)
     | apply instDecidableEqRowConsHeaderMkType (it := _) (ic := _) (ir := _)
     | apply instDecidableEqRowNilHeader
@@ -92,7 +92,7 @@ def null := Lean.Json.null
 
 macro "html_inst" : tactic =>
 -- The order matters because we don't want to use a row/table's ToString impl
-  `(repeat (first
+  `(tactic| repeat (first
     | apply instToHTMLTable (rowInst := _)
     | apply instToHTMLRowConsHeaderMkType (τInst := _) (rowInst := _)
     | apply instToHTMLRowNilHeader
@@ -101,7 +101,7 @@ macro "html_inst" : tactic =>
 
 syntax (name := tableWidgetCommand) "#table" term : command
 
-@[commandElab tableWidgetCommand] private unsafe def elabTableWidget : Lean.Elab.Command.CommandElab := 
+@[command_elab tableWidgetCommand] private unsafe def elabTableWidget : Lean.Elab.Command.CommandElab :=
   open Lean Lean.Elab Command Term in λ
   | stx@`(#table $table:term) => do
     let ident ← mkFreshIdent stx

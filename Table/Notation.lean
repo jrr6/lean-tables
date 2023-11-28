@@ -3,9 +3,9 @@ import Lean
 
 -- # Header/Name Tactics
 macro "header" : tactic =>
-  `(repeat (first | apply Schema.HasCol.hd | apply Schema.HasCol.tl))
+  `(tactic| repeat (first | apply Schema.HasCol.hd | apply Schema.HasCol.tl))
 macro "name" : tactic =>
-  `(repeat (first | apply Schema.HasName.hd | apply Schema.HasName.tl))
+  `(tactic| repeat (first | apply Schema.HasName.hd | apply Schema.HasName.tl))
 
 -- # Table Notation
 declare_syntax_cat cell
@@ -17,8 +17,6 @@ elab_rules : term
 | `(valueCell| $x) => do Lean.Elab.Term.elabTerm (← `(Cell.val $x)) none
 
 syntax (name := rowLiteralParser) "/[" cell,* "]" : term
-
-#check [3, 4, 5]
 
 -- TODO: avoid use of `!`? (figure out what the new convention/standard is)
 macro_rules
@@ -76,7 +74,7 @@ instance {η nm τ} {xs : @Schema η}
                 let s := match cell.toOption with
                          | some v => toString v
                          | none   => "[empty]";
-                let s_d := toString d; 
+                let s_d := toString d;
                 s ++ (if s_d = "" then "" else "\t|\t" ++ s_d)
 
 instance {η} {schema : @Schema η}

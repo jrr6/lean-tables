@@ -22,7 +22,7 @@ inductive List.MemT {α : Type u} : α → List α → Type u
 | tl (x : α) {y : α} {xs : List α} : List.MemT y xs → List.MemT y (x :: xs)
 
 def List.mem_of_memT {x : α} {xs : List α} : List.MemT x xs → List.Mem x xs
-| .hd _ _ => .head _ _
+| .hd _ _ => .head _
 | .tl _ h => .tail _ $ mem_of_memT h
 
 infix:65    " <+ " => List.Sublist
@@ -175,20 +175,21 @@ theorem List.length_verifiedEnum : ∀ (xs : List α),
 | [] => rfl
 | x :: xs => congrArg (·+1) (length_vEnumFrom _ _ _ _)
 
+-- TODO: rename to reflect change in stdlib
 theorem List.filter_length_aux {α} (g : α → Bool) (xs : List α) :
-    ∀ rs : List α, List.length (List.filterTRAux g xs rs)
+    ∀ rs : List α, List.length (List.filterTR.loop g xs rs)
                    <= List.length xs + List.length rs :=
 by
   induction xs with
   | nil =>
     intro rs
-    simp only [filter, filterTRAux]
+    simp only [filter, filterTR.loop]
     rw [List.length_reverse]
     simp only [length, Nat.zero_add]
     apply Nat.le.refl
   | cons x xs ih =>
     intro rs
-    simp only [filter, filterTRAux]
+    simp only [filter, filterTR.loop]
     cases (g x) with
     | true => simp only
               apply Nat.le_trans (ih (x::rs))
@@ -232,8 +233,8 @@ def List.split {α} : List α → List α × List α
 
 theorem List.split_length_fst' {α} :
     ∀ (xs : List α), (split xs).fst.length ≤ xs.length
-| [] => by simp only [length]
-| [x] => by simp only [length]
+| [] => Nat.le.refl
+| [x] => Nat.le.refl
 | x₁ :: x₂ :: xs =>
   have ih := split_length_fst' xs;
   by simp only [split, length]
@@ -243,10 +244,10 @@ theorem List.split_length_fst' {α} :
 
 theorem List.split_length_fst {α} :
     ∀ (xs : List α), xs.length ≤ 1 ∨ (split xs).fst.length < xs.length
-| [] => by simp only [length]
-| [x] => by simp only [length]
-| [x, y] => by simp only [length]
-| [x, y, z] => by simp only [length]
+| [] => .inl (Nat.zero_le _)
+| [x] => .inl Nat.le.refl
+| [x, y] => .inr (Nat.lt.base _)
+| [x, y, z] => .inr (Nat.lt.base _)
 | x₁ :: x₂ :: x :: x' :: xs =>
   have ih := split_length_fst (x :: x' :: xs);
   by simp only [split, length]
@@ -260,9 +261,9 @@ theorem List.split_length_fst {α} :
 
 theorem List.split_length_snd {α} :
     ∀ (xs : List α), xs = [] ∨ (split xs).snd.length < xs.length
-| [] => by simp only [length]
-| [x] => by simp only [length]
-| [x, y] => by simp only [length]
+| [] => .inl rfl
+| [x] => .inr (Nat.lt.base _)
+| [x, y] => .inr (Nat.lt.base _)
 | x₁ :: x₂ :: x :: xs =>
   have ih := split_length_snd (x :: xs);
   by simp only [split, length]
@@ -274,8 +275,8 @@ theorem List.split_length_snd {α} :
 
 theorem List.split_length_snd' {α} :
     ∀ (xs : List α), (split xs).snd.length ≤ xs.length
-| [] => by simp only [length]
-| [x] => by simp only [length]
+| [] => Nat.le.refl
+| [x] => Nat.le.step Nat.le.refl
 | x₁ :: x₂ :: xs =>
   have ih := split_length_snd' xs;
   by simp only [split, length]
@@ -309,8 +310,8 @@ def List.mergeSortWith {α} : (α → α → Ordering) → List α → List α
 | cmp, x₁ :: x₂ :: xs =>
   have _ : (split (x₁::x₂::xs)).fst.length < (x₁::x₂::xs).length :=
     match xs with
-    | [] => by simp only [length]
-    | [xs] => by simp only [length]
+    | [] => Nat.lt.base _
+    | [xs] => Nat.lt.base _
     | y :: y' :: ys =>
       match split_length_fst (y :: y' :: ys) with
       | Or.inl _ => by contradiction
@@ -322,8 +323,8 @@ def List.mergeSortWith {α} : (α → α → Ordering) → List α → List α
 
    have _ : (split (x₁::x₂::xs)).snd.length < (x₁::x₂::xs).length :=
     match xs with
-    | [] => by simp only [length]
-    | [xs] => by simp only [length]
+    | [] => Nat.lt.base _
+    | [xs] => Nat.lt.step (Nat.lt.base _)
     | y :: y' :: ys =>
       match split_length_snd (y :: y' :: ys) with
       | Or.inl _ => by contradiction
@@ -370,8 +371,7 @@ theorem List.length_prod : ∀ (xs : List α) (ys : List β),
 | [x], y :: ys =>
   have ih := length_prod [x] ys
   by simp only [prod]
-     unfold length  -- `simp only [length]` does bad things
-     simp only
+     unfold length  -- adding `length` to the simp above does bad things
      rw [ih]
      simp only [length]
      rw [Nat.one_mul, Nat.one_mul]
@@ -445,7 +445,7 @@ theorem List.nil_sublist : ∀ (xs : List α), Sublist [] xs
 
 theorem List.singleton_sublist_of_mem (y : α) :
   ∀ (xs : List α), y ∈ xs → Sublist [y] xs
-| .(y) :: xs, List.Mem.head _ _ => Sublist.cons2 [] xs y (nil_sublist xs)
+| .(y) :: xs, List.Mem.head _ => Sublist.cons2 [] xs y (nil_sublist xs)
 | x :: xs, List.Mem.tail .(x) h =>
   Sublist.cons _ xs x (singleton_sublist_of_mem y xs h)
 
@@ -617,7 +617,7 @@ by intro x y xs hneq
       rw [mem_singleton_iff] at hmem
       contradiction
    | inr hnmem =>
-      simp only [hnmem, decide_true]
+      simp [hnmem, decide_true, not_false_eq_true]
 
 theorem List.sieve_removeAllEq : (bs : List Bool) → (xs : List α) →
   length bs = length xs →
@@ -631,7 +631,7 @@ theorem List.sieve_removeAllEq : (bs : List Bool) → (xs : List α) →
      . simp only [length]
        apply congrArg (λ x => x + 1)
        exact ih
-     . simp only
+     . apply Bool.noConfusion
 | false :: bs, x :: xs, h =>
   have ih := sieve_removeAllEq bs xs (Nat.succ.inj h)
   by rw [removeAllEq_singleton_hd_eq]
@@ -828,7 +828,6 @@ by unfold Neg.neg
 
 theorem Int.add_neg_eq_sub (m n : Int) : n < 0 → m + n = m - n.abs :=
 by intros h
-   simp only at h
    cases n with
    | ofNat n => contradiction
    | negSucc n =>
@@ -968,7 +967,7 @@ theorem List.not_mem_matchKey_self_map_snd {κ ν} [DecidableEq κ]
 theorem List.fst_mem_of_pair_mem : ∀ (x : α) (y : β) (ps : List (α × β)),
   (x, y) ∈ ps → x ∈ (map Prod.fst ps)
 | x, y, [], hxy => by contradiction
-| x, y, _ :: ps, List.Mem.head _ _ => List.Mem.head _ _
+| x, y, _ :: ps, List.Mem.head _ => List.Mem.head _
 | x, y, _ :: ps, List.Mem.tail a h => Mem.tail _ $ fst_mem_of_pair_mem x y ps h
 
 theorem List.matchKey_snd_keys_neq_k [DecidableEq κ] (xs : List (κ × ν)) :
@@ -993,12 +992,12 @@ def List.uniqueFoldl [DecidableEq α] (xs : List α) :=
   xs.foldl (λ acc x => if x ∈ acc then acc else acc ++ [x]) []
 
 theorem List.mem_append_singleton : ∀ (x : α) (xs : List α), x ∈ xs ++ [x]
-| x, [] => List.Mem.head _ _
+| x, [] => List.Mem.head _
 | x, y :: ys => List.Mem.tail _ (mem_append_singleton x ys)
 
 theorem List.mem_append_front :
   ∀ (x : α) (xs ys : List α), x ∈ xs → x ∈ xs ++ ys
-| x, _ :: xs, ys, List.Mem.head _ _ => List.Mem.head _ _
+| x, _ :: xs, ys, List.Mem.head _ => List.Mem.head _
 | x, x' :: xs, ys, List.Mem.tail _ h =>
   List.Mem.tail x' (mem_append_front x xs ys h)
 
@@ -1018,13 +1017,13 @@ theorem List.mem_append : ∀ {xs ys : List α} {a : α}, a ∈ xs ++ ys ↔ a �
   have ih := mem_append (xs := xs) (ys := ys) (a := a)
   Iff.intro
     (λ h => match h with
-            | .head .(x) _ => Or.inl $ Mem.head _ _
+            | .head _ => Or.inl $ Mem.head _
             | .tail _ htail =>
               match ih.mp htail with
               | .inl hxs => Or.inl $ Mem.tail _ hxs
               | .inr hys => Or.inr hys)
     (λ h => match h with
-            | .inl (Mem.head _ _) => Mem.head _ _
+            | .inl (Mem.head _) => Mem.head _
             | .inl (Mem.tail _ htail) => Mem.tail _ $ ih.mpr (Or.inl htail)
             | .inr hys => Mem.tail _ $ ih.mpr (Or.inr hys))
 
@@ -1040,10 +1039,10 @@ theorem List.mem_reverse_iff (x : α) (xs : List α) :
   apply Iff.intro
   . intro hf
     induction hf with
-    | head x xs =>
+    | head xs =>
       simp only [reverseSpec]
       apply mem_append_singleton
-    | @tail y x ys h_x_ys ih =>
+    | @tail y ys h_x_ys ih =>
       simp only [reverseSpec]
       apply mem_append_front _ _ _ ih
   . intro hb
@@ -1054,7 +1053,7 @@ theorem List.mem_reverse_iff (x : α) (xs : List α) :
       rw [List.mem_append_comm] at hb
       simp only [HAppend.hAppend, Append.append, List.append] at hb
       cases hb with
-      | head => exact Mem.head _ _
+      | head => exact Mem.head _
       | tail _ htail => exact Mem.tail _ (ih htail)
 
 -- theorem List.unique_eq_uniqueFold_aux [DecidableEq α] :
@@ -1096,7 +1095,7 @@ theorem List.all_pred {p : α → Prop} [DecidablePred p] {xs : List α} :
   apply Iff.intro
   . intros hforward x hx
     induction hx with
-    | head a as =>
+    | head as =>
       simp [foldr] at hforward
       apply And.left hforward
     | tail a h ih =>
@@ -1109,7 +1108,7 @@ theorem List.all_pred {p : α → Prop} [DecidablePred p] {xs : List α} :
     | cons x xs ih =>
       simp [foldr]
       apply And.intro
-      . apply hbackward x (List.Mem.head _ _)
+      . apply hbackward x (List.Mem.head _)
       . apply ih
         intro x' hx'
         apply hbackward _ $ List.Mem.tail _ hx'
@@ -1133,7 +1132,7 @@ theorem List.mem_cons_iff_mem_singleton_or_tail (y : α) (ys : List α) (x : α)
   apply Iff.intro
   . intro hf
     cases hf with
-    | head => apply Or.intro_left _ (Mem.head _ _)
+    | head => apply Or.intro_left _ (Mem.head _)
     | tail _ h => apply Or.intro_right _ h
   . intro hb
     cases hb with
@@ -1164,6 +1163,7 @@ theorem List.filter_filter (p₁ p₂ : α → Bool) (xs : List α) :
         simp only [filterSpec, h₁, h₂, ite_true]
         exact congrArg _ ih
 
+-- TODO: Migration issue -- eliminate sorry
 theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
   ∀ (xs acc : List α),
   uniqueAux xs acc = reverse acc ++ unique (xs.filter (· ∉ acc))
@@ -1181,18 +1181,11 @@ theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
     simp only [uniqueAux, filter]  -- previously filterAux
     cases Decidable.em (x ∈ acc) with
     | inl hin =>
-      simp only [hin, ite_true]
-      -- TODO: this shouldn't be necessary
-      have : decide False = false := rfl
-      rw [this]
-      simp only
+      simp only [hin, ite_true, not_true_eq_false, decide_False]
       rw [ih₁]
-      -- simp only [filter]
     | inr hout =>
       -- Case x is not already in the accumulator
-      simp only [hout, ite_false]
-      have : decide True = true := rfl
-      rw [this]
+      simp only [hout, ite_false, not_false_eq_true, decide_True]
       -- next line previously filterAux
       simp only [reverse_singleton, singleton_append, unique,
                  uniqueAux, List.not_mem_nil, ite_false]
@@ -1202,10 +1195,22 @@ theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
       simp only [unique]
       rw [ih₃]
       rw [reverse_singleton, singleton_append, filter_filter]
+      -- TODO: this was just `by simp` in Lean 4.0.0…what happened?
       have : (λ x_1 => decide (
               (decide ¬x_1 ∈ acc) = true ∧ (decide ¬x_1 ∈ [x]) = true)
-             ) = (λ x_1 => decide (¬x_1 ∈ acc ∧ ¬x_1 ∈ [x])) :=
-        by simp
+             ) = (λ x_1 => decide (¬x_1 ∈ acc ∧ ¬x_1 ∈ [x])) := by
+        apply funext
+        intro x_1
+        simp only [decide_not, Bool.not_eq_true']
+        cases Decidable.em (x_1 ∈ acc) with
+        | inl hmem =>
+          simp only [hmem, decide_True, not_true_eq_false, false_and]
+        | inr hnmem =>
+          simp only [hnmem, decide_False, not_false_eq_true, true_and,
+                     decide_not]
+          cases Decidable.em (x_1 ∈ [x]) with
+          | inl hmem' => simp only [hmem', decide_True, decide_False, not]
+          | inr hnmem' => simp only [hnmem', decide_True, decide_False, not]
       rw [this, ←unique]
       apply congrArg
       apply congrArg
@@ -1228,7 +1233,7 @@ theorem List.uniqueAux_acc_append {α} [DecidableEq α] (xs : List α)
     | nil => simp [filter] -- previously filterAux
     | cons x xs ih =>
       simp only [filter]  -- previously filterAux
-      have : decide (¬x ∈ acc) = true := by simp [h x (Mem.head _ _)]
+      have : decide (¬x ∈ acc) = true := by simp [h x (Mem.head _)]
       rw [this]
       simp only
       rw [ih]
@@ -1270,7 +1275,7 @@ def List.memT_unique_of_memT {α} [DecidableEq α]
   simp only [unique, uniqueAux, not_mem_nil, ite_false]
   rw [uniqueAux_acc_append_filter]
   simp only [reverse_singleton, singleton_append]
-  apply .hd _ _
+  apply MemT.hd _ _
 | x, y :: xs, .tl .(y) htl =>
   -- TODO: we keep using this...probably make it a separate simp lemma
   have hterm : length (filter (λ a => !decide (a ∈ [y])) xs)
@@ -1293,7 +1298,7 @@ def List.memT_unique_of_memT {α} [DecidableEq α]
       intro hneg
       cases hneg <;>
       contradiction
-    simp only [hnin]
+    simp only [hnin, not_false_eq_true, decide_True]
 termination_by List.memT_unique_of_memT x xs hmem => xs.length
   -- let ih : MemT x (unique (filter (fun a => decide ¬a ∈ [y]) xs)) :=
   --   memT_unique_of_memT _
@@ -1303,7 +1308,6 @@ theorem List.matchKey_fst_eq_filter_k_map_snd {κ ν} [inst : DecidableEq κ] :
   ∀ (xs : List (κ × ν)) (k : κ),
     (matchKey xs k).1 = (xs.filter (λ x => x.1 = k)).map Prod.snd :=
 by intros xs k
-   simp only [List.filter]
    induction xs with
    | nil => rfl
    | cons x xs ih =>
@@ -1416,7 +1420,7 @@ theorem List.length_groupByKey {κ} [DecidableEq κ] {ν} :
   simp only [map, unique, uniqueAux, List.not_mem_nil, ite_false, groupByKey]
   -- This needs to be a separate `simp` to ensure proper ordering
   simp only [length]
-  rw [length_uniqueAux_matchKey _ k _ $ List.Mem.head _ _]
+  rw [length_uniqueAux_matchKey _ k _ $ List.Mem.head _]
   rw [ih]
   apply Eq.symm
   apply List.length_uniqueAux (acc := [k])
@@ -1466,7 +1470,7 @@ theorem List.matchKey_snd_sublist_of_sublist [DecidableEq κ] :
 theorem List.mem_of_mem_sublist {xs ys : List α} {x : α} :
   xs <+ ys → x ∈ xs → x ∈ ys
 | .cons _ _ x' hsub, hmem => Mem.tail x' (mem_of_mem_sublist hsub hmem)
-| .cons2 _ ys _ _, Mem.head _ _ => Mem.head x ys
+| .cons2 _ ys _ _, Mem.head _ => Mem.head ys
 | .cons2 _ _ _ hsub, Mem.tail _ hmem =>
   Mem.tail _ (mem_of_mem_sublist hsub hmem)
 
@@ -1511,7 +1515,6 @@ theorem List.mem_fst_matchKey_key_or_snd [DecidableEq κ]
         | inr hmem => exact hmem
       | inr hkneq =>
         simp only [hkneq, ite_false]
-        simp only [groupByKey]
         simp only [map]
         cases Decidable.em (x = k') with
         | inl hxeq => rw [hxeq]; apply Mem.head
@@ -1600,7 +1603,7 @@ theorem List.all_in_map_fst_groupByKey_of_sublist [DecidableEq κ]
     ∀ x, x ∈ map Prod.fst (groupByKey xs) → x ∈ map Prod.fst (groupByKey ys)
 | .cons xs ys (k, v) hsubl, x, hx =>
   if heq : x = k
-  then heq ▸ Mem.head x (map Prod.fst (groupByKey (matchKey ys k).snd))
+  then heq ▸ Mem.head (map Prod.fst (groupByKey (matchKey ys k).snd))
   else
     have hterm : ys.length < Nat.succ ys.length := Nat.le.refl
     have ih := all_in_map_fst_groupByKey_of_sublist hsubl x hx
@@ -1712,7 +1715,7 @@ theorem List.mem_map {f : α → β} {b : β} : ∀ {l : List α},
   . intro h
     cases h with
     | head =>
-      exact Exists.intro x (And.intro (List.Mem.head _ _) rfl)
+      exact Exists.intro x (And.intro (List.Mem.head _) rfl)
     | tail x h' =>
       have ih_val := ih.mp h'
       cases ih_val with | intro a ha =>
@@ -1766,7 +1769,7 @@ def List.counts {α} [DecidableEq α] (xs : List α) : List (α × Nat) :=
 theorem List.map_fst_incrCounts_eq_map_fst [DecidableEq α] (x : α) :
   ∀ (as : List (α × Nat)) (h : x ∈ map Prod.fst as),
   map Prod.fst (incrCounts as x) = map Prod.fst as
-| (.(x), _) :: as, List.Mem.head _ _ => by simp only [map, incrCounts]
+| (.(x), _) :: as, List.Mem.head _ => by simp only [map, incrCounts]
 | a :: as, List.Mem.tail _ h' =>
   have ih := map_fst_incrCounts_eq_map_fst x as h'
   match Decidable.em (a.1 = x) with
@@ -1800,8 +1803,6 @@ theorem List.map_fst_incrCounts_eq_cons_fst [DecidableEq α] (x : α) :
         apply h
         apply List.Mem.tail _ hneg
 
-#check List.mem_append_singleton
-
 theorem List.mem_append_back (x : α) : ∀ (xs ys : List α),
   x ∈ ys → x ∈ xs ++ ys
 | [], ys, hin => hin
@@ -1819,7 +1820,7 @@ theorem List.mem_append_iff {x : α} {xs ys : List α} :
     | nil => exact Or.intro_right _ hb
     | cons z xs ih =>
       cases hb with
-      | head _ _ => apply Or.intro_left _ (List.Mem.head _ _)
+      | head _ => apply Or.intro_left _ (List.Mem.head _)
       | tail _ h' =>
         cases ys with
         | nil =>
@@ -1862,14 +1863,14 @@ theorem List.length_uniqueAux_congr_append_cons_acc [DecidableEq α]
           | inr hy =>
             cases hy with
             | tail _ _ => contradiction
-            | head _ _ => exact List.Mem.head _ _
+            | head _ => exact List.Mem.head _
       . intros h
         cases mem_append_iff.mpr h with
         | inl hcs => exact List.mem_append_front _ _ _ hcs
         | inr hcons =>
           apply List.mem_append_back
           cases hcons with
-          | head _ _ =>
+          | head _ =>
             apply List.Mem.tail
             apply List.mem_append_back
             apply (List.mem_singleton_iff y y).mpr rfl
@@ -1907,7 +1908,7 @@ theorem List.length_counts_aux [DecidableEq α]
         simp only [htrue, ite_true, incrCounts, map]
         rw [if_pos]
         . apply ih
-        . exact List.Mem.head _ _
+        . exact List.Mem.head _
       | inr hfalse =>
         simp only [hfalse, ite_false, incrCounts, map]
         rw [ih]
@@ -1933,7 +1934,6 @@ theorem List.length_counts [DecidableEq α] (xs : List α) :
 
 theorem List.length_uniqueAux_le [DecidableEq α] (xs : List α) :
   ∀ as, length (uniqueAux xs as) ≤ length xs + length as := by
-  simp only [unique]
   induction xs with
   | nil => simp [uniqueAux]
   | cons x xs ih =>
@@ -1962,11 +1962,11 @@ List.length_uniqueAux_le xs []
 
 theorem List.eq_or_mem_tail_of_mem {x x' : α} {xs : List α} :
   x ∈ x' :: xs → x = x' ∨ x ∈ xs
-| .head _ _ => .inl rfl
+| .head _ => .inl rfl
 | .tail _ h => .inr h
 
 theorem List.get_mem : ∀ (xs : List α) (i : Fin (length xs)), xs.get i ∈ xs
-  | x :: xs, ⟨0, hn⟩ => Mem.head _ _
+  | x :: xs, ⟨0, hn⟩ => Mem.head _
   | x :: xs, ⟨.succ n, hn⟩ => Mem.tail _ $ get_mem xs ⟨n, _⟩
 
 theorem List.neq_of_mem_not_mem {x y : α} {xs : List α} :
@@ -1996,7 +1996,7 @@ theorem List.sieve_mem_iff_true_unique :
 | 0, x :: xs, true :: bs, pf1, pf2, .cons hnmem hu' =>
   Iff.intro
     (λ _ => rfl)
-    (λ _ => List.Mem.head _ _)
+    (λ _ => List.Mem.head _)
 | .succ n, x :: xs, false :: bs, pf1, pf2, .cons hnmem hu' =>
   Iff.intro
     (λ hf =>
@@ -2030,7 +2030,7 @@ theorem List.mem_map_sieve_of_mem_map {f : α → β} {x : α}
 | x' :: xs, false :: bs, h => Mem.tail _ $ mem_map_sieve_of_mem_map h
 | x' :: xs, true :: bs, h =>
   match eq_or_mem_tail_of_mem h with
-  | .inl heq => heq ▸ Mem.head _ _
+  | .inl heq => heq ▸ Mem.head _
   | .inr hmem => Mem.tail _ $ mem_map_sieve_of_mem_map hmem
 
 theorem List.sieve_map_mem_iff_true_unique :
@@ -2072,7 +2072,7 @@ theorem List.sieve_map_mem_iff_true_unique :
       match bs, xs with
       | b :: bs, x :: xs =>
       cases b with
-      | true => exact Mem.head _ _
+      | true => exact Mem.head _
       | false => simp only [get, map] at hget
     | succ i ih =>
       match bs, xs, hu with
@@ -2101,7 +2101,6 @@ theorem List.get_nths_eq_get_get : ∀ (xs : List α) (ns : List (Fin xs.length)
   List.get xs (List.get ns ⟨i, hi⟩)
 | xs, n :: ns, 0, hi => by
   simp only [nths, map, get]
-  simp only [nth]
   rw [get_eq_nth]
 | xs, n :: ns, .succ i, hi => by
   simp only [nths, map]

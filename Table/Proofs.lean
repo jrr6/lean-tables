@@ -366,16 +366,12 @@ by intros t cs
      . exact ih
 
 -- TODO: sc3 spec 2
-#check @selectColumns3
-
-variable (t : table sch) (cs : List (CertifiedHeader sch))
-
+-- TODO: Same subschema issue as `sc2_s2`
 -- theorem selectColumns3_spec2 :
 --   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
---     ∀ c, c ∈ cs →
---       (schema t).lookup (Schema.cNameOfCHead c) =
---       (schema (selectColumns3 t cs)).lookup
---         ⟨c.1.1, Schema.colImpliesName c.2⟩ := sorry
+--     ∀ c : CertifiedName $ schema (selectColumns3 t cs),
+--       (schema t).lookupType c =
+--       (schema (selectColumns3 t cs)).lookupType c := sorry
 
 theorem selectColumns3_spec3 :
   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
@@ -407,15 +403,17 @@ by intros t z h
 
 -- TODO: changed slightly from B2T2 b/c casting is a pain (should this be redone
 -- to match the spec exactly?)
+#check List.drop
 theorem head_spec3 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
-  z.val < 0 → nrows (head t z) = nrows t - z.val.abs :=
-by intros t z h
-   cases z with | mk z prop =>
-   simp only [head, nrows, h, ite_true, List.dropLastN, Function.comp]
-   rw [List.length_reverse, List.length_drop, List.length_reverse]
-   -- Need separate `rw`s here so that the equality proof can be auto-generated
-   rw [List.length_reverse]
-   exact prop
+  z.val < 0 → nrows (head t z) = nrows t - z.val.abs := by
+  intros t z h
+  cases z with | mk z prop =>
+  simp only at h
+  simp only [head, nrows, List.dropLastN, Function.comp, h, ite_true]
+  rw [List.length_reverse, List.length_drop, List.length_reverse]
+  -- Need separate `rw`s here so that the equality proof can be auto-generated
+  rw [List.length_reverse]
+  exact prop
 
 -- theorem head_spec3' : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
 --   z.val < 0 → nrows (head t z) = nrows t + z.val :=
@@ -445,18 +443,24 @@ theorem dropColumn_spec2_unique :
   ∀ (hsch : sch.Unique) (t : Table sch) (c : CertifiedName sch),
   header (dropColumn t c) = List.removeAllEq (header t) [c.1] := by
   intro hsch t c
-  simp only [List.removeAll, header]
+  simp only [List.removeAllEq, header]
   unfold Schema.Unique at hsch
   cases c with | mk c hc =>
   induction hc with
   | @hd nm s' τ =>
     simp only [Schema.removeName]
     simp only [List.filter, List.notElem, List.elem]
-    simp
     cases hsch with | cons hnmem hu =>
     simp only at hnmem
+    have : (decide (nm ∉ [nm])) = false :=
+      by simp only [decide_not, List.mem_singleton_iff, decide_True,
+                    decide_False, not]
+    rw [this]
+    simp only
     simp only [Schema.names, List.map]
-    rw [List.removeAllEq_singleton_hd_eq]
+    have : List.filter (λ x => x ∉ [nm]) (s'.map Prod.fst)
+            = List.removeAllEq (s'.map Prod.fst) [nm] := rfl
+    rw [this]
     rw [List.removeAllEq_singleton_nonelem_eq]
     exact hnmem
   | @tl hdr nm s' h ih =>
@@ -467,12 +471,10 @@ theorem dropColumn_spec2_unique :
       rw [heq] at hsch
       cases hsch with | cons hnmem hu =>
       simp only at hnmem
-      have := Schema.mem_map_of_HasName h
+      have := Schema.mem_map_of_HasName _ _ h
       contradiction
     | inr hneq =>
-      -- simp only [Schema.removeName, List.filter, List.notElem, List.elem]
-      -- simp
-      simp only
+      rw [←List.removeAllEq]
       rw [List.removeAllEq_singleton_hd_neq]
       . congr
         apply ih
@@ -682,7 +684,8 @@ by intros t key proj agg
    rw [List.map_map]
    apply congr _ rfl
    apply congrArg
-   simp only [Function.comp]
+   unfold Function.comp
+   simp only
 
 theorem completeCases_spec {τ : Type u} :
   ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
@@ -828,14 +831,14 @@ theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
   conv =>
     rhs
     lhs
-    apply funext (f₂ := _) _
+    apply funext (g := _) _
     apply (λ x => Option.map ULift.up x.fst)
     -- `intros` doesn't seem to be working in `conv` mode?
     apply (λ x => Cell.toOption_fromOption _)
   conv =>
     rhs
     lhs
-    apply funext (f₂ := _) _
+    apply funext (g := _) _
     apply (λ x => Option.map ULift.up ∘ Prod.fst)
     apply (λ x => rfl)
   rw [←List.map_map]
@@ -910,14 +913,14 @@ theorem groupBySubtractive_spec4 [inst : DecidableEq τ] :
   conv =>
     rhs
     lhs
-    apply funext (f₂ := _) _
+    apply funext (g := _) _
     apply (λ x => Option.map ULift.up x.fst)
     -- `intros` doesn't seem to be working in `conv` mode?
     apply (λ x => Cell.toOption_fromOption _)
   conv =>
     rhs
     lhs
-    apply funext (f₂ := _) _
+    apply funext (g := _) _
     apply (λ x => Option.map ULift.up ∘ Prod.fst)
     apply (λ x => rfl)
   rw [←List.map_map]

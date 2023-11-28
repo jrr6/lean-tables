@@ -632,7 +632,7 @@ def pivotWider (t : Table schema)
                (c1 : (c : η) × Schema.HasCol (c, η) schema)
                (c2 : CertifiedHeader (schema.removeHeader c1.2))
                -- This looks ugly, but it should be doable with `inst`
-               [DecidableEq $ Row (schema.removeNames
+               [inst : DecidableEq $ Row (schema.removeNames
                   (ActionList.cons (Schema.cNameOfCHead ⟨(c1.fst, η), c1.snd⟩)
                   (ActionList.cons (Schema.cNameOfCHead c2) ActionList.nil)))]
     : Table $
