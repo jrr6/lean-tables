@@ -1,14 +1,7 @@
 import Lean
 import Table.API
 import Table.Notation
-
-macro "inst" : tactic =>
-  `(tactic| repeat (first
-    | apply instDecidableEqTable (inst := _)
-    | apply instDecidableEqRowConsHeaderMkType (it := _) (ic := _) (ir := _)
-    | apply instDecidableEqRowNilHeader
-    | apply instDecidableEqCell (inst := _)
-    | infer_instance))
+import Table.TestingNotation
 
 open Lean Widget
 
