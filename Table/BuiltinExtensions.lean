@@ -17,6 +17,10 @@ inductive List.Unique {α} : List α → Prop
   | nil : List.Unique []
   | cons {x xs} : x ∉ xs → List.Unique xs → List.Unique (x :: xs)
 
+inductive List.UniqueT {α} : List α → Type _
+  | nil : List.UniqueT []
+  | cons {x xs} : x ∉ xs → List.UniqueT xs → List.UniqueT (x :: xs)
+
 inductive List.MemT {α : Type u} : α → List α → Type u
 | hd (x : α) (xs : List α) : List.MemT x (x :: xs)
 | tl (x : α) {y : α} {xs : List α} : List.MemT y xs → List.MemT y (x :: xs)
@@ -91,6 +95,9 @@ theorem List.get_eq_nth : ∀ (xs : List α) (n : Nat) (hn : n < xs.length),
 | x :: xs, 0, h => rfl
 | x :: xs, Nat.succ n, h => get_eq_nth xs n (Nat.le_of_succ_le_succ h)
 
+-- TODO: need `map` to be reducible as well -- don't really want to reimplement
+-- everything from scratch
+@[reducible]
 def List.nths {α}
               (xs : List α)
               (ns : List (Fin (List.length xs))) : List α :=
@@ -431,6 +438,11 @@ theorem List.map_map_append {α β γ δ : Type _} :
   map f (map g xs ++ map h ys) = map (f ∘ g) xs ++ map (f ∘ h) ys
 | [], ys, f, g, h => map_map f h ys
 | x :: xs, ys, f, g, h => congrArg (f (g x) :: ·) (map_map_append xs ys f g h)
+
+theorem List.map_comp (f : β → γ) (g : α → β) :
+  ∀ (xs : List α), List.map (f ∘ g) xs = List.map f (List.map g xs)
+| [] => rfl
+| x :: xs => congrArg _ $ List.map_comp f g xs
 
 theorem List.not_mem_nil {α} (x : α) : ¬ (x ∈ []) :=
 λ h => nomatch h
@@ -2108,7 +2120,6 @@ theorem List.get_nths_eq_get_get : ∀ (xs : List α) (ns : List (Fin xs.length)
   simp only [get]
   have ih := get_nths_eq_get_get xs ns i (Nat.le_of_succ_le_succ hi)
   rw [←ih]
-  simp only [nths]
 
 theorem List.get_map :
   ∀ (f : α → β) (xs : List α) (i : Fin xs.length),
@@ -2133,4 +2144,3 @@ theorem List.get_map_nths_eq_get_get :
   simp only [nths, map, get]
   have ih := get_map_nths_eq_get_get xs ns i (Nat.lt_of_succ_lt_succ hi)
   rw [←ih]
-  simp only [nths]

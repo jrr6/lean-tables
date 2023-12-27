@@ -117,8 +117,8 @@ def getColumn2 {τ}
 
 -- # Subtable
 def selectRows1 (t : Table schema)
-                      (ns : List {n : Nat // n < nrows t}) : Table schema :=
-  {rows := List.map (λ n => getRow t n.val n.property) ns}
+                      (ns : List (Fin (nrows t))) : Table schema :=
+  {rows := List.map (λ n => getRow t n.val n.isLt) ns}
 
 -- TODO: We don't strictly *need* the proof here ; if we want to be consistent
 -- about enforcing preconditions through proof terms (do we‽), we should leave
@@ -234,12 +234,16 @@ def orderBy (t : Table schema)
 def count {τ} [DecidableEq τ]
           (t : Table schema)
           (c : ((c : η) × schema.HasCol (c, τ)))
-    : Table [("value", Option τ), ("count", Nat)] :=
+    : Table [("value", τ), ("count", Nat)] :=
   let rec pairsToRow :
-    List (Option τ × Nat) → List (Row [("value", Option τ), ("count", Nat)])
+    List (Option τ × Nat) → List (Row [("value", τ), ("count", Nat)])
   | [] => []
   | (t, n) :: ps =>
-    Row.cons (Cell.val t) (Row.cons (Cell.val n) Row.nil) :: pairsToRow ps
+    let cell :=
+      match t with
+      | none => Cell.emp
+      | some v => Cell.val v
+    Row.cons cell (Row.cons (Cell.val n) Row.nil) :: pairsToRow ps
   let col := getColumn2 t c.1 c.2
   {rows := pairsToRow $ col.counts}
 
@@ -621,12 +625,6 @@ def Schema.hasColOfMemPivotCol {τ : Type u} {t : Table schema} {lblCol : η} {l
            |> List.memT_unique_of_memT
            |> List.memT_map_of_memT (λ x => (x, τ))
     Schema.hasColOfMemT hmemT
-
-
-theorem List.map_comp (f : β → γ) (g : α → β) :
-  ∀ (xs : List α), List.map (f ∘ g) xs = List.map f (List.map g xs)
-| [] => rfl
-| x :: xs => congrArg _ $ List.map_comp f g xs
 
 def pivotWider (t : Table schema)
                (c1 : (c : η) × Schema.HasCol (c, η) schema)

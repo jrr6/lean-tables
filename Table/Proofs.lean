@@ -273,12 +273,12 @@ theorem getColumn2_spec2 :
 
 -- Precondition is enforced by subtype
 theorem selectRows1_spec1 :
-  ∀ (t : Table sch) (ns : List {n // n < nrows t}),
+  ∀ (t : Table sch) (ns : List (Fin (nrows t))),
     schema (selectRows1 t ns) = schema t :=
 λ t ns => rfl
 
 theorem selectRows1_spec2 :
-  ∀ (t : Table sch) (ns : List {n // n < nrows t}),
+  ∀ (t : Table sch) (ns : List (Fin (nrows t))),
     nrows (selectRows1 t ns) = ns.length :=
 λ t ns => List.length_map _ _
 
@@ -448,7 +448,6 @@ theorem dropColumn_spec2_unique :
   cases c with | mk c hc =>
   induction hc with
   | @hd nm s' τ =>
-    simp only [Schema.removeName]
     simp only [List.filter, List.notElem, List.elem]
     cases hsch with | cons hnmem hu =>
     simp only at hnmem
@@ -565,7 +564,7 @@ theorem count_spec2 :
   ∀ {sch : @Schema η} {τ} [DecidableEq τ]
     (t : Table sch) (c : ((c : η) × sch.HasCol (c, τ))),
   (schema (count t c)).lookupType ⟨"value", Schema.HasName.hd⟩ =
-  Option (sch.lookupType ⟨c.1, Schema.colImpliesName c.2⟩)
+  sch.lookupType ⟨c.1, Schema.colImpliesName c.2⟩
 | _ :: _, _, _, t, ⟨_, Schema.HasCol.hd⟩ => rfl
   -- As with prior proofs, the table in the IH doesn't matter
 | _ :: _, τ, _, t, ⟨nm, Schema.HasCol.tl h⟩ => count_spec2 (Table.mk []) ⟨nm, h⟩

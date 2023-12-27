@@ -74,10 +74,14 @@ inductive BiActionList {η : Type u_η} [DecidableEq η]
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
 -- For ease of refactoring, makes these products act like subtypes
-def CertifiedName.val (n : CertifiedName schema) := Sigma.fst n
-def CertifiedName.property (n : CertifiedName schema) := Sigma.snd n
-def CertifiedHeader.val (h : CertifiedHeader schema) := Sigma.fst h
-def CertifiedHeader.property (h : CertifiedHeader schema) := Sigma.snd h
+@[reducible] def CertifiedName.val (n : CertifiedName schema) :=
+  Sigma.fst n
+@[reducible] def CertifiedName.property (n : CertifiedName schema) :=
+  Sigma.snd n
+@[reducible] def CertifiedHeader.val (h : CertifiedHeader schema) :=
+  Sigma.fst h
+@[reducible] def CertifiedHeader.property (h : CertifiedHeader schema) :=
+  Sigma.snd h
 
 -- This will make proofs difficult
 -- def Subschema.toSchema {schm : @Schema η} (s : Subschema schm) : @Schema η :=
@@ -113,6 +117,7 @@ def Schema.certify (schema : @Schema η) : List (CertifiedHeader schema) :=
       ⟨(c, τ), Schema.HasCol.hd⟩ :: (certify_elts hs).map map_subproof;
   certify_elts schema
 
+@[reducible]
 def Schema.colImpliesName :
       {schema : @Schema η} →
       {c : η} →
@@ -145,11 +150,35 @@ def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
   schema.certify.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) =>
                         ⟨c, colImpliesName h⟩)
 
+-- Schema functions
+-- Note: if written point-free, dot notation fails
+def Schema.names {η : Type u_η} (sch : @Schema η) :=
+  List.map (@Prod.fst η (Type u)) sch
+
+-- This is just `List.append`, but we need it to be reducible, and Lean 4
+-- doesn't allow us to modify the reducibility attribute of that function from
+-- outside the `List` module
+-- @[reducible]
+-- def List.append {η : Type u_η} : @Schema η → @Schema η → @Schema η
+--   | [], hs' => hs'
+--   | h :: hs, hs' => h :: append hs hs'
+
+theorem List.append_eq_List_append {η : Type u_η} :
+  ∀ (s s' : @Schema η), List.append s s' = List.append s s'
+  | [], hs' => rfl
+  | h :: hs, hs' => congrArg (h :: ·) $ append_eq_List_append hs hs'
+
+def Schema.hasAppendedSingletonName :
+  ∀ (sch : @Schema η) (c : η) (τ : Type _),
+  HasName c (List.append sch [(c, τ)])
+| [], _, _ => HasName.hd
+| s :: ss, c, τ => HasName.tl (hasAppendedSingletonName ss c τ)
+
 def Schema.hasNameOfAppend : {sch : @Schema η} →
                                  {nm : η} →
-                                 {hs : List Header} →
+                                 {hs : @Schema η} →
                                  sch.HasName nm →
-  Schema.HasName nm (sch.append hs)
+  Schema.HasName nm (List.append sch hs)
 | _, _, _, Schema.HasName.hd => Schema.HasName.hd
 | _, _, _, Schema.HasName.tl h => Schema.HasName.tl $ hasNameOfAppend h
 
@@ -165,22 +194,11 @@ def Schema.hasColOfAppend : {sch : @Schema η} →
 def Schema.hasColOfPrepend : {sch : @Schema η} →
                                  {nm : η} →
                                  {τ : Type u} →
-                                 {hs : List Header} →
+                                 {hs : @Schema η} →
                                  sch.HasCol (nm, τ) →
   Schema.HasCol (nm, τ) (hs.append sch)
 | _, _, _, [], pf => pf
 | _, _, _, _ :: hs', pf => .tl $ hasColOfPrepend (hs := hs') pf
-
-def Schema.hasAppendedSingletonName :
-  ∀ (sch : @Schema η) (c : η) (τ : Type _),
-  HasName c (List.append sch [(c, τ)])
-| [], _, _ => HasName.hd
-| s :: ss, c, τ => HasName.tl (hasAppendedSingletonName ss c τ)
-
--- Schema functions
--- Note: if written point-free, dot notation fails
-def Schema.names {η : Type u_η} (sch : @Schema η) :=
-  List.map (@Prod.fst η (Type u)) sch
 
 -- TODO: when we come back to do uniqueness, this might be helpful
 -- def Schema.removeName :
@@ -202,6 +220,7 @@ dite (c = nm)
 -- | [], _ => []
 -- | (nm, τ)::xs, c => if c = nm then xs else (nm, τ) :: removeName xs c
 
+@[reducible]
 def Schema.removeName {c : η} :
     (s : @Schema η) → (v_nm : s.HasName c) → @Schema η
 | _::s, Schema.HasName.hd => s
@@ -216,6 +235,7 @@ theorem Schema.removeName_eq_2 {η : Type u_η} [DecidableEq η]
   (h : Schema.HasName c ss) :
   removeName (hdr :: ss) (Schema.HasName.tl h) = hdr :: removeName ss h := rfl
 
+@[reducible]
 def Schema.removeHeader {c : η} {τ : Type u}
                         (s : @Schema η)
                         (hd : s.HasCol (c, τ))
@@ -281,6 +301,7 @@ def Schema.removeTNPres
   (c : η) × Schema.HasCol (c, τ) s
   := ⟨c.1, removeHeaderPres c.2⟩
 
+@[reducible]
 def Schema.removeNames {η : Type u_η} [DecidableEq η] :
     (s : @Schema η) → ActionList removeCertifiedName s → @Schema η
 | ss, ActionList.nil => ss
@@ -292,7 +313,7 @@ def Schema.removeHeaders {η : Type u_η} [DecidableEq η] :
 | ss, ActionList.cons cn rest =>
   removeHeaders (removeCertifiedHeader ss cn) rest
 
-def Schema.removeTypedNames {τ : Type u} :
+@[reducible] def Schema.removeTypedNames {τ : Type u} :
   (s : @Schema η) → ActionList (removeTypedName τ) s → @Schema η
 | s, ActionList.nil => s
 | s, ActionList.cons ch rest => removeTypedNames (removeTypedName τ s ch) rest
@@ -301,12 +322,14 @@ def Schema.removeTypedNames {τ : Type u} :
 -- alternative, though, would be to make `ActionList` even *more* abstract by
 -- decoupling `κ` and the type of the argument to `f`, which would be a function
 -- of `κ` or something like that...)
+@[reducible]
 def Schema.removeOtherDecCH
   (schema' schema : @Schema η)
   (c : (hdr : @Header η) × DecidableEq hdr.2 ×
     schema.HasCol hdr × schema'.HasCol hdr) :
   @Schema η := schema.removeHeader c.2.2.1
 
+@[reducible]
 def Schema.removeOtherDecCHs (schema' : @Schema η) :
   (schema : @Schema η) →
   (cs : ActionList (removeOtherDecCH schema') schema) →
@@ -503,6 +526,12 @@ theorem Schema.hasNameOfFromCHeaders_eq_2 :
   cases sch with
   | nil => contradiction
   | cons s ss => simp [hasNameOfFromCHeaders]
+
+def Schema.fromCHHasFromCH :
+  ∀ {sch : @Schema η} (h : CertifiedHeader sch) (hs : List (CertifiedHeader sch)),
+  List.MemT h hs → Schema.HasCol h.1 (Schema.fromCHeaders hs)
+| _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .hd _ _ => .hd
+| _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .tl _ htl => .tl $ fromCHHasFromCH _ hs htl
 
 -- `pivotWider` stuff
 def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
