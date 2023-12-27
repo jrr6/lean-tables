@@ -58,9 +58,79 @@ def sampleRows (t : Table sch) (n : Fin (nrows t).succ) : Table sch :=
 
 #table sampleRows gradebookMissing ⟨2, by repeat constructor⟩
 
--- TODO: `pHackingHomogeneous` and `pHackingHeterogeneous`
--- def pHacking {sch : @Schema η} (t : Table sch)
---   (hc : sch.HasColumn )
+-- `pHackingHomogeneous` and `pHackingHeterogeneous`
+-- TODO: see if there's a more elegant way to handle the types
+
+def fisherTest (xs : List (Bool × Bool)) :=
+  let tab := xs.foldl (λ acc (x, y) =>
+    let xIdx := if x then 1 else 0
+    let yIdx := if y then 1 else 0
+    -- Vectors would be a more elegant way to handle this
+    acc.set xIdx (acc[xIdx]!.set yIdx (acc[xIdx]![yIdx]! + 1))
+  ) [[0, 0], [0, 0]]
+  let rec fact : Nat → Nat
+  | 0 => 1
+  | .succ n => n.succ * fact n
+  Float.ofNat (fact (tab[0]![0]! + tab[0]![1]!)
+    * fact (tab[1]![0]! + tab[1]![1]!)
+    * fact (tab[0]![0]! + tab[1]![0]!)
+    * fact (tab[0]![1]! + tab[1]![1]!))
+  /
+  Float.ofNat (fact tab[0]![0]!
+    * fact tab[0]![1]!
+    * fact tab[1]![0]!
+    * fact tab[1]![1]!
+    * fact (tab.foldl (List.foldl (·+·)) 0))
+
+def pHacking {sch: Schema} (t : Table sch)
+  (hacne : sch.HasCol ("get acne", Bool))
+  (hall : ∀ x : CertifiedHeader sch,
+    List.MemT x sch.certify → x.1.1 ≠ "name" → x.1.2 = Bool) :=
+  let colAcne := getColumn2 t "get acne" hacne
+  let opts := sch.certify.certifiedMap (λ hdr hmem =>
+    if hdr.1.1 = "get acne" then none else
+    if hnm : hdr.1.1 = "name" then none else
+    let colJB : List (Option Bool) :=
+      cast (congrArg (List ∘ Option) $ hall _ hmem hnm) $ getColumn2 t hdr.1.1 hdr.2
+    let nonempties := List.zip colAcne colJB
+      |>.filterMap (λ
+        | (.some x, .some y) => some (x, y)
+        | _                  => none)
+    let p := fisherTest nonempties
+    if p < 0.05 then
+      some hdr.1.1
+    else
+      none
+  )
+  opts.somes
+
+def pHackingHomogeneous :=
+  pHacking jellyAnon (by header) (λ x hx _ => by
+    repeat (
+      cases hx
+      simp only
+      rename_i hx
+    )
+    contradiction
+  )
+#test
+pHackingHomogeneous
+=
+["orange"]
+
+def pHackingHeterogeneous :=
+  pHacking jellyNamed (by header) (λ x hx hnm => by
+    repeat (
+      cases hx
+      (simp only <;> contradiction)
+      rename_i hx
+    )
+    contradiction
+  )
+#test
+pHackingHeterogeneous
+=
+["orange"]
 
 -- `quizScoreFilter`
 #test
