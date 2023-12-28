@@ -457,6 +457,25 @@ def Schema.schemaHasRetypedSubschemaName : {nm : η} →
     apply Nat.lt.base;
   schemaHasRetypedSubschemaName h
 
+@[reducible]
+def Schema.retypedSubschemaHasSchemaName :
+  ∀ {sch : @Schema η} {nm : η} (rs : RetypedSubschema sch),
+  HasName nm sch → HasName nm (Schema.retypedFromSubschema rs)
+| sch, nm, [], hnm => hnm
+| (_, _) :: _, nm, ⟨(_, _), _⟩ :: rs', pf =>
+  retypedSubschemaHasSchemaName (List.map _ rs') (Schema.hasRetypedName pf)
+termination_by retypedSubschemaHasSchemaName rs h => rs.length
+
+@[reducible]
+def Schema.retypedFromSubschemaHasNameOfRSToSchema :
+  ∀ {sch : @Schema η} {rs : RetypedSubschema sch} {nm : η},
+  HasName nm rs.toSchema → HasName nm (Schema.retypedFromSubschema rs)
+| [], ⟨_, hrs⟩ :: _, _, _ => nomatch hrs
+| (_, _) :: _, [_], _, .tl h => nomatch h
+| sch, ⟨hdr, hnm⟩ :: rest, nmToFind, hntf =>
+  have hsch := Schema.schemaHasRetypedSubschemaName hntf
+  retypedSubschemaHasSchemaName _ hsch
+
 theorem Schema.retypedFromSubschema_preserves_names :
   ∀ (sch : @Schema η) (rs : RetypedSubschema sch),
   Schema.names (Schema.retypedFromSubschema rs) = Schema.names sch

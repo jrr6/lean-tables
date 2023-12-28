@@ -976,6 +976,16 @@ theorem update_spec2 :
     Schema.retypedFromSubschema_preserves_names sch subsch
 
 -- TODO: `update` spec 3
+-- This is an approximation of the original spec, which is rather clumsy to
+-- state as given in Lean
+theorem update_spec3 :
+  ∀ (subsch : RetypedSubschema sch) (hsubsch : List.Unique subsch)
+    (t : Table sch) (f : Row sch → Row subsch.toSchema),
+  ∀ (c : η) (hc : Schema.HasName c subsch.toSchema),
+    Schema.lookupType (schema (update subsch t f))
+      ⟨c, Schema.retypedFromSubschemaHasNameOfRSToSchema hc⟩ =
+    Schema.lookupType subsch.toSchema ⟨c, hc⟩ :=
+  sorry
 
 theorem update_spec4 :
   ∀ (subsch : RetypedSubschema sch) (t : Table sch)
