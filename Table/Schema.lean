@@ -23,7 +23,6 @@ def Subschema {η : Type u_η} (schm : @Schema η) :=
 def EqSubschema {η : Type u_η} (schm : @Schema η) :=
   List ((h : Header) × schm.HasCol (h.fst, h.snd) × DecidableEq h.2)
 
-
 def RetypedSubschema {η : Type u_η} (schm : @Schema η) :=
   List ((h : Header) × schm.HasName h.fst)
 
@@ -457,6 +456,19 @@ def Schema.schemaHasRetypedSubschemaName : {nm : η} →
     rw [Nat.add_comm]
     apply Nat.lt.base;
   schemaHasRetypedSubschemaName h
+
+theorem Schema.retypedFromSubschema_preserves_names :
+  ∀ (sch : @Schema η) (rs : RetypedSubschema sch),
+  Schema.names (Schema.retypedFromSubschema rs) = Schema.names sch
+| ss, [] => rfl
+| (_, _) :: ss, ⟨(nm, τ), pf⟩ :: rs =>
+  by
+    simp only [retypedFromSubschema]
+    have := retypedFromSubschema_preserves_names (Schema.retypeColumn _ pf τ)
+      (List.map (fun ⟨h, pf⟩ => ⟨h, hasRetypedName pf⟩) rs)
+    rw [this]
+    simp only [retypeColumn_preserves_names]
+termination_by retypedFromSubschema_preserves_names sch rs => rs.length
 
 -- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
 def Schema.flattenList (schema : @Schema η)

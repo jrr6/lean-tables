@@ -967,7 +967,22 @@ theorem groupBySubtractive_spec7
                           Row.removeColumn (Schema.colImpliesName c.snd) r))))
                         Row.nil))
 
--- TODO: `update` (once correctly implemented)
+-- `update` spec 1 is enforced by types
+theorem update_spec2 :
+  ∀ (subsch : RetypedSubschema sch) (t : Table sch)
+    (f : Row sch → Row subsch.toSchema),
+  header (update subsch t f) = header t :=
+λ subsch t f =>
+    Schema.retypedFromSubschema_preserves_names sch subsch
+
+-- TODO: `update` spec 3
+
+theorem update_spec4 :
+  ∀ (subsch : RetypedSubschema sch) (t : Table sch)
+    (f : Row sch → Row subsch.toSchema),
+    nrows (update subsch t f) = nrows t :=
+λ subsch t f =>
+  List.length_map t.rows _
 
 -- Specs 1, 2, and 3 are enforced by types
 theorem select_spec4 {sch' : @Schema η} :
