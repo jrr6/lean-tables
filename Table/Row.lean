@@ -72,6 +72,10 @@ def Row.hasEmpty {schema : @Schema η} : Row schema → Bool
 | Row.cons Cell.emp _ => true
 | Row.cons _ r' => hasEmpty r'
 
+def Row.length {schema : @Schema η} : Row schema → Nat
+| Row.nil => 0
+| Row.cons _ r' => r'.length + 1
+
 -- TODO: probably makes more sense to move this to some general "collection"
 -- interface rather than reimplementing for every type -- wonder if this is
 -- something James is working on
@@ -121,6 +125,13 @@ def Row.retypeCell {schema : @Schema η} {τ₁ τ₂ : Type u} {c : η}
 | Row.cons cell cells, Schema.HasCol.hd, newCell => Row.cons newCell cells
 | Row.cons cell cells, Schema.HasCol.tl h, newCell =>
     Row.cons cell (retypeCell cells h newCell)
+
+def Row.retypeCellByName {schema : @Schema η} {c : η}
+    : Row schema → (h : Schema.HasName c schema) → Cell c τ₂
+      → Row (schema.retypeColumn h τ₂)
+| Row.cons cell cells, Schema.HasName.hd, newCell => Row.cons newCell cells
+| Row.cons cell cells, Schema.HasName.tl h, newCell =>
+    Row.cons cell (retypeCellByName cells h newCell)
 
 def Row.renameCell {schema : @Schema η} {c : η}
     : Row schema → (h : Schema.HasName c schema) → (c' : η)
@@ -179,6 +190,31 @@ def Row.removeOtherSchemaCols {schema' schema : @Schema η} :
 | ActionList.nil, r => r
 | ActionList.cons c cs, r =>
   removeOtherSchemaCols cs (r.removeColumn $ Schema.colImpliesName c.2.2.1)
+
+  def Row.retypedSubschemaPres :
+  ∀ {sch : @Schema η} {retNm : η} {τ : Type _} {hretNm : sch.HasName retNm}
+    {rs : RetypedSubschema sch},
+  Row (RetypedSubschema.toSchema rs) →
+  Row (RetypedSubschema.toSchema (rs.map (λ ⟨h, pf⟩ =>
+    ⟨h, Schema.hasRetypedName (retNm := retNm) (τ := τ) (hretNm := hretNm) pf⟩
+  )))
+| sch, retNm, τ, pf, [], Row.nil => Row.nil
+| sch, retNm, τ, pf, ⟨(_, _), _⟩ :: _, Row.cons c cs =>
+  have hterm : length cs < length (cons c cs) := Nat.lt_succ_self _
+  Row.cons c $ retypedSubschemaPres cs
+termination_by retypedSubschemaPres rs => rs.length
+
+theorem Row.length_retypedSubschemaPres :
+  ∀ {sch : @Schema η} {rs : RetypedSubschema sch}
+  {retNm : η} {τ : Type _} {hretNm : sch.HasName retNm}
+  (r : Row rs.toSchema),
+  length (retypedSubschemaPres (retNm := retNm) (τ := τ) (hretNm := hretNm) r) =
+  length r
+| _, [], _, _, _, Row.nil => rfl
+| _, ⟨(_, _), _⟩ :: _, _, _, _, Row.cons c r' =>
+  have hterm : length r' < length (cons c r') := Nat.lt_succ_self _
+  congrArg Nat.succ $ length_retypedSubschemaPres r'
+termination_by length_retypedSubschemaPres r => r.length
 
 -- Decidable equality
 instance : DecidableEq (@Row η _ [])

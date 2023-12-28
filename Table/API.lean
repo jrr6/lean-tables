@@ -317,12 +317,10 @@ def dropna (t : Table schema) : Table schema :=
 
 -- # Utilities
 
--- FIXME: Lean can't infer the subschema because it's really trying to infer
--- "subschema.toSchema," which isn't definitional
--- Couple of options here. The best thing would be to figure out a way to let
--- Lean infer the (sub)schema directly, just like it does for normal schemata.
--- Alternatively, we can just make the subschema an explicit arg :(
-def update {schema₁ : @Schema η}
+-- This is a simpler version of `update` that doesn't require all the machinery
+-- of the full version; the tradeoff is that this version doesn't allow retyping
+-- of columns
+def updateWithoutRetyping {schema₁ : @Schema η}
            (schema₂ : Subschema schema₁)
            (t : Table schema₁)
            (f : Row schema₁ → Row schema₂.toSchema) : Table schema₁ :=
@@ -337,12 +335,38 @@ def update {schema₁ : @Schema η}
       r
   )}
 
+-- The `RetypedSubschema` is essentially an `ActionList` in disguise, but since
+-- the notion of a valid entry never changes between elements, we can avoid the
+-- overhead of an actual `ActionList`
+def update {schema₁ : @Schema η}
+           (schema₂ : RetypedSubschema schema₁)
+           (t : Table schema₁)
+           (f : Row schema₁ → Row schema₂.toSchema)
+  : Table $ Schema.retypedFromSubschema schema₂ :=
+  {rows := t.rows.map (λ r =>
+    let newCells : Row schema₂.toSchema := f r
+    let rec updateCells :
+      {schema : @Schema η} → {sch : RetypedSubschema schema} →
+      Row schema → Row sch.toSchema → Row (Schema.retypedFromSubschema sch)
+    | _, [], r, Row.nil => r
+    | schema, ⟨(nm, τ), hsch⟩ :: _, r, Row.cons c rest =>
+      have hterm :
+        Row.length (@Row.retypedSubschemaPres η _ schema nm τ hsch _ rest) <
+        Row.length (Row.cons c rest) :=
+        Row.length_retypedSubschemaPres rest ▸ Nat.lt_succ_self _
+      updateCells (schema := schema.retypeColumn _ _)
+        (r.retypeCellByName hsch c)
+        (Row.retypedSubschemaPres rest)
+    updateCells r newCells
+  )}
+termination_by update.updateCells r rs => rs.length
+
 def fillna {τ}
            (t : Table schema)
            (c : ((c : η) × schema.HasCol (c, τ)))
            (v : τ)
     : Table schema :=
-  update [⟨(c.fst, τ), c.snd⟩] t
+  updateWithoutRetyping [⟨(c.fst, τ), c.snd⟩] t
     (λ r => match Row.getCell r c.snd with
                 | Cell.emp => Row.singleValue v
                 | Cell.val vOld => Row.singleValue vOld)

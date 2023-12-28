@@ -23,6 +23,10 @@ def Subschema {η : Type u_η} (schm : @Schema η) :=
 def EqSubschema {η : Type u_η} (schm : @Schema η) :=
   List ((h : Header) × schm.HasCol (h.fst, h.snd) × DecidableEq h.2)
 
+
+def RetypedSubschema {η : Type u_η} (schm : @Schema η) :=
+  List ((h : Header) × schm.HasName h.fst)
+
 def CertifiedName (schema : @Schema η) := ((c : η) × Schema.HasName c schema)
 def CertifiedHeader (schema : @Schema η) :=
   ((h : Header) × Schema.HasCol h schema)
@@ -410,6 +414,15 @@ theorem Schema.retypeColumn_preserves_names :
 | s :: ss, nm, HasName.tl h, τ =>
   congrArg (s.1 :: ·) (retypeColumn_preserves_names ss h τ)
 
+def Schema.hasRetypedName {τ : Type u} :
+  ∀ {retNm nm : η} {sch : @Schema η} {hretNm : sch.HasName retNm}
+    (c : sch.HasName nm),
+  (retypeColumn sch hretNm τ).HasName nm
+| _, _, (_, _) :: hs, .hd, .hd => .hd
+| _, _, (_, _) :: hs, .hd, .tl h => .tl h
+| _, _, (_, _) :: hs, .tl h, .hd => .hd
+| _, _, (_, _) :: hs, .tl h, .tl h' => .tl $ hasRetypedName h'
+
 def Schema.hasRetypedCol {τ₁ τ₂} : ∀ {sch : @Schema η}
   (c : (c : η) × sch.HasCol (c, τ₁)),
   HasCol (c.1, τ₂) (retypeColumn sch (colImpliesName c.snd) τ₂)
@@ -417,6 +430,33 @@ def Schema.hasRetypedCol {τ₁ τ₂} : ∀ {sch : @Schema η}
 | _ :: _, ⟨_, .hd⟩ => Schema.HasCol.hd
 | _ :: _, ⟨nm, Schema.HasCol.tl htl⟩ =>
   Schema.HasCol.tl $ hasRetypedCol ⟨nm, htl⟩
+
+@[reducible]
+def RetypedSubschema.toSchema {schm : @Schema η} :
+  RetypedSubschema schm → @Schema η
+| [] => []
+| ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
+
+@[reducible]
+def Schema.retypedFromSubschema :
+  ∀ {sch : @Schema η}, RetypedSubschema sch → @Schema η
+| hs, [] => hs
+| hs, ⟨(_, ρ), pf⟩ :: rs =>
+  @retypedFromSubschema (hs.retypeColumn pf ρ)
+    (rs.map (λ ⟨h, pf⟩ => ⟨h, Schema.hasRetypedName pf⟩))
+termination_by retypedFromSubschema rs => rs.length
+
+@[reducible]
+def Schema.schemaHasRetypedSubschemaName : {nm : η} →
+  {schema : @Schema η} → {rs : RetypedSubschema schema} →
+  (h : rs.toSchema.HasName nm) → schema.HasName nm
+| _, s₁ :: ss₁, ⟨hdr, pf⟩ :: ss₂, Schema.HasName.hd => pf
+| nm, schema₁, schema₂@(⟨hdr, pf⟩ :: ss), Schema.HasName.tl h =>
+  have term_helper : sizeOf h < sizeOf (@Schema.HasName.tl η hdr _ _ h) := by
+    simp
+    rw [Nat.add_comm]
+    apply Nat.lt.base;
+  schemaHasRetypedSubschemaName h
 
 -- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
 def Schema.flattenList (schema : @Schema η)
