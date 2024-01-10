@@ -18,7 +18,6 @@ theorem addRows_spec2 :
     nrows (addRows t rs) = nrows t + rs.length :=
 λ t rs => List.length_append (t.rows) rs
 
--- TODO: deal with precondition 1
 -- We must enforce decidable equality of τ to state this theorem
 -- We omit the precondition because it is not required for this portion of the
 -- spec
@@ -73,13 +72,13 @@ theorem addColumn_spec2 :
 theorem addColumn_spec3 {τ : Type u} [DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (vs : List $ Option τ),
     (schema (addColumn t c vs)).lookupType
-      ⟨c, sch.hasAppendedSingletonName c τ⟩ = τ := by
+      ⟨c, Schema.colImpliesName $ sch.hasAppendedHead c τ []⟩ = τ := by
   intros t c vs
   induction sch with
   | nil =>
-    simp only [Schema.hasAppendedSingletonName, Schema.lookupType]
+    simp only [Schema.lookupType]
   | cons s ss ih =>
-    simp only [Schema.hasAppendedSingletonName, Schema.lookupType]
+    simp only [Schema.lookupType]
     -- TODO: again, could use `Table.mk []`, but this is more suggestive?
     apply ih (dropColumn t ⟨_, Schema.HasName.hd⟩)
 
@@ -138,13 +137,13 @@ theorem buildColumn_spec3 :
 theorem buildColumn_spec4 {τ : Type u} [DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (f : Row sch → Option τ),
     (schema (buildColumn t c f)).lookupType
-      ⟨c, sch.hasAppendedSingletonName c τ⟩ = τ := by
+      ⟨c, Schema.colImpliesName $ sch.hasAppendedHead c τ []⟩ = τ := by
   intros t c f
   induction sch with
   | nil =>
-    simp only [Schema.hasAppendedSingletonName, Schema.lookupType]
+    simp only [Schema.lookupType]
   | cons s ss ih =>
-    simp only [Schema.hasAppendedSingletonName, Schema.lookupType]
+    simp only [Schema.lookupType]
     apply ih
     . exact (dropColumn t ⟨_, Schema.HasName.hd⟩)
     . exact f ∘ (Row.cons Cell.emp)
@@ -711,7 +710,24 @@ theorem fillna_spec2 {τ : Type u} :
 -- TODO: `pivotLonger`
 -- Spec 1 may not hold because of uniqueness issues?
 
--- Specs 3 and 4 are enforced by types
+-- Approximation without using `lookupType`
+def pivotLonger_spec3 {τ : Type u_η} :
+  ∀ (t : Table sch) (cs : ActionList (Schema.removeTypedName τ) sch)
+    (c1 : η) (c2 : η),
+  (schema (pivotLonger t cs c1 c2)).HasCol (c1, η) :=
+λ _ _ _ _ => Schema.hasAppendedHead _ _ _ _
+
+-- Approximation without using `lookupType`
+def pivotLonger_spec4 {τ : Type u_η} :
+  ∀ (t : Table sch) (cs : ActionList (Schema.removeTypedName τ) sch)
+    (c1 : η) (c2 : η),
+  (schema (pivotLonger t cs c1 c2)).HasCol (c2, τ) := by
+  intro t cs c1 c2
+  simp only [schema]
+  have := List.append_cons (Schema.removeTypedNames sch cs) (c1, η) [(c2, τ)]
+  simp only [HAppend.hAppend, Append.append] at this
+  rw [this]
+  apply Schema.hasAppendedHead
 
 -- TODO: `pivotWider`
 -- Spec 1 may not hold because of uniqueness issues?

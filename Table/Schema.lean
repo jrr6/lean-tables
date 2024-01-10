@@ -171,11 +171,12 @@ theorem List.append_eq_List_append {η : Type u_η} :
   | [], hs' => rfl
   | h :: hs, hs' => congrArg (h :: ·) $ append_eq_List_append hs hs'
 
-def Schema.hasAppendedSingletonName :
-  ∀ (sch : @Schema η) (c : η) (τ : Type _),
-  HasName c (List.append sch [(c, τ)])
-| [], _, _ => HasName.hd
-| s :: ss, c, τ => HasName.tl (hasAppendedSingletonName ss c τ)
+@[reducible]
+def Schema.hasAppendedHead :
+  ∀ (sch : @Schema η) (c : η) (τ : Type _) (hs : List Header),
+  HasCol (c, τ) (List.append sch ((c, τ) :: hs))
+| [], _, _, _ => .hd
+| s :: ss, c, τ, _ => .tl (hasAppendedHead ss c τ _)
 
 def Schema.hasNameOfAppend : {sch : @Schema η} →
                                  {nm : η} →
@@ -495,6 +496,7 @@ def Schema.flattenList (schema : @Schema η)
     : @Schema η :=
   schema.retypeColumn (Schema.colImpliesName c.2.2) c.2.1
 
+@[reducible]
 def Schema.flattenLists : (schema : @Schema η) →
                           (ActionList flattenList schema) →
                          @Schema η
