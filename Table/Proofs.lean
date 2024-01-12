@@ -43,7 +43,7 @@ theorem addColumn_spec1 :
     -- TODO: Can we avoid this somehow? (Arises because of induction on schema
     -- used as index in Table type. Could use empty table instead, but this
     -- seems more suggestive.)
-    exact dropColumn t ⟨_, Schema.HasName.hd⟩
+    exact dropColumn t _
 
 -- ⟨cc.val,
 -- by cases cc with | mk val prop =>
@@ -80,7 +80,7 @@ theorem addColumn_spec3 {τ : Type u} [DecidableEq τ] :
   | cons s ss ih =>
     simp only [Schema.lookupType]
     -- TODO: again, could use `Table.mk []`, but this is more suggestive?
-    apply ih (dropColumn t ⟨_, Schema.HasName.hd⟩)
+    apply ih (dropColumn t _)
 
 theorem addColumn_spec4 :
   ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List $ Option τ),
@@ -145,7 +145,7 @@ theorem buildColumn_spec4 {τ : Type u} [DecidableEq τ] :
   | cons s ss ih =>
     simp only [Schema.lookupType]
     apply ih
-    . exact (dropColumn t ⟨_, Schema.HasName.hd⟩)
+    . exact (dropColumn t _)
     . exact f ∘ (Row.cons Cell.emp)
 
 theorem buildColumn_spec5 :
@@ -283,19 +283,20 @@ theorem selectRows1_spec2 :
 
 -- Precondition is enforced by `h`
 theorem selectRows2_spec1 :
-  ∀ (t : Table sch) (bs : List Bool) (h : bs.length = nrows t),
-    schema (selectRows2 t bs h) = schema t :=
-λ t bs h => rfl
+  ∀ (t : Table sch) (bs : List Bool),
+    schema (selectRows2 t bs) = schema t :=
+λ t bs => rfl
 
 theorem selectRows2_spec2 :
-  ∀ (t : Table sch) (bs : List Bool) (h : bs.length = nrows t),
-    nrows (selectRows2 t bs h) = (bs.removeAllEq [false]).length :=
+  ∀ (t : Table sch) (bs : List Bool),
+    bs.length = nrows t →
+    nrows (selectRows2 t bs) = (bs.removeAllEq [false]).length :=
 λ t bs h => List.sieve_removeAllEq _ _ h
 
 theorem selectColumns1_spec1 :
-  ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t),
-    List.Sublist (header (selectColumns1 t bs h)) (header t) :=
-λ t bs h => List.sublist_of_map_sublist _ _ Prod.fst $ List.sieve_sublist bs sch
+  ∀ (t : Table sch) (bs : List Bool),
+    List.Sublist (header (selectColumns1 t bs)) (header t) :=
+λ t bs => List.sublist_of_map_sublist _ _ Prod.fst $ List.sieve_sublist bs sch
 
 -- Helper for `selectColumns1_spec2`
 theorem ncols_eq_header_length :
@@ -306,20 +307,20 @@ theorem selectColumns1_spec2 :
   ∀ (hs : Schema.Unique sch) (t : Table sch) (bs : List Bool)
     (h : bs.length = ncols t) (i : Nat) (hlt : i < ncols t),
   (header t).get ⟨i, ncols_eq_header_length t ▸ hlt⟩
-    ∈ header (selectColumns1 t bs h)
+    ∈ header (selectColumns1 t bs)
   ↔ bs.get ⟨i, h ▸ hlt⟩ = true :=
 λ hu t bs h i hlt =>
   List.sieve_map_mem_iff_true_unique hlt (h.symm ▸ hlt) Prod.fst hu
 
 theorem selectColumns1_spec3 :
-  ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t),
-    List.Sublist (schema (selectColumns1 t bs h)) (schema t) :=
-λ t bs h => List.sieve_sublist _ _
+  ∀ (t : Table sch) (bs : List Bool),
+    List.Sublist (schema (selectColumns1 t bs)) (schema t) :=
+λ t bs => List.sieve_sublist _ _
 
 theorem selectColumns1_spec4 :
-  ∀ (t : Table sch) (bs : List Bool) (h : bs.length = ncols t),
-    nrows (selectColumns1 t bs h) = nrows t :=
-λ t bs h => List.length_map _ _
+  ∀ (t : Table sch) (bs : List Bool),
+    nrows (selectColumns1 t bs) = nrows t :=
+λ t bs => List.length_map _ _
 
 theorem selectColumns2_spec1 :
   ∀ (t : Table sch) (ns : List (Fin (ncols t))),
@@ -402,7 +403,6 @@ by intros t z h
 
 -- TODO: changed slightly from B2T2 b/c casting is a pain (should this be redone
 -- to match the spec exactly?)
-#check List.drop
 theorem head_spec3 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
   z.val < 0 → nrows (head t z) = nrows t - z.val.abs := by
   intros t z h
@@ -428,23 +428,22 @@ theorem distinct_spec : ∀ (t : Table sch) [DecidableEq $ Row sch],
   schema (distinct t) = schema t :=
 λ t => rfl
 
-theorem dropColumn_spec1 : ∀ (t : Table sch) (c : CertifiedName sch),
-  nrows (dropColumn t c) = nrows t :=
-λ t c => List.length_map _ _
+theorem dropColumn_spec1 : ∀ (t : Table sch) (c : η) (hc : sch.HasName c),
+  nrows (dropColumn t c hc) = nrows t :=
+λ _ _ _ => List.length_map _ _
 
 -- dC spec 2 is not currently true because of duplicate issues. This is the best
 -- approximation we can get instead:
-theorem dropColumn_spec2 : ∀ (t : Table sch) (c : CertifiedName sch),
-  header (dropColumn t c) = Schema.names (sch.removeName c.2) :=
-λ t c => rfl
+theorem dropColumn_spec2 : ∀ (t : Table sch) (c : η) (hc : sch.HasName c),
+  header (dropColumn t c hc) = Schema.names (sch.removeName hc) :=
+λ _ _ _ => rfl
 
 theorem dropColumn_spec2_unique :
-  ∀ (hsch : sch.Unique) (t : Table sch) (c : CertifiedName sch),
-  header (dropColumn t c) = List.removeAllEq (header t) [c.1] := by
-  intro hsch t c
+  ∀ (hsch : sch.Unique) (t : Table sch) (c : η) (hc : sch.HasName c),
+  header (dropColumn t c hc) = List.removeAllEq (header t) [c] := by
+  intro hsch t c hc
   simp only [List.removeAllEq, header]
   unfold Schema.Unique at hsch
-  cases c with | mk c hc =>
   induction hc with
   | @hd nm s' τ =>
     simp only [List.filter, List.notElem, List.elem]
@@ -481,9 +480,9 @@ theorem dropColumn_spec2_unique :
         . exact Table.mk []
       . exact hneq
 
-theorem dropColumn_spec3 : ∀ (t : Table sch) (c : CertifiedName sch),
-  List.Sublist (schema (dropColumn t c)) (schema t) :=
-λ _ c => Schema.removeName_sublist sch c.val c.property
+theorem dropColumn_spec3 : ∀ (t : Table sch) (c : η) (hc : sch.HasName c),
+  List.Sublist (schema (dropColumn t c hc)) (schema t) :=
+λ _ c hc => Schema.removeName_sublist sch c hc
 
 theorem dropColumns_spec1 :
   ∀ (t : Table sch) (cs : ActionList Schema.removeCertifiedName sch),
@@ -508,17 +507,19 @@ theorem tfilter_spec2 : ∀ (t : Table sch) (f : Row sch → Bool),
 
 theorem tsort_spec1 : ∀ {τ : Type u} [inst : Ord τ]
                         (t : Table sch)
-                        (c : ((c : η) × sch.HasCol (c, τ)))
-                        (b : Bool),
-  nrows (tsort t c b) = nrows t :=
-λ t c b => List.length_mergeSortWith _ t.rows
+                        (b : Bool)
+                        (c : η)
+                        (hc : sch.HasCol (c, τ)),
+  nrows (tsort t c b hc) = nrows t :=
+λ t c b hc => List.length_mergeSortWith _ t.rows
 
-theorem tsort_spec2 : ∀ {τ : Type u} [Ord τ]
+theorem tsort_spec2 : ∀ {τ : Type u} [inst : Ord τ]
                         (t : Table sch)
-                        (c : ((c : η) × sch.HasCol (c, τ)))
-                        (b : Bool),
-  schema (tsort t c b) = schema t :=
-λ t c b => rfl
+                        (b : Bool)
+                        (c : η)
+                        (hc : sch.HasCol (c, τ)),
+  schema (tsort t c b hc) = schema t :=
+λ t c b hc => rfl
 
 theorem sortByColumns_spec1 :
   ∀ (t : Table sch) (hs : List ((h : Header) × sch.HasCol h × Ord h.snd)),
@@ -553,25 +554,25 @@ theorem orderBy_spec3 :
 
 theorem count_spec1 :
   ∀ {τ} [DecidableEq τ]
-    (t : Table sch) (c : ((c : η) × sch.HasCol (c, τ))),
-    header (count t c) = ["value", "count"] :=
-λ t c => rfl
+    (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+    header (count t c hc) = ["value", "count"] :=
+λ t c hc => rfl
 
 -- This can't yet be in tactic mode because the `induction` tactic doesn't
 -- support `(nm, τ)` as an index
 theorem count_spec2 :
   ∀ {sch : @Schema η} {τ} [DecidableEq τ]
-    (t : Table sch) (c : ((c : η) × sch.HasCol (c, τ))),
-  (schema (count t c)).lookupType ⟨"value", Schema.HasName.hd⟩ =
-  sch.lookupType ⟨c.1, Schema.colImpliesName c.2⟩
-| _ :: _, _, _, t, ⟨_, Schema.HasCol.hd⟩ => rfl
+    (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  (schema (count t c hc)).lookupType ⟨"value", Schema.HasName.hd⟩ =
+  sch.lookupType ⟨c, Schema.colImpliesName hc⟩
+| _ :: _, _, _, t, _, Schema.HasCol.hd => rfl
   -- As with prior proofs, the table in the IH doesn't matter
-| _ :: _, τ, _, t, ⟨nm, Schema.HasCol.tl h⟩ => count_spec2 (Table.mk []) ⟨nm, h⟩
+| _ :: _, τ, _, t, nm, Schema.HasCol.tl h => count_spec2 (Table.mk []) nm h
 
 theorem count_spec3 {τ} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  (schema (count t c)).lookupType ⟨"count", .tl .hd⟩ = Nat :=
-λ _ _ => rfl
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  (schema (count t c hc)).lookupType ⟨"count", .tl .hd⟩ = Nat :=
+λ _ _ _ => rfl
 
 -- Helper lemma for `count_spec4`
 theorem length_count_pairsToRow : ∀ (xs : List (Option τ × Nat)),
@@ -580,31 +581,38 @@ theorem length_count_pairsToRow : ∀ (xs : List (Option τ × Nat)),
 | x :: xs => congrArg (·+1) (length_count_pairsToRow xs)
 
 theorem count_spec4 {τ} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  nrows (count t c) = (getColumn2 t c.1 c.2).unique.length :=
-λ t c => Eq.trans (length_count_pairsToRow _) (List.length_counts _)
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  nrows (count t c hc) = (getColumn2 t c hc).unique.length :=
+λ t c hc => Eq.trans (length_count_pairsToRow _) (List.length_counts _)
 
 theorem bin_spec1 [ToString η] :
   ∀ (t : Table sch)
-    (c : (c : η) × Schema.HasCol (c, Nat) sch)
-    (n : { n // n > 0 }),
-    header (bin t c n) = ["group", "count"] :=
-λ _ _ _ => rfl
+    (c : η)
+    (n : Nat)
+    (hc : Schema.HasCol (c, Nat) sch)
+    (hn : n > 0),
+    header (bin t c n hc hn) = ["group", "count"] :=
+λ _ _ _ _ _ => rfl
 
 theorem bin_spec2 [ToString η] :
   ∀ (t : Table sch)
-    (c : (c : η) × Schema.HasCol (c, Nat) sch)
-    (n : { n // n > 0 }),
-    (schema (bin t c n)).lookupType ⟨"group", Schema.HasName.hd⟩ = String :=
-λ _ _ _ => rfl
+    (c : η)
+    (n : Nat)
+    (hc : Schema.HasCol (c, Nat) sch)
+    (hn : n > 0),
+    (schema (bin t c n hc hn)).lookupType ⟨"group", Schema.HasName.hd⟩
+      = String :=
+λ _ _ _ _ _ => rfl
 
 theorem bin_spec3 [ToString η] :
   ∀ (t : Table sch)
-    (c : (c : η) × Schema.HasCol (c, Nat) sch)
-    (n : { n // n > 0 }),
-    (schema (bin t c n)).lookupType
+    (c : η)
+    (n : Nat)
+    (hc : Schema.HasCol (c, Nat) sch)
+    (hn : n > 0),
+    (schema (bin t c n hc hn)).lookupType
       ⟨"count", Schema.HasName.tl Schema.HasName.hd⟩ = Nat :=
-λ _ _ _ => rfl
+λ _ _ _ _ _ => rfl
 
 -- Spec 1 is enforced by types
 theorem pivotTable_spec2 :
@@ -686,26 +694,28 @@ by intros t key proj agg
    simp only
 
 theorem completeCases_spec {τ : Type u} :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  (completeCases t c).length = nrows t :=
-λ t c => Eq.trans (List.length_map _ _) (List.length_map _ _)
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  (completeCases t c hc).length = nrows t :=
+λ t c hc => Eq.trans (List.length_map _ _) (List.length_map _ _)
 
 theorem dropna_spec : ∀ (t : Table sch), schema (dropna t) = schema t :=
 λ t => rfl
 
 theorem fillna_spec1 {τ : Type u} :
   ∀ (t : Table sch)
-    (c : (c : η) × sch.HasCol (c, τ))
-    (v : τ),
-    schema (fillna t c v) = schema t :=
-λ _ _ _ => rfl
+    (c : η)
+    (v : τ)
+    (hc : sch.HasCol (c, τ)),
+    schema (fillna t c v hc) = schema t :=
+λ _ _ _ _ => rfl
 
 theorem fillna_spec2 {τ : Type u} :
   ∀ (t : Table sch)
-    (c : (c : η) × sch.HasCol (c, τ))
-    (v : τ),
-    nrows (fillna t c v) = nrows t :=
-λ _ _ _ => List.length_map _ _
+    (c : η)
+    (v : τ)
+    (hc : sch.HasCol (c, τ)),
+    nrows (fillna t c v hc) = nrows t :=
+λ _ _ _ _ => List.length_map _ _
 
 -- TODO: `pivotLonger`
 -- Spec 1 may not hold because of uniqueness issues?
@@ -738,9 +748,8 @@ theorem flatten_spec1 :
   intros t cs
   simp only [flatten, header, Schema.names]
   induction cs with
-  | nil => simp only [Schema.flattenLists]
+  | nil => rfl
   | cons c cs ih =>
-    simp only [Schema.flattenLists]
     rw [ih]
     simp only [Schema.flattenList]
     apply Schema.retypeColumn_preserves_names
@@ -763,22 +772,25 @@ theorem transformColumn_spec1 {τ₁ τ₂} :
 
 theorem transformColumn_spec2 {τ₁ τ₂} :
   ∀ (t : Table sch)
-    (c : (c : η) × sch.HasCol (c, τ₁))
-    (f : Option τ₁ → Option τ₂),
-  header (transformColumn t c f) = header t :=
-λ t c f => sch.retypeColumn_preserves_names _ _
+    (c : η)
+    (f : Option τ₁ → Option τ₂)
+    (hc : sch.HasCol (c, τ₁)),
+  header (transformColumn t c f hc) = header t :=
+λ t c f hc => sch.retypeColumn_preserves_names _ _
 
 -- Closest approximation given uniqueness issues
 -- The first bullet point in the written spec is ensured by the type
 theorem transformColumn_spec3 : ∀ {sch} {τ₁ τ₂}
     (t : Table sch)
-    (c : (c : η) × sch.HasCol (c, τ₁))
-    (f : Option τ₁ → Option τ₂),
-  (schema $ transformColumn t c f).removeHeader (Schema.hasRetypedCol c) =
-    sch.removeHeader c.2
-| _, _, _, t, ⟨_, .hd⟩, f => rfl
-| _, _, _, t, ⟨nm, .tl htl⟩, f =>
-  have ih := transformColumn_spec3 (Table.mk []) ⟨nm, htl⟩ f
+    (c : η)
+    (f : Option τ₁ → Option τ₂)
+    (hc : sch.HasCol (c, τ₁)),
+  (schema $ transformColumn t c f hc).removeHeader
+    (Schema.hasRetypedCol ⟨c, hc⟩)
+  = sch.removeHeader hc
+| _, _, _, t, _, f, .hd => rfl
+| _, _, _, t, nm, f, .tl htl =>
+  have ih := transformColumn_spec3 (Table.mk []) nm f htl
   congrArg _ ih
   /- Tactic mode:
   rename_i τ₁ τ₂ hdr hs
@@ -794,10 +806,11 @@ theorem transformColumn_spec3 : ∀ {sch} {τ₁ τ₂}
 
 theorem transformColumn_spec4 :
   ∀ (t : Table sch)
-    (c : (c : η) × sch.HasCol (c, τ₁))
-    (f : Option τ₁ → Option τ₂),
-  nrows (transformColumn t c f) = nrows t :=
-λ t c f => List.length_map _ _
+    (c : η)
+    (f : Option τ₁ → Option τ₂)
+    (hc : sch.HasCol (c, τ₁)),
+  nrows (transformColumn t c f hc) = nrows t :=
+λ t c f hc => List.length_map _ _
 
 -- TODO: `renameColumns` specs 1 and 2
 
@@ -811,32 +824,34 @@ theorem renameColumns_spec3 :
 -- to "Error," and `Fin` restricts the range of the output)
 
 theorem groupByRetentive_spec1 [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  header (groupByRetentive t c) = ["key", "groups"] :=
-λ _ _ => rfl
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  header (groupByRetentive t c hc) = ["key", "groups"] :=
+λ _ _ _ => rfl
 
 theorem groupByRetentive_spec2
   {η : Type u_η} [DecidableEq η] {sch : @Schema η}
   {τ : Type u} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  (schema (groupByRetentive t c)).lookupType ⟨"key", Schema.HasName.hd⟩
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  (schema (groupByRetentive t c hc)).lookupType ⟨"key", Schema.HasName.hd⟩
     = ULift.{max (u+1) u_η} τ :=
-λ _ _ => rfl
+λ _ _ _ => rfl
 
 theorem groupByRetentive_spec3
   {η : Type u_η} [DecidableEq η] {sch : @Schema η}
   {τ : Type u} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  (schema (groupByRetentive t c)).lookupType ⟨"groups", .tl .hd⟩ = Table sch :=
-λ _ _ => rfl
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+    (schema (groupByRetentive t c hc)).lookupType ⟨"groups", .tl .hd⟩
+    = Table sch :=
+λ _ _ _ => rfl
 
 -- Need decidable equality of `ULift`s for `groupBy{Retentive,Subtractive}`
 deriving instance DecidableEq for ULift
 
 theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  (getColumn2 (groupByRetentive t c) "key" Schema.HasCol.hd).NoDuplicates := by
-  intros t c
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  (getColumn2 (groupByRetentive t c hc) "key" Schema.HasCol.hd).NoDuplicates
+    := by
+  intros t c hc
   simp only [groupByRetentive, groupBy, getColumn2]
   rw [List.map_map]
   -- FIXME: trying to unfold `Row.getCell` causes Lean to throw an assertion
@@ -872,53 +887,53 @@ theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
 theorem groupByRetentive_spec5
   {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
   {sch : @Schema η} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  ∀ t', t' ∈ (getColumn2 (groupByRetentive t c) "groups" (.tl .hd)).somes →
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  ∀ t', t' ∈ (getColumn2 (groupByRetentive t c hc) "groups" (.tl .hd)).somes →
   schema t' = sch :=
-λ _ _ _ _ => rfl
+λ _ _ _ _ _ => rfl
 
 theorem groupByRetentive_spec6
   {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
   {sch : @Schema η} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  nrows (groupByRetentive t c) = (getColumn2 t c.1 c.2).unique.length :=
-λ t c =>
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  nrows (groupByRetentive t c hc) = (getColumn2 t c hc).unique.length :=
+λ t c hc =>
   groupBy_spec4 (sch' := [("key", ULift.{max (u+1) u_η} τ),
                           ("groups", Table sch)])
     t
-    (λ r => getValue r c.1 c.2)
+    (λ r => getValue r c hc)
     (λ r => r)
     (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k))
                         (Row.cons (Cell.val (Table.mk vs)) Row.nil))
 
 theorem groupBySubtractive_spec1 [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  header (groupBySubtractive t c) = ["key", "groups"] :=
-λ _ _ => rfl
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  header (groupBySubtractive t c hc) = ["key", "groups"] :=
+λ _ _ _ => rfl
 
 theorem groupBySubtractive_spec2
   {η : Type u_η} [DecidableEq η] {sch : @Schema η}
   {τ : Type u} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  (schema (groupBySubtractive t c)).lookupType ⟨"key", Schema.HasName.hd⟩
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  (schema (groupBySubtractive t c hc)).lookupType ⟨"key", Schema.HasName.hd⟩
     = ULift.{max (u+1) u_η} τ :=
-λ _ _ => rfl
+λ _ _ _ => rfl
 
 theorem groupBySubtractive_spec3
   {η : Type u_η} [DecidableEq η] {sch : @Schema η}
   {τ : Type u} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  (schema (groupBySubtractive t c)).lookupType ⟨"groups", .tl .hd⟩ =
-  Table (sch.removeName (Schema.colImpliesName c.snd)) :=
-λ _ _ => rfl
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  (schema (groupBySubtractive t c hc)).lookupType ⟨"groups", .tl .hd⟩ =
+  Table (sch.removeName (Schema.colImpliesName hc)) :=
+λ _ _ _ => rfl
 
 -- TODO: See if there's a way to unify this with `groupByRetentive_spec4` rather
 -- than copy/pasting
 theorem groupBySubtractive_spec4 [inst : DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  (getColumn2 (groupBySubtractive t c) "key" Schema.HasCol.hd).NoDuplicates :=
-  by
-  intros t c
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  (getColumn2 (groupBySubtractive t c hc) "key" Schema.HasCol.hd).NoDuplicates
+  := by
+  intros t c hc
   simp only [groupBySubtractive, groupBy, getColumn2]
   rw [List.map_map]
   -- FIXME: trying to unfold `Row.getCell` causes Lean to throw an assertion
@@ -955,32 +970,32 @@ theorem groupBySubtractive_spec4 [inst : DecidableEq τ] :
 theorem groupBySubtractive_spec5
   {η : Type u_η} [DecidableEq η] {sch : @Schema η}
   {τ : Type u} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  ∀ t', t' ∈ (getColumn2 (groupBySubtractive t c) "groups" (.tl .hd)).somes →
-  header t' = Schema.names (sch.removeName (Schema.colImpliesName c.2)) :=
-λ _ _ _ _ => rfl
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  ∀ t', t' ∈ (getColumn2 (groupBySubtractive t c hc) "groups" (.tl .hd)).somes →
+  header t' = Schema.names (sch.removeName (Schema.colImpliesName hc)) :=
+λ _ _ _ _ _ => rfl
 
 theorem groupBySubtractive_spec6
   {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
   {sch : @Schema η} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  ∀ t', t' ∈ (getColumn2 (groupBySubtractive t c) "groups" (.tl .hd)).somes →
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  ∀ t', t' ∈ (getColumn2 (groupBySubtractive t c hc) "groups" (.tl .hd)).somes →
   List.Sublist (schema t') sch :=
-λ _ c _ _ => Schema.removeName_sublist sch c.1 (Schema.colImpliesName c.2)
+λ _ c hc _ _ => Schema.removeName_sublist sch c (Schema.colImpliesName hc)
 
 theorem groupBySubtractive_spec7
   {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
   {sch : @Schema η} [DecidableEq τ] :
-  ∀ (t : Table sch) (c : (c : η) × sch.HasCol (c, τ)),
-  nrows (groupBySubtractive t c) = (getColumn2 t c.1 c.2).unique.length :=
-λ t c =>
+  ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
+  nrows (groupBySubtractive t c hc) = (getColumn2 t c hc).unique.length :=
+λ t c hc =>
   groupBy_spec4
     t
-    (λ r => getValue r c.1 c.2)
+    (λ r => getValue r c hc)
     (λ r => r)
     (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k))
                         (Row.cons (Cell.val (Table.mk (vs.map (λ r =>
-                          Row.removeColumn (Schema.colImpliesName c.snd) r))))
+                          Row.removeColumn (Schema.colImpliesName hc) r))))
                         Row.nil))
 
 -- `update` spec 1 is enforced by types

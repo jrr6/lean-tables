@@ -32,7 +32,7 @@ Table.mk [
 def hairColor := [some "brown", some "red", some "blonde"]
 #test
 addColumn students "hair-color" hairColor
-=
+=[by inst]
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , "brown"    ],
   /[ "Alice" , 17  , "green"        , "red"      ],
@@ -42,7 +42,7 @@ Table.mk [
 def presentation := [some 9, some 9, some 6]
 #test
 addColumn gradebook "presentation" presentation
-=
+=[by inst]
 Table.mk [
   /[ "Bob"  , 12, 8, 9, 77, 7, 9, 87, 9],
   /[ "Alice", 17, 6, 8, 88, 8, 7, 85, 9],
@@ -51,12 +51,12 @@ Table.mk [
 
 -- `buildColumn`
 def isTeenagerBuilder := λ (r : Row $ schema students) =>
-  match getValue r "age" (by header) with
+  match getValue r "age" with
   | some age => some (12 < age && age < 20)
   | _ => some false
 #test
 buildColumn students "is-teenager" isTeenagerBuilder
-=
+=[by inst]
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , false       ],
   /[ "Alice" , 17  , "green"        , true        ],
@@ -64,12 +64,12 @@ Table.mk [
 ]
 
 def didWellOnFinal : Row (schema gradebook) → Option Bool := λ r =>
-  match getValue r "final" (by header) with
+  match getValue r "final" with
   | some score => some $ 85 <= score
   | _ => some false
 #test
 buildColumn gradebook "did-well-on-final" didWellOnFinal
-=
+=[by inst]
 Table.mk [
   /[ "Bob"  , 12, 8, 9, 77, 7, 9, 87, true ],
   /[ "Alice", 17, 6, 8, 88, 8, 7, 85, true ],
@@ -80,14 +80,15 @@ Table.mk [
 def increaseAge := λ (r : Row $ schema students) =>
   ((
     Row.cons
-      (Cell.fromOption $ (getValue r "age" (by header)).map (λ x => x + 1))
+      (Cell.fromOption $ (getValue r "age").map (λ x => x + 1))
       Row.nil
   )
   : Row [("age", Nat)])
 
+-- TODO: remove :)
 #test
-vcat students (update [⟨("age", Nat), by header⟩] students increaseAge)
-=
+vcat students (update [⟨("age", Nat), by name⟩] students increaseAge :)
+=[by inst]
 Table.mk [
   /[ "Bob"   , 12  , "blue"         ],
   /[ "Alice" , 17  , "green"        ],
@@ -100,16 +101,16 @@ Table.mk [
 def curveMidtermAndFinal := λ (r : Row $ schema gradebook) =>
   let curve := λ | some n => some (n + 5)
                  | _ => none
-  let midterm := getValue r "midterm" (by header)
-  let final := getValue r "final" (by header)
+  let midterm := getValue r "midterm"
+  let final := getValue r "final"
   (Row.cons (Cell.fromOption $ curve midterm) $
      Row.cons (Cell.fromOption $ curve final) Row.nil
    : Row [("midterm", Nat), ("final", Nat)])
 
 #test
-vcat gradebook (update [⟨("midterm", Nat), by header⟩,
-                        ⟨("final", Nat), by header⟩] gradebook
-                                                     curveMidtermAndFinal)
+vcat gradebook (update [⟨("midterm", Nat), by name⟩,
+                        ⟨("final", Nat), by name⟩] gradebook
+                                                     curveMidtermAndFinal :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -134,7 +135,7 @@ Table.mk [
 
 #test
 hcat (dropColumns students A[⟨"name", by name⟩, ⟨"age", by name⟩] :) gradebook
-=
+=[by inst]
 Table.mk [
   /[ "blue"         , "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
   /[ "green"        , "Alice" , 17  , 6     , 8     , 88      , 8     , 7     , 85    ],
@@ -166,7 +167,7 @@ selectRows1
   [⟨0, by decide⟩, ⟨1, by decide⟩]
 #test
 crossJoin students petiteJelly
-=
+=[by inst]
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , true     , false , false ],
   /[ "Bob"   , 12  , "blue"         , true     , false , true  ],
@@ -178,7 +179,7 @@ Table.mk [
 
 #test
 crossJoin emptyTable petiteJelly
-=
+=[by inst]
 Table.mk []
 
 -- `leftJoin`
@@ -240,45 +241,45 @@ header gradebook
 
 -- `getRow`
 #test
-getRow students 0 (by decide)
+getRow students 0
 =
 /["Bob", 12, "blue"]
 
 #test
-getRow gradebook 1 (by decide)
+getRow gradebook 1
 =
 /["Alice", 17, 6, 8, 88, 8, 7, 85]
 
 -- `getValue`
 #test
-getValue /["name" := "Bob", "age" := 12] "name" (by header)
+getValue /["name" := "Bob", "age" := 12] "name"
 =
 some "Bob"
 
 #test
-getValue /["name" := "Bob", "age" := 12] "age" (by header)
+getValue /["name" := "Bob", "age" := 12] "age"
 =
 some 12
 
 -- `getColumn1`
 #test
-getColumn1 students 1 (by decide)
+getColumn1 students 1
 =(List $ Option Nat)
 [some 12, some 17, some 13]
 
 #test
-getColumn1 gradebook 0 (by decide)
+getColumn1 gradebook 0
 =(List $ Option String)
 [some "Bob", some "Alice", some "Eve"]
 
 -- `getColumn2`
 #test
-getColumn2 students "age" (by header)
+getColumn2 students "age"
 =
 [some 12, some 17, some 13]
 
 #test
-getColumn2 gradebook "name" (by header)
+getColumn2 gradebook "name"
 =
 [some "Bob", some "Alice", some "Eve"]
 
@@ -303,7 +304,7 @@ Table.mk [
 
 -- `selectRows2`
 #test
-selectRows2 students [true, false, true] (by decide)
+selectRows2 students [true, false, true]
 =
 Table.mk [
   /[ "Bob" , 12  , "blue"         ],
@@ -311,13 +312,13 @@ Table.mk [
 ]
 
 #test
-selectRows2 gradebook [false, false, true] (by decide)
+selectRows2 gradebook [false, false, true]
 =
 Table.mk [/["Eve", 13, 7, 9, 84, 8, 8, 77]]
 
 -- `selectColumns1`
 #test
-selectColumns1 students [true, true, false] (by decide)
+selectColumns1 students [true, true, false]
 =[by inst]
 Table.mk [
   /[ "Bob"   , 12  ],
@@ -326,7 +327,7 @@ Table.mk [
 ]
 
 #test
-selectColumns1 gradebook [true, false, false, false, true, false, false, true] (by decide)
+selectColumns1 gradebook [true, false, false, false, true, false, false, true]
 =[by inst]
 Table.mk [
   /[ "Bob"   , 77      , 87    ],
@@ -374,12 +375,12 @@ Table.mk [
 
 -- `head`
 #test
-head students ⟨1, by decide⟩
+head students 1
 =
 Table.mk [ /["Bob", 12, "blue"]]
 
 #test
-head students ⟨-2, by decide⟩
+head students (-2)
 =
 Table.mk [ /["Bob", 12, "blue"]]
 
@@ -400,7 +401,7 @@ Table.mk [ /[7], /[8] ]
 
 -- `dropColumn`
 #test
-dropColumn students ⟨"age", by name⟩
+dropColumn students "age"
 =
 Table.mk [
   /[ "Bob"   , "blue"         ],
@@ -411,15 +412,13 @@ Table.mk [
 -- TODO: investigate why providing just the *typing* hint allows *typeclass resolution*
 -- to succeed (???)
 #test
-dropColumn gradebook ⟨"final", by name⟩
+dropColumn gradebook "final"
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     ],
   /[ "Alice" , 17  , 6     , 8     , 88      , 8     , 7     ],
   /[ "Eve"   , 13  , 7     , 9     , 84      , 8     , 8     ]
 ]
-
-#synth DecidableEq (Table (Schema.removeName [("a", Nat), ("b", Nat)] .hd))
 
 -- `dropColumns`
 #test
@@ -442,7 +441,7 @@ Table.mk [
 
 -- `tfilter`
 def ageUnderFifteen : (Row $ schema students) → Bool := λ r =>
-  match getValue r "age" (by header) with
+  match getValue r "age" with
   | some a => a < 15
   | _ => false
 
@@ -455,7 +454,7 @@ Table.mk [
 ]
 
 def nameLongerThan3Letters : (Row $ schema gradebook) → Bool := λ r =>
-  match getValue r "name" (by header) with
+  match getValue r "name" with
   | some name => String.length name > 3
   | _ => false
 
@@ -466,7 +465,7 @@ Table.mk [/["Alice", 17, 6, 8, 88, 8, 7, 85]]
 
 -- `tsort`
 #test
-tsort students ⟨"age", by header⟩ true
+tsort students "age" true
 =
 Table.mk [
   /[ "Bob"   , 12  , "blue"         ],
@@ -475,7 +474,7 @@ Table.mk [
 ]
 
 #test
-tsort gradebook ⟨"final", by header⟩ false
+tsort gradebook "final" false
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -505,7 +504,7 @@ Table.mk [
 
 -- `orderBy`
 def nameLengthOB (r : Row $ schema students) :=
-  match getValue r "name" (by header) with
+  match getValue r "name" with
   | some s => String.length s
   | _ => 0
 
@@ -523,7 +522,7 @@ Table.mk [
 def geOB := (λ (a : Nat) b => decide $ a ≥ b)
 
 def nameLengthOB' (r : Row $ schema gradebook) :=
-  match getValue r "name" (by header) with
+  match getValue r "name" with
   | some s => String.length s
   | _ => 0
 
@@ -531,7 +530,7 @@ def averageOB (xs : List $ Option Nat) :=
   List.foldl (λ acc => λ | none => acc | some x => x + acc) 0 xs / xs.length
 
 def midtermAndFinalOB (r : Row $ schema gradebook) : List $ Option Nat :=
-  [getValue r "midterm" (by header), getValue r "final" (by header)]
+  [getValue r "midterm", getValue r "final"]
 
 def compareGradeOB (g1 : List $ Option Nat) (g2 : List $ Option Nat) :=
   leOB (averageOB g1) (averageOB g2)
@@ -547,26 +546,26 @@ Table.mk [
 
 -- `count`
 #test
-count students ⟨"favorite color", by header⟩
+count students "favorite color"
 =
 Table.mk [
-  /[ some "blue"  , 1     ],
-  /[ some "green" , 1     ],
-  /[ some "red"   , 1     ]
+  /[ "blue"  , 1     ],
+  /[ "green" , 1     ],
+  /[ "red"   , 1     ]
 ]
 
 #test
-count gradebook ⟨"age", by header⟩
+count gradebook "age"
 =
 Table.mk [
-  /[ some 12    , 1     ],
-  /[ some 17    , 1     ],
-  /[ some 13    , 1     ]
+  /[ 12    , 1     ],
+  /[ 17    , 1     ],
+  /[ 13    , 1     ]
 ]
 
 -- `bin`
 #test
-bin students ⟨"age", by header⟩ ⟨5, by decide⟩
+bin students "age" 5
 =
 Table.mk [
   /[ "10 <= age < 15" , 2     ],
@@ -575,7 +574,7 @@ Table.mk [
 
 -- TODO: tell B2T2 that there's a typo in this test ("final," not "age")
 #test
-bin gradebook ⟨"final", by header⟩ ⟨5, by decide⟩
+bin gradebook "final" 5
 =
 Table.mk [
   /[ "75 <= final < 80" , 1     ],
@@ -602,7 +601,7 @@ Table.mk [
 def proportion (bs : List $ Option Bool) : Option Nat := some $
   (100 * (bs.filter (λ | some true => true | _ => false)).length) / bs.length
 
--- TODO: does order matter?
+-- KC says order doesn't matter, so okay that we disagree w/ B2T2
 #test
 (
 pivotTable
@@ -614,10 +613,10 @@ pivotTable
 :)
 =[by inst]
 Table.mk [
-  /[ false    , false , 0              , 75              ],
-  /[ false    , true  , 100            , 100             ],
   /[ true     , false , 0              , 25              ],
-  /[ true     , true  , 0              , 0               ]
+  /[ false    , false , 0              , 75              ],
+  /[ true     , true  , 0              , 0               ],
+  /[ false    , true  , 100            , 100             ]
 ]
 
 -- `groupBy`
@@ -637,11 +636,7 @@ def average (xs : List Nat) := List.foldl (·+·) 0 xs / xs.length
 def aggregate := λ (k : String) vs =>
 /["key" := k, "average" := average vs]
 
--- TODO: Need to double-check, but this seems to me like the correct output --
--- the first row matches "cool," so order preservation would tell us that this
--- order (and not the reversed order in the B2T2 docs) is most reasonable
--- (B2T2 TS is using unordered maps in the implementation of `groupBy`, which is
--- probably why its order is different)
+-- Verified with KC that B2T2 doesn't care about the order here
 #test
 groupBy students colorTemp nameLength aggregate
 =
@@ -674,12 +669,12 @@ Table.mk [
 
 -- `completeCases`
 #test
-completeCases students ⟨"age", by header⟩
+completeCases students "age"
 =
 [true, true, true]
 
 #test
-completeCases studentsMissing ⟨"age", by header⟩
+completeCases studentsMissing "age"
 =
 [false, true, true]
 
@@ -696,7 +691,7 @@ Table.mk [/["Bob", 12, 8, 9, 77, 7, 9, 87]]
 
 -- `fillna`
 #test
-fillna studentsMissing ⟨"favorite color", by header⟩ "white"
+fillna studentsMissing "favorite color" "white"
 =
 Table.mk [
   /[ "Bob"   , EMP, "blue"],
@@ -705,7 +700,7 @@ Table.mk [
 ]
 
 #test
-fillna gradebookMissing ⟨"quiz1", by header⟩ 0
+fillna gradebookMissing "quiz1" 0
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -759,12 +754,14 @@ Table.mk [
 ]
 
 -- TODO: `pivotWider` is having problems
+-- The decidability type-class instance it needs as an arg (to `pivotWider`
+-- itself) isn't being synthesized
 
 #synth DecidableEq (Row [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
 #eval pivotWider students ⟨"name", .hd⟩ ⟨("age", Nat), .hd⟩
   (inst := (inferInstance : DecidableEq (Row [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])))
 
-#test (pivotWider students ⟨"name", .hd⟩ ⟨("age", Nat), .hd⟩ :)
+#test (pivotWider students "name" "age" :)
 =(Table [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
 Table.mk [
   /["blue", 12, EMP, EMP],
@@ -827,7 +824,7 @@ instance : DecidableEq
           (Schema.cNameOfCHead
             ⟨("name", String), Schema.HasCol.hd⟩)
           (ActionList.cons (Schema.cNameOfCHead { fst := ("age", Nat), snd := Schema.HasCol.hd }) ActionList.nil)))) := by inst
-#eval pivotWider students ⟨"name", .hd⟩ ⟨("age", Nat), .hd⟩
+#eval pivotWider students "name" "age"
 
 -- `flatten`
 #test
@@ -900,7 +897,7 @@ Table.mk [
 def addLastName := Option.map (· ++ " Smith")
 
 #test
-(transformColumn students ⟨"name", by header⟩ addLastName :)
+(transformColumn students "name" addLastName :)
 =(Table [("name", String), ("age", Nat), ("favorite color", String)])
 Table.mk [
   /[ "Bob Smith"   , 12  , "blue"         ],
@@ -914,7 +911,7 @@ def quizScoreToPassFail := Option.map (λ n =>
   else "pass")
 
 #test
-(transformColumn gradebook ⟨"quiz1", by header⟩ quizScoreToPassFail :)
+(transformColumn gradebook "quiz1" quizScoreToPassFail :)
 =[by inst]
 Table.mk [
   /[ "Bob"   , 12  , "pass" , 9     , 77      , 7     , 9     , 87    ],
@@ -963,7 +960,7 @@ none
 deriving instance DecidableEq for ULift
 
 #test
-groupByRetentive students ⟨"favorite color", by header⟩
+groupByRetentive students "favorite color"
 =
 Table.mk [
   /[ULift.up "blue" , Table.mk [
@@ -975,7 +972,7 @@ Table.mk [
 ]
 
 #test
-groupByRetentive jellyAnon ⟨"brown", by header⟩
+groupByRetentive jellyAnon "brown"
 =[by inst]
 Table.mk [
   /[ULift.up false, Table.mk [
@@ -999,8 +996,8 @@ Table.mk [
 -- Interestingly, only fails when we have the equality test -- evaluating
 -- `groupBySubtractive` alone works just fine
 #test
-groupBySubtractive students ⟨"favorite color", Schema.HasCol.tl (Schema.HasCol.tl (Schema.HasCol.hd))⟩
-=[by inst]
+(groupBySubtractive students "favorite color" :)
+=
 Table.mk [
   /[ULift.up "blue" , Table.mk [/["Bob"  , 12]]],
   /[ULift.up "green", Table.mk [/["Alice", 17]]],
@@ -1008,9 +1005,7 @@ Table.mk [
 ]
 
 #test
-groupBySubtractive jellyAnon ⟨"brown",
-  Schema.HasCol.tl $ Schema.HasCol.tl $ Schema.HasCol.tl $ Schema.HasCol.tl $
-    Schema.HasCol.tl $ Schema.HasCol.tl $ Schema.HasCol.hd⟩
+(groupBySubtractive jellyAnon "brown" :)
 =[by inst]
 Table.mk [
   /[ULift.up false, Table.mk [
@@ -1072,7 +1067,7 @@ Table.mk [
 #test
 select students (λ (r : Row $ schema students) (n : Fin (nrows students)) =>
   let colorCell : Cell "COLOR" String := Cell.fromOption $ getValue r "favorite color" (by header)
-  let ageCell : Cell "AGE" Nat := Cell.fromOption $ getValue r "age" (by header)
+  let ageCell : Cell "AGE" Nat := Cell.fromOption $ getValue r "age"
   (Row.cons (Cell.val n.val : Cell "ID" Nat) $
   Row.cons colorCell $
   Row.cons ageCell
@@ -1087,9 +1082,9 @@ Table.mk [
 #test
 select gradebook (λ (r : Row $ schema gradebook) (n : Fin (nrows gradebook)) =>
   let nameCell : Cell "full name" String :=
-    Cell.fromOption $ (getValue r "name" (by header)).map (· ++ " Smith")
+    Cell.fromOption $ (getValue r "name").map (· ++ " Smith")
   let mf2 : Cell "(midterm + final) / 2" Nat :=
-    match getValue r "midterm" (by header), getValue r "final" (by header) with
+    match getValue r "midterm", getValue r "final" with
     | some m, some f => Cell.val ((m + f) / 2)
     | _, _ => Cell.emp
   Row.cons nameCell $ Row.cons mf2 Row.nil
@@ -1108,7 +1103,7 @@ selectMany students
 (λ r n =>
   if n.val % 2 == 0
   then Table.mk [r]
-  else head (Table.mk [r]) ⟨0, by decide [Int.abs, nrows]⟩)
+  else head (Table.mk [r]) 0)
 (λ r₁ r₂ => r₂)
 =
 Table.mk [
@@ -1129,8 +1124,7 @@ f r nhn.1
 #test
 selectMany gradebook (decertify repeatRow)
 (λ r₁ r₂ =>
-  Row.cons (Cell.fromOption (nm := "midterm") $
-              getValue r₂ "midterm" (by header))
+  Row.cons (Cell.fromOption (nm := "midterm") $ getValue r₂ "midterm")
   Row.nil)
 =
 Table.mk [
@@ -1143,16 +1137,16 @@ Table.mk [
 ]
 
 -- `groupJoin`
-def getName :=
-λ {schema} (h : schema.HasCol ("name", String)) (r : Row schema) =>
+def getName {schema} (r : Row schema)
+  (h : schema.HasCol ("name", String) := by header) :=
   getValue r "name" h
 
-def averageFinal := λ (r : Row $ schema students) (t : Table $ schema gradebook) =>
+def averageFinal (r : Row $ schema students) (t : Table $ schema gradebook) :=
   r.addColumn "final"
-              (some $ average $ List.filterMap id (getColumn2 t "final" (by header)))
+    (some $ average $ List.filterMap id (getColumn2 t "final"))
 
 #test
-groupJoin students gradebook (getName (by header)) (getName (by header)) averageFinal
+groupJoin students gradebook getName getName averageFinal
 =[by inst]
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 87    ],
@@ -1160,15 +1154,15 @@ Table.mk [
   /[ "Eve"   , 13  , "red"          , 77    ]
 ]
 
-def nameLength' :=
-λ {schema} (h : schema.HasCol ("name", String)) (r : Row schema) =>
+def nameLength' {schema} (r : Row schema)
+  (h : schema.HasCol ("name", String) := by header) :=
   (getValue r "name" h).map String.length
 
 def tableNRows := λ (r : Row $ schema students) (t : Table $ schema gradebook) =>
   Row.addColumn r "nrows" (some $ nrows t)
 
 #test
-groupJoin students gradebook (nameLength' (by header)) (nameLength' (by header)) tableNRows
+groupJoin students gradebook nameLength' nameLength' tableNRows
 =[by inst]
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 2     ],
@@ -1177,15 +1171,15 @@ Table.mk [
 ]
 
 -- `join`
-def getName' :=
-λ {schema} (h : schema.HasCol ("name", String)) (r : Row schema) =>
+def getName' {schema} (r : Row schema)
+  (h : schema.HasCol ("name", String) := by header) :=
   getValue r "name" h
 
 def addGradeColumn := λ (r₁ : Row $ schema students) (r₂ : Row $ schema gradebook) =>
-  Row.addColumn r₁ "grade" (getValue r₂ "final" (by header))
+  Row.addColumn r₁ "grade" (getValue r₂ "final")
 
 #test
-join students gradebook (getName' (by header)) (getName' (by header)) addGradeColumn
+join students gradebook getName' getName' addGradeColumn
 =[by inst]
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 87    ],
@@ -1193,12 +1187,12 @@ Table.mk [
   /[ "Eve"   , 13  , "red"          , 77    ]
 ]
 
-def nameLength'' :=
-λ {schema} (h : schema.HasCol ("name", String)) (r : Row schema) =>
+def nameLength'' {schema} (r : Row schema)
+  (h : schema.HasCol ("name", String) := by header) :=
   (getValue r "name" h).map String.length
 
 #test
-join students gradebook (nameLength'' $ by header) (nameLength'' $ by header) addGradeColumn
+join students gradebook nameLength'' nameLength'' addGradeColumn
 =[by inst]
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 87    ],

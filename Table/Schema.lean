@@ -16,6 +16,12 @@ inductive Schema.HasName {η : Type u_η} : η → @Schema η → Type (max (u +
 | hd {c : η} {rs : Schema} {τ : Type u} : HasName c ((c, τ) :: rs)
 | tl {r c rs} : HasName c rs → HasName c (r::rs)
 
+-- Tactics for generating terms of the above proof types
+macro "header" : tactic =>
+  `(tactic| repeat (first | apply Schema.HasCol.hd | apply Schema.HasCol.tl))
+macro "name" : tactic =>
+  `(tactic| repeat (first | apply Schema.HasName.hd | apply Schema.HasName.tl))
+
 -- Schema-related convenience types
 def Subschema {η : Type u_η} (schm : @Schema η) :=
   List ((h : Header) × schm.HasCol (h.fst, h.snd))
@@ -158,18 +164,18 @@ def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
 def Schema.names {η : Type u_η} (sch : @Schema η) :=
   List.map (@Prod.fst η (Type u)) sch
 
--- This is just `List.append`, but we need it to be reducible, and Lean 4
--- doesn't allow us to modify the reducibility attribute of that function from
--- outside the `List` module
+-- -- This is just `List.append`, but we need it to be reducible, and Lean 4
+-- -- doesn't allow us to modify the reducibility attribute of that function from
+-- -- outside the `List` module
 -- @[reducible]
--- def List.append {η : Type u_η} : @Schema η → @Schema η → @Schema η
+-- def Schema.append {η : Type u_η} : @Schema η → @Schema η → @Schema η
 --   | [], hs' => hs'
 --   | h :: hs, hs' => h :: append hs hs'
 
-theorem List.append_eq_List_append {η : Type u_η} :
-  ∀ (s s' : @Schema η), List.append s s' = List.append s s'
-  | [], hs' => rfl
-  | h :: hs, hs' => congrArg (h :: ·) $ append_eq_List_append hs hs'
+-- theorem Schema.append_eq_List_append {η : Type u_η} :
+--   ∀ (s s' : @Schema η), Schema.append s s' = List.append s s'
+--   | [], hs' => rfl
+--   | h :: hs, hs' => congrArg (h :: ·) $ append_eq_List_append hs hs'
 
 @[reducible]
 def Schema.hasAppendedHead :
@@ -182,6 +188,7 @@ def Schema.hasNameOfAppend : {sch : @Schema η} →
                                  {nm : η} →
                                  {hs : @Schema η} →
                                  sch.HasName nm →
+  -- Schema.HasName nm (Schema.append sch hs)
   Schema.HasName nm (List.append sch hs)
 | _, _, _, Schema.HasName.hd => Schema.HasName.hd
 | _, _, _, Schema.HasName.tl h => Schema.HasName.tl $ hasNameOfAppend h
@@ -503,16 +510,19 @@ def Schema.flattenLists : (schema : @Schema η) →
 | ss, ActionList.nil => ss
 | ss, ActionList.cons c cs => flattenLists (flattenList ss c) cs
 
+@[reducible]
 def Schema.renameColumn {η : Type u_η} [DecidableEq η]
     : {nm : η} → (s : @Schema η) → s.HasName nm → η → @Schema η
 | _, (nm, τ) :: cs, Schema.HasName.hd, nm' => (nm', τ) :: cs
 | _, c :: cs, Schema.HasName.tl h, nm' => c :: renameColumn cs h nm'
 
+@[reducible]
 def Schema.renameColumnCN {η : Type u_η} [DecidableEq η]
                           (s : @Schema η) (entry : CertifiedName s × η)
     : @Schema η :=
   renameColumn s entry.1.2 entry.2
 
+@[reducible]
 def Schema.renameColumns {η : Type u_η} [DecidableEq η]
     : (s : @Schema η) → ActionList renameColumnCN s → @Schema η
 | s, ActionList.nil => s
@@ -545,9 +555,11 @@ by intros s t c h
    induction h with
    | hd =>
      simp only [Schema.hasNameOfAppend, List.append]
+    --  simp only [Schema.hasNameOfAppend]
      rw [Schema.lookup_eq_1, Schema.lookup_eq_1]
    | tl h' ih =>
      simp only [Schema.hasNameOfAppend, List.append]
+    --  simp only [Schema.hasNameOfAppend]
      rw [Schema.lookup_eq_2, Schema.lookup_eq_2]
      exact ih
 

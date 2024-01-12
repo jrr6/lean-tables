@@ -12,13 +12,15 @@ universe u_η
 variable {η : Type u_η} [DecidableEq η] {sch : @Schema η}
 
 -- `dotProduct`
-def dotProduct (t : Table sch) (c1 c2 : ((c : η) × sch.HasCol (c, Nat))) :=
-  let ns := getColumn2 t c1.1 c1.2
-  let ms := getColumn2 t c2.1 c2.2
+def dotProduct (t : Table sch) (c1 : η) (c2 : η)
+               (hc1 : sch.HasCol (c1, Nat) := by header)
+               (hc2 : sch.HasCol (c2, Nat) := by header) :=
+  let ns := getColumn2 t c1 hc1
+  let ms := getColumn2 t c2 hc2
   List.zip ns ms |>.foldl (λ | acc, (.some n, .some m) => acc + n * m
                              | acc, _                  => acc) 0
 
-#test dotProduct gradebook ⟨"quiz1", by header⟩ ⟨"quiz2", by header⟩
+#test dotProduct gradebook "quiz1" "quiz2"
 =
 183
 
@@ -35,7 +37,7 @@ def sampleRows (t : Table sch) (n : Fin (nrows t).succ) : Table sch :=
   let allFins (n : Nat) : List (Fin n) :=
     let rec go : Fin n.succ → List (Fin n)
     | ⟨0, _⟩ => []
-    | v@⟨.succ k, h⟩ =>
+    | ⟨.succ k, h⟩ =>
       ⟨k, Nat.lt_of_succ_lt_succ h⟩ :: go ⟨k, Nat.lt_of_succ_lt h⟩
     go ⟨n, Nat.lt.base n⟩
 
@@ -56,7 +58,7 @@ def sampleRows (t : Table sch) (n : Fin (nrows t).succ) : Table sch :=
       ) ([], allFins (nrows t), 42)
   selectRows1 t indices
 
-#table sampleRows gradebookMissing ⟨2, by repeat constructor⟩
+#table sampleRows gradebookMissing 2
 
 -- `pHackingHomogeneous` and `pHackingHeterogeneous`
 -- TODO: see if there's a more elegant way to handle the types
@@ -187,7 +189,7 @@ def quizAndAverage :=
   )
 
 #test addColumn gradebook "average-quiz"
-        (getColumn2 quizAndAverage "average" (by header))
+        (getColumn2 quizAndAverage "average")
 =[by inst]
 Table.mk [
   /["Bob", 12, 8, 9, 77, 7, 9, 87, 8],

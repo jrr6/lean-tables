@@ -29,7 +29,12 @@ def List.mem_of_memT {x : α} {xs : List α} : List.MemT x xs → List.Mem x xs
 | .hd _ _ => .head _
 | .tl _ h => .tail _ $ mem_of_memT h
 
-infix:65    " <+ " => List.Sublist
+infix:65 " <+ " => List.Sublist
+
+instance (k : Nat) : OfNat (Fin k.succ) n :=
+  if h : n < k.succ
+  then ⟨n, h⟩
+  else ⟨0, Nat.zero_lt_succ k⟩
 
 -- TODO: could solve schema woes...
 -- mutual

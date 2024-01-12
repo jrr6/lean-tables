@@ -1,11 +1,6 @@
 import Table.API
 import Lean
 
--- # Header/Name Tactics
-macro "header" : tactic =>
-  `(tactic| repeat (first | apply Schema.HasCol.hd | apply Schema.HasCol.tl))
-macro "name" : tactic =>
-  `(tactic| repeat (first | apply Schema.HasName.hd | apply Schema.HasName.tl))
 
 -- # Table Notation
 declare_syntax_cat cell
@@ -73,7 +68,7 @@ instance {η nm τ} {xs : @Schema η}
   toString := λ(Row.cons cell d) =>
                 let s := match cell.toOption with
                          | some v => toString v
-                         | none   => "[empty]";
+                         | none   => "{empty}";
                 let s_d := toString d;
                 s ++ (if s_d = "" then "" else "\t|\t" ++ s_d)
 

@@ -31,16 +31,16 @@ def buildColumn {τ} (t : Table schema) (c : η) (f : Row schema → Option τ) 
 def vcat (t1 : Table schema) (t2 : Table schema) : Table schema :=
   {rows := List.append t1.rows t2.rows}
 
-def hcat {schema₁ schema₂}
-               (t1 : @Table η dec_η schema₁) (t2 : @Table η dec_η schema₂) :
-                  @Table η dec_η (List.append schema₁ schema₂) :=
+def hcat {schema₁ schema₂ : @Schema η}
+  (t1 : Table schema₁) (t2 : Table schema₂) :
+  Table (List.append schema₁ schema₂) :=
   {rows := List.map (λ (r1, r2) => Row.append r1 r2) (List.zip t1.rows t2.rows)}
 
-def values (rs : List (Row schema)) : Table schema := {rows := rs}
+def values : List (Row schema) → Table schema := Table.mk
 
-def crossJoin {schema₁ schema₂}
-              (t1 : @Table η dec_η schema₁) (t2 : @Table η dec_η schema₂) :
-                @Table η dec_η (List.append schema₁ schema₂) :=
+def crossJoin {schema₁ schema₂ : @Schema η}
+  (t1 : Table schema₁) (t2 : Table schema₂) :
+  Table (List.append schema₁ schema₂) :=
   {rows := List.map (λ (c1, c2) => Row.append c1 c2)
                     (List.prod t1.rows t2.rows)}
 
@@ -79,58 +79,54 @@ def ncols (t : Table schema) : Nat := List.length schema
 def header (t : Table schema) : List η := Schema.names schema
 
 -- # Access Subcomponents
--- TODO: might be nicer to build the row/column indexing into the Table type
--- itself?
-def getRow : (t : Table schema) → (n : Nat) → (n < nrows t) → Row schema
-| {rows := []}, n, h => absurd h (by
-      intro nh
-      simp [nrows] at nh
-      apply Nat.not_lt_zero _ nh
-    )
-| {rows := r::rs}, 0, h => r
-| {rows := r::rs}, Nat.succ n, h =>
-  getRow {rows := rs} n (Nat.lt_of_succ_lt_succ h)
+def getRow (t : Table schema) (n : Nat) (h : n < nrows t := by decide)
+  : Row schema :=
+  match htr : t.rows, n with
+  | [], n => by
+    simp only [nrows] at h
+    rw [htr] at h
+    simp only [List.length] at h
+    apply False.elim
+    apply Nat.not_lt_zero
+    apply h
+  | r :: _, 0 => r
+  | r :: rs, Nat.succ n =>
+    getRow {rows := rs} n (Nat.lt_of_succ_lt_succ (by
+      simp only [nrows, htr, List.length] at h
+      exact h
+    ))
 
--- TODO: it would be nice not to have to provide a proof...
--- (Also, we now have Schema.lookup -- do we still need the implicit τ arg?
--- Careful if trying to make this change, though -- might, e.g., mess up the η
--- requirement we use in pivotWider to ensure we're getting a valid header!)
 def getValue {τ}
              (r : Row schema)
              (c : η)
-             (h : Schema.HasCol (c, τ) schema)
+             (h : Schema.HasCol (c, τ) schema := by header)
     : Option τ :=
   Cell.toOption (r.getCell h)
 
 def getColumn1 (t : Table schema)
                (n : Nat)
-               (h : n < ncols t)
+               (h : n < ncols t := by decide)
     : List (Option (List.nth schema n h).2) :=
   List.map (λr => Cell.toOption $ Row.nth r n h) t.rows
 
 def getColumn2 {τ}
                (t : Table schema)
                (c : η)
-               (h : Schema.HasCol (c, τ) schema)
+               (h : Schema.HasCol (c, τ) schema := by header)
     : List (Option τ) :=
   List.map (λ r => getValue r c h) t.rows
 
 -- # Subtable
+-- TODO: can we get `autoParam`s in a list?
 def selectRows1 (t : Table schema)
-                      (ns : List (Fin (nrows t))) : Table schema :=
+                (ns : List (Fin (nrows t))) : Table schema :=
   {rows := List.map (λ n => getRow t n.val n.isLt) ns}
 
--- TODO: We don't strictly *need* the proof here ; if we want to be consistent
--- about enforcing preconditions through proof terms (do we‽), we should leave
--- it...
-def selectRows2 (t : Table schema) (bs : List Bool)
-                (h : List.length bs = nrows t)
-    : Table schema :=
+def selectRows2 (t : Table schema) (bs : List Bool) : Table schema :=
   {rows := List.sieve bs t.rows}
 
 def selectColumns1 (t : Table schema)
-                  (bs : List Bool)
-                  (h : List.length bs = ncols t)
+                   (bs : List Bool)
     : Table (List.sieve bs schema) :=
   {rows := t.rows.map (λ r => Row.sieve bs r)}
 
@@ -148,11 +144,11 @@ def selectColumns3 (t : Table schema) (cs : List (CertifiedHeader schema))
 -- TODO: subtype or proof? (should standardize this for other functions, too)
 -- Once again, since drop/take doesn't require it, we don't strictly *need* the
 -- proof...
-def head (t : Table schema) (z : {z : Int // z.abs < nrows t}) : Table schema :=
+def head (t : Table schema) (z : Int) : Table schema :=
   {rows :=
-    if z.val < 0
-    then let n := z.val.abs; t.rows.dropLastN n
-    else let n := z.val.toNat; t.rows.take n
+    if z < 0
+    then let n := z.abs; t.rows.dropLastN n
+    else let n := z.toNat; t.rows.take n
   }
 
 -- TODO: same decidability issues as `find` (not dealing with for now)
@@ -172,9 +168,9 @@ def distinct [DecidableEq (Row schema)] : Table schema → Table schema
 termination_by distinct t => t.rows.length
 
 -- FIXME: same issue as `selectColumn3`
-def dropColumn (t : Table schema) (c : CertifiedName schema)
-    : Table (schema.removeName c.property) :=
-{rows := t.rows.map (Row.removeColumn c.property)}
+def dropColumn (t : Table schema) (c : η) (hc : schema.HasName c := by name)
+    : Table (schema.removeName hc) :=
+{rows := t.rows.map (Row.removeColumn hc)}
 
 def dropColumns (t : Table schema)
                 (cs : ActionList Schema.removeCertifiedName schema)
@@ -188,8 +184,9 @@ def tfilter (t : Table schema) (f : Row schema → Bool) : Table schema :=
 -- TODO: is it worth making an Option Ord typeclass instance?
 def tsort {τ} [Ord τ]
           (t : Table schema)
-          (c : ((c : η) × schema.HasCol (c, τ)))
+          (c : η)
           (asc : Bool)
+          (hc : schema.HasCol (c, τ) := by header)
     : Table schema :=
   let ascDesc
   | false, Ordering.lt => Ordering.gt
@@ -197,8 +194,8 @@ def tsort {τ} [Ord τ]
   | _    , ordering    => ordering
 {rows :=
   t.rows.mergeSortWith (λ r₁ r₂ =>
-    let ov₁ := getValue r₁ c.1 c.2
-    let ov₂ := getValue r₂ c.1 c.2
+    let ov₁ := getValue r₁ c hc
+    let ov₂ := getValue r₂ c hc
     match (ov₁, ov₂) with
     | (none, none) => Ordering.eq
     | (_, none) => ascDesc asc Ordering.gt
@@ -212,7 +209,7 @@ def tsort {τ} [Ord τ]
 def sortByColumns (t : Table schema)
                   (cs : List ((h : Header) × Schema.HasCol h schema × Ord h.2))
     : Table schema :=
-cs.foldr (λ ohdr acc => @tsort _ _ _ _ ohdr.2.2 acc ⟨ohdr.1.1, ohdr.2.1⟩ true) t
+cs.foldr (λ ohdr acc => @tsort _ _ _ _ ohdr.2.2 acc ohdr.1.1 true ohdr.2.1) t
 
 -- TODO: with the flexibility afforded by ADTs, it might be worth modifying this
 -- to allow for a more expressive ordering function
@@ -233,7 +230,8 @@ def orderBy (t : Table schema)
 -- TODO: why does Lean freeze if we specify `τ : Type u`?
 def count {τ} [DecidableEq τ]
           (t : Table schema)
-          (c : ((c : η) × schema.HasCol (c, τ)))
+          (c : η)
+          (hc : schema.HasCol (c, τ) := by header)
     : Table [("value", τ), ("count", Nat)] :=
   let rec pairsToRow :
     List (Option τ × Nat) → List (Row [("value", τ), ("count", Nat)])
@@ -244,7 +242,7 @@ def count {τ} [DecidableEq τ]
       | none => Cell.emp
       | some v => Cell.val v
     Row.cons cell (Row.cons (Cell.val n) Row.nil) :: pairsToRow ps
-  let col := getColumn2 t c.1 c.2
+  let col := getColumn2 t c hc
   {rows := pairsToRow $ col.counts}
 
 -- Once mathlib has been ported, we can find some suitable algebraic structure
@@ -255,10 +253,12 @@ section BinTypeScope
 local notation "BinType" => Nat
 def bin [ToString η]
         (t : Table schema)
-        (c : ((c : η) × schema.HasCol (c, BinType)))
-        (n : {n : Nat // n > 0})
+        (c : η)
+        (n : Nat)
+        (hc : schema.HasCol (c, BinType) := by header)
+        (hn : n > 0 := by decide)
     : Table [("group", String), ("count", Nat)] :=
-  let col := getColumn2 t c.1 c.2
+  let col := getColumn2 t c hc
   let sorted := col |> List.filterMap id  -- get rid of empty cells
                     |> List.mergeSortWith compare
   match sorted with
@@ -280,17 +280,17 @@ def bin [ToString η]
       else (0, y :: ys)
     let (cnt, rest) := countBin (x :: xs)
 
-    have hterm : max - (k + n.val) < max - k :=
+    have hterm : max - (k + n) < max - k :=
     by apply Nat.lt_of_sub_add
        . exact Nat.lt_of_not_ge _ _ h
-       . exact n.property
+       . exact hn
 
-    (k, cnt) :: kthBin (k + n.val) rest
+    (k, cnt) :: kthBin (k + n) rest
   let bins := kthBin (n * (s / n + 1)) (s :: ss)
   {rows := bins.map (λ (k, cnt) =>
     Row.cons (Cell.val $
       toString (k - n) ++ " <= "
-                        ++ toString c.1
+                        ++ toString c
                         ++ " < "
                         ++ toString k)
       (Row.singleValue cnt))}
@@ -300,8 +300,8 @@ end BinTypeScope
 -- # Mising Values
 
 def completeCases {τ} (t : Table schema)
-                  (c : ((c : η) × schema.HasCol (c, τ))) :=
-  List.map (λ v => Option.isSome v) (getColumn2 t c.fst c.snd)
+                  (c : η) (hc : schema.HasCol (c, τ) := by header) :=
+  List.map (λ v => Option.isSome v) (getColumn2 t c hc)
 
 def dropna (t : Table schema) : Table schema :=
   {rows := t.rows.filter (λ r => !r.hasEmpty)}
@@ -363,11 +363,12 @@ termination_by update.updateCells r rs => rs.length
 
 def fillna {τ}
            (t : Table schema)
-           (c : ((c : η) × schema.HasCol (c, τ)))
+           (c : η)
            (v : τ)
+           (hc : schema.HasCol (c, τ) := by header)
     : Table schema :=
-  updateWithoutRetyping [⟨(c.fst, τ), c.snd⟩] t
-    (λ r => match Row.getCell r c.snd with
+  updateWithoutRetyping [⟨(c, τ), hc⟩] t
+    (λ r => match Row.getCell r hc with
                 | Cell.emp => Row.singleValue v
                 | Cell.val vOld => Row.singleValue vOld)
 
@@ -460,7 +461,7 @@ def groupBy_certified {η'} [DecidableEq η']
 `flattenOne` takes a list of row copies and clean-row templates (i.e., a list of
 row list-row tuples) `rss` and applies a flatten for the specified column `c`.
 (That is, each element of `rss` is a copy of the same row with 0 or more prior
-flattenings applied.) It outputs `rss'`, where each elements `rs ∈ rss` is
+flattenings applied.) It outputs `rss'`, wherein each element `rs ∈ rss` is
 mapped to `rs'`, the result of applying a flattening at `c` to each element of
 `rs.1`, i.e., each element of `rs.1` receives a single element from the
 flattening of the `List τ` at `c`, with extra elements inserted if `c` flattens
@@ -485,6 +486,10 @@ def flattenOne {schema : @Schema η} :
   let vals := match r.getCell c.2.2 with
               | Cell.emp => []
               | Cell.val xs => xs
+  /- Takes in the `List` value `vs` in the cell specified by `c`, and the rows
+    `rs` of the table. Outputs the result of flattening `vs` across the head of
+    those rows. (Precondition: `vs` should be the `c` value for the head of
+    `rs`.) E.g., `setVals [1, 2] [/["a", [1, 2]]] = [/["a", 1], /["a", 2]]`. -/
   let rec setVals : List c.2.1 → List (Row schema) →
                     List (Row $ schema.flattenList c)
   | [], [] => []
@@ -494,6 +499,30 @@ def flattenOne {schema : @Schema η} :
 
   (setVals vals (r :: rs), r.retypeCell c.2.2 Cell.emp) :: flattenOne rss c
 termination_by setVals vs rs => vs.length + rs.length
+
+instance : ToString (@Row η dec_η []) where
+  toString := λ_ => ""
+
+instance {η nm τ} {xs : @Schema η}
+         [ToString τ] [DecidableEq η] [ToString (Row xs)]
+    : ToString (Row ((nm, τ) :: xs)) where
+  toString := λ(Row.cons cell d) =>
+                let s := match cell.toOption with
+                         | some v => toString v
+                         | none   => "{empty}";
+                let s_d := toString d;
+                s ++ (if s_d = "" then "" else "\t|\t" ++ s_d)
+
+instance {η} {schema : @Schema η}
+         [ToString η] [DecidableEq η] [inst : ToString (Row schema)]
+    : ToString (Table schema) where
+  toString := λ t =>
+    List.foldr (λ (nm, _) acc =>
+      ToString.toString nm ++
+      (if acc = "" then "" else "\t|\t") ++
+      acc) "" schema
+    ++ "\n"
+    ++ List.foldr (λ r acc => inst.toString r ++ "\n" ++ acc) "" t.rows
 
 -- TODO: could probably rewrite this to use the `selectMany` combinator
 def flatten (t : Table schema) (cs : ActionList Schema.flattenList schema)
@@ -507,6 +536,9 @@ def flatten (t : Table schema) (cs : ActionList Schema.flattenList schema)
   | ActionList.cons c cs, rss => doFlatten cs (flattenOne rss c)
   {rows := List.flatten (doFlatten cs rss)}
 
+#eval flatten (Table.mk [
+  Row.cons (name := "hi") (τ := List Nat) (Cell.val [3]) (Row.cons (name := "bye") (τ := List Nat) (Cell.val [1, 2]) Row.nil),
+  .cons (.val [4,2]) (.cons (.val [3, 7]) .nil)]) (ActionList.cons ⟨_, _, .hd⟩ (.cons ⟨"bye", Nat, .tl .hd⟩ .nil))
 /- Abandoned `selectMany` approach
 #check @Row.retypeCell
 def flatten' {n : Nat}
@@ -553,11 +585,12 @@ END: ongoing flatten work -/
 
 def transformColumn {τ₁ τ₂}
                     (t : Table schema)
-                    (c : ((c : η) × schema.HasCol (c, τ₁)))
+                    (c : η)
                     (f : Option τ₁ → Option τ₂)
-    : Table (schema.retypeColumn (Schema.colImpliesName c.snd) τ₂) :=
+                    (hc : schema.HasCol (c, τ₁) := by header)
+    : Table (schema.retypeColumn (Schema.colImpliesName hc) τ₂) :=
   {rows := t.rows.map (λ (r : Row schema) =>
-    r.retypeCell c.snd (Cell.fromOption (f (getValue r c.fst c.snd)))
+    r.retypeCell hc (Cell.fromOption (f (getValue r c hc)))
   )}
 
 def renameColumns (t : Table schema)
@@ -598,9 +631,10 @@ def find {schema : @Schema η}
 
 def groupByRetentive {τ : Type u} [DecidableEq τ]
                      (t : Table schema)
-                     (c : ((c : η) × schema.HasCol (c, τ)))
+                     (c : η)
+                     (hc : schema.HasCol (c, τ) := by header)
     : Table [("key", ULift.{max (u+1) u_η} τ), ("groups", Table schema)] :=
-groupBy t (λ (r : Row schema) => getValue r c.1 c.2)
+groupBy t (λ (r : Row schema) => getValue r c hc)
           (λ (r : Row schema) => r)
           (λ (k : Option τ) (vs : List (Row schema)) =>
             Row.cons (Cell.fromOption (k.map ULift.up))
@@ -608,15 +642,16 @@ groupBy t (λ (r : Row schema) => getValue r c.1 c.2)
 
 def groupBySubtractive {τ : Type u} [DecidableEq τ]
                        (t : Table schema)
-                       (c : ((c : η) × schema.HasCol (c, τ)))
+                       (c : η)
+                       (hc : schema.HasCol (c, τ) := by header)
     : Table [("key", ULift.{max (u+1) u_η} τ),
              ("groups", Table (schema.removeName
-                                (Schema.colImpliesName c.2)))] :=
-groupBy t (λ r => getValue r c.1 c.2)
+                                (Schema.colImpliesName hc)))] :=
+groupBy t (λ r => getValue r c hc)
           (λ r => r)
           (λ k vs => Row.cons (Cell.fromOption (k.map ULift.up))
                         (Row.cons (Cell.val (Table.mk (vs.map (λ r =>
-                            r.removeColumn (Schema.colImpliesName c.2)))))
+                            r.removeColumn (Schema.colImpliesName hc)))))
                           Row.nil))
 
 def pivotLonger {τ : Type u_η}
@@ -650,35 +685,37 @@ def Schema.hasColOfMemPivotCol {τ : Type u} {t : Table schema} {lblCol : η} {l
            |> List.memT_map_of_memT (λ x => (x, τ))
     Schema.hasColOfMemT hmemT
 
-def pivotWider (t : Table schema)
-               (c1 : (c : η) × Schema.HasCol (c, η) schema)
-               (c2 : CertifiedHeader (schema.removeHeader c1.2))
+def pivotWider {τ} (t : Table schema)
+               (c1 : η)
+               (c2 : η)
+               (hc1 : Schema.HasCol (c1, η) schema := by header)
+               (hc2 : (schema.removeHeader hc1).HasCol (c2, τ) := by header)
                -- This looks ugly, but it should be doable with `inst`
                [inst : DecidableEq $ Row (schema.removeNames
-                  (ActionList.cons (Schema.cNameOfCHead ⟨(c1.fst, η), c1.snd⟩)
-                  (ActionList.cons (Schema.cNameOfCHead c2) ActionList.nil)))]
+                  (ActionList.cons (Schema.cNameOfCHead ⟨(c1, η), hc1⟩)
+                  (ActionList.cons (Schema.cNameOfCHead ⟨(c2, τ), hc2⟩) ActionList.nil)))]
     : Table $
       List.append
-        (schema.removeHeaders $ ActionList.cons ⟨(c1.1, η), c1.2⟩
-                                  (ActionList.cons c2 ActionList.nil))
-        ((getColumn2 t c1.1 c1.2).somes.unique.map (λ x => (x, c2.1.2))) :=
-let gather := (λ r pf => ⟨r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩], (
+        (schema.removeHeaders $ ActionList.cons ⟨(c1, η), hc1⟩
+                                  (ActionList.cons ⟨(c2, τ), hc2⟩ ActionList.nil))
+        ((getColumn2 t c1 hc1).somes.unique.map (λ x => (x, τ))) :=
+let gather := (λ r pf => ⟨r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩], (
     -- Lean infers the wrong mapping function here if you omit this. No idea why
     List.memT_map_of_memT (λ r' =>
-        r'.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
+        r'.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])
       pf
 )⟩)
 groupBy_certified t
   (ν :=
     -- Row (Schema.fromCHeaders [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩])
       -- × (r : Row schema) × (List.MemT r t.rows))
-    ((r : Row (Schema.fromCHeaders [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]))
+    ((r : Row (Schema.fromCHeaders [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]))
       × (List.MemT r (t.rows.map (λ r' =>
-        r'.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]))))
+        r'.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]))))
   )
   (λ r _ => r.removeColumns <|
-    ActionList.cons (Schema.cNameOfCHead ⟨(c1.1, η), c1.2⟩)
-      (ActionList.cons (Schema.cNameOfCHead c2) ActionList.nil))
+    ActionList.cons (Schema.cNameOfCHead ⟨(c1, η), hc1⟩)
+      (ActionList.cons (Schema.cNameOfCHead ⟨(c2, τ), hc2⟩) ActionList.nil))
   gather
   (λ k vs =>
     Row.append k (Row.empty _)
@@ -692,29 +729,29 @@ groupBy_certified t
         match hnmc : nmCell with
           | .val nm =>
             acc.setCell (c := nm) (Schema.hasColOfPrepend (
-              Schema.hasColOfMemPivotCol c1.2 (by
-                rw [getColumn2]
+              Schema.hasColOfMemPivotCol hc1 (by
+                simp only [getColumn2]
                 simp only [getValue]
                 have hsomenm : some nm = Cell.toOption nmCell := hnmc ▸ rfl
                 rw [hsomenm]
                 have hcelleq : nmCell = r.getCell .hd := rfl
                 have hreq : r = rowWithMem.fst := rfl
 
-                have hfeq : (λ (r : Row schema) => r.getCell c1.2) =
-                            (λ (r : Row schema) => Row.getCell (r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]) .hd) := rfl
+                have hfeq : (λ (r : Row schema) => r.getCell hc1) =
+                            (λ (r : Row schema) => Row.getCell (r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) .hd) := rfl
 
-                let hcell : List.MemT nmCell $ List.map (λ r => r.getCell c1.2) t.rows := by
+                let hcell : List.MemT nmCell $ List.map (λ r => r.getCell hc1) t.rows := by
                   rw [hcelleq]
                   rw [hfeq]
-                  have hcomp : (λ (r : Row schema) => Row.getCell (r.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]) .hd) =
-                    (λ (r : Row schema) => (λ r' => Row.getCell r' .hd) ∘ (λ r' => r'.pick [⟨(c1.1, η), c1.2⟩, ⟨c2.1, Schema.removeHeaderPres c2.2⟩]) $ r) := rfl
+                  have hcomp : (λ (r : Row schema) => Row.getCell (r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) .hd) =
+                    (λ (r : Row schema) => (λ r' => Row.getCell r' .hd) ∘ (λ r' => r'.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) $ r) := rfl
                   rw [hcomp, List.map_comp]
-                  apply List.memT_map_of_memT (f := (λ (r : Row (Schema.fromCHeaders [⟨(c1.fst, η), c1.snd⟩, ⟨c2.fst, Schema.removeHeaderPres c2.snd⟩])) =>
+                  apply List.memT_map_of_memT (f := (λ (r : Row (Schema.fromCHeaders [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])) =>
                     Row.getCell r .hd))
                   rw [hreq]
                   exact hr
 
-                have hcomp : (λ r => Cell.toOption (Row.getCell r c1.snd)) = (λ r => (Cell.toOption ∘ (λ r' => Row.getCell r' c1.snd)) r) := rfl
+                have hcomp : (λ r => Cell.toOption (Row.getCell r hc1)) = (λ r => (Cell.toOption ∘ (λ r' => Row.getCell r' hc1)) r) := rfl
                 rw [hcomp, List.map_comp]
                 apply List.memT_map_of_memT
                 apply hcell
