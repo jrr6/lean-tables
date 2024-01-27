@@ -24,6 +24,7 @@ def Schema.map {α β} : (α → β) → List α → List β
   | _, [] => []
   | f, x :: xs => f x :: map f xs
 
+@[simp]
 theorem Schema.map_eq_List_map : @Schema.map = @List.map := by
   funext _ _ _ xs
   induction xs with
@@ -184,3 +185,46 @@ theorem Schema.mem_map_of_HasName : ∀ (sch : @Schema η) (nm : η),
   | tl _ ih =>
     apply List.Mem.tail
     apply ih
+
+
+/- Retype from subschema: `update` -/
+@[reducible]
+def Schema.retypedFromSubschema :
+  ∀ {sch : @Schema η}, RetypedSubschema sch → @Schema η
+| hs, [] => hs
+| hs, ⟨(_, ρ), pf⟩ :: rs =>
+  @retypedFromSubschema (hs.retypeColumn pf ρ)
+    (Schema.map (λ ⟨h, pf⟩ => ⟨h, Schema.hasRetypedName pf⟩) rs)
+termination_by retypedFromSubschema rs => rs.length
+
+@[reducible]
+def Schema.retypedSubschemaHasSchemaName :
+  ∀ {sch : @Schema η} {nm : η} (rs : RetypedSubschema sch),
+  HasName nm sch → HasName nm (Schema.retypedFromSubschema rs)
+| sch, nm, [], hnm => hnm
+| (_, _) :: _, nm, ⟨(_, _), _⟩ :: rs', pf =>
+  retypedSubschemaHasSchemaName (Schema.map _ rs') (Schema.hasRetypedName pf)
+termination_by retypedSubschemaHasSchemaName rs h => rs.length
+
+@[reducible]
+def Schema.retypedFromSubschemaHasNameOfRSToSchema :
+  ∀ {sch : @Schema η} {rs : RetypedSubschema sch} {nm : η},
+  HasName nm rs.toSchema → HasName nm (Schema.retypedFromSubschema rs)
+| [], ⟨_, hrs⟩ :: _, _, _ => nomatch hrs
+| (_, _) :: _, [_], _, .tl h => nomatch h
+| sch, ⟨hdr, hnm⟩ :: rest, nmToFind, hntf =>
+  have hsch := Schema.schemaHasRetypedSubschemaName hntf
+  retypedSubschemaHasSchemaName _ hsch
+
+theorem Schema.retypedFromSubschema_preserves_names :
+  ∀ (sch : @Schema η) (rs : RetypedSubschema sch),
+  Schema.names (Schema.retypedFromSubschema rs) = Schema.names sch
+| ss, [] => rfl
+| (_, _) :: ss, ⟨(nm, τ), pf⟩ :: rs =>
+  by
+    simp only [retypedFromSubschema]
+    have := retypedFromSubschema_preserves_names (Schema.retypeColumn _ pf τ)
+      (Schema.map (fun ⟨h, pf⟩ => ⟨h, hasRetypedName pf⟩) rs)
+    rw [this]
+    simp only [retypeColumn_preserves_names]
+termination_by retypedFromSubschema_preserves_names sch rs => rs.length

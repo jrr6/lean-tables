@@ -158,6 +158,8 @@ values [/["Alice", 12], /["Bob", 13]]
 
 -- `crossJoin`
 #synth OfNat (Fin (ncols $ Table.mk (hs := [("a", Nat)]) [])) 0
+#synth OfNat (Fin (nrows $ Table.mk (hs := [("a", Nat)]) [])) 1
+#synth OfNat (Fin (nrows (selectColumns2 jellyAnon [0, 1, 2]))) 1
 -- FIXME: this is failing because `List.map` (in `List.nths`) isn't reducible
 def petiteJelly :=
 selectRows1

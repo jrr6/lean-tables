@@ -77,6 +77,10 @@ def leftJoin {schema₁ schema₂ : @Schema η}
 @[reducible]
 def nrows (t : Table schema) : Nat := Schema.length t.rows
 
+theorem nrows_eq_List_length (t : Table schema) :
+  nrows t = List.length t.rows :=
+  Schema.length_eq_List_length ▸ rfl
+
 @[reducible]
 def ncols (t : Table schema) : Nat := Schema.length schema
 
@@ -379,7 +383,8 @@ def select {schema' : @Schema η}
            (t : Table schema)
            (f : Row schema → Fin (nrows t) → Row schema')
     : Table schema' :=
-  {rows := t.rows.verifiedEnum.map (λ (n, r) => f r n)}
+  {rows := t.rows.verifiedEnum.map (λ (n, r) =>
+            f r (nrows_eq_List_length t ▸ n))}
 
 def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
                {schema₂ : @Schema ζ} {schema₃ : @Schema θ}
@@ -389,10 +394,16 @@ def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
     : Table schema₃ :=
 {rows :=
   t.rows.verifiedEnum.flatMap (λ (n, r) =>
-    let projection := project r n
+    let projection := project r (nrows_eq_List_length t ▸ n)
+      -- (by
+      -- unfold nrows
+      -- rw [Schema.length_eq_List_length]
+      -- exact n)
     projection.rows.map (λ r' => result r r')
   )
 }
+
+#print selectMany
 
 def groupJoin {κ : Type u_η} [DecidableEq κ]
               {schema₁ schema₂ schema₃ : @Schema η}
@@ -612,7 +623,7 @@ def find {schema : @Schema η}
 | {rows := []}, r => none
 | {rows := r :: rs}, r' =>
   if isSubRow r' r
-  then some ⟨0, Nat.zero_lt_succ rs.length⟩
+  then some ⟨0, Nat.zero_lt_succ (Schema.length rs)⟩
   else (find subschema {rows := rs} r').map (λ n =>
           ⟨n.val + 1, Nat.succ_lt_succ n.isLt⟩)
 

@@ -93,7 +93,7 @@ def Row.sieve {schema} :
 
 def Row.nth {schema} : (rs : @Row η dec_η schema) →
                        (n : Nat) →
-                       (h : n < List.length schema) →
+                       (h : n < Schema.length schema) →
                        let (nm, τ) := Schema.nth schema n h;
                        @Cell η dec_η nm τ
 | Row.nil, _, h => absurd h (by intro nh; cases nh)
@@ -101,7 +101,7 @@ def Row.nth {schema} : (rs : @Row η dec_η schema) →
 | Row.cons r rs, Nat.succ n, h => nth rs n (Nat.le_of_succ_le_succ h)
 
 def Row.nths {schema} :
-    (ns : List (Fin $ List.length schema))
+    (ns : List (Fin $ Schema.length schema))
       → Row schema
       → @Row η dec_η (Schema.nths schema ns)
 | [], Row.nil => Row.nil
@@ -196,9 +196,9 @@ def Row.removeOtherSchemaCols {schema' schema : @Schema η} :
   ∀ {sch : @Schema η} {retNm : η} {τ : Type _} {hretNm : sch.HasName retNm}
     {rs : RetypedSubschema sch},
   Row (RetypedSubschema.toSchema rs) →
-  Row (RetypedSubschema.toSchema (rs.map (λ ⟨h, pf⟩ =>
+  Row (RetypedSubschema.toSchema (Schema.map (λ ⟨h, pf⟩ =>
     ⟨h, Schema.hasRetypedName (retNm := retNm) (τ := τ) (hretNm := hretNm) pf⟩
-  )))
+  ) rs))
 | sch, retNm, τ, pf, [], Row.nil => Row.nil
 | sch, retNm, τ, pf, ⟨(_, _), _⟩ :: _, Row.cons c cs =>
   have hterm : length cs < length (cons c cs) := Nat.lt_succ_self _

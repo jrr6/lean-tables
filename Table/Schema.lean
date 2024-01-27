@@ -362,6 +362,7 @@ def Schema.pick {η : Type u_η} [DecidableEq η] (s : @Schema η)
 | [] => []
 | c::cs => lookup s c :: pick s cs
 
+@[reducible]
 def Schema.retypeColumn {η : Type u_η} [DecidableEq η]
     : {nm : η} → (s : @Schema η) → s.HasName nm → Type u → @Schema η
 | _, (nm, τ) :: cs, Schema.HasName.hd, τ' => (nm, τ') :: cs
@@ -374,6 +375,7 @@ theorem Schema.retypeColumn_preserves_names :
 | s :: ss, nm, HasName.tl h, τ =>
   congrArg (s.1 :: ·) (retypeColumn_preserves_names ss h τ)
 
+@[reducible]
 def Schema.hasRetypedName {τ : Type u} :
   ∀ {retNm nm : η} {sch : @Schema η} {hretNm : sch.HasName retNm}
     (c : sch.HasName nm),
@@ -398,15 +400,6 @@ def RetypedSubschema.toSchema {schm : @Schema η} :
 | ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
 
 @[reducible]
-def Schema.retypedFromSubschema :
-  ∀ {sch : @Schema η}, RetypedSubschema sch → @Schema η
-| hs, [] => hs
-| hs, ⟨(_, ρ), pf⟩ :: rs =>
-  @retypedFromSubschema (hs.retypeColumn pf ρ)
-    (rs.map (λ ⟨h, pf⟩ => ⟨h, Schema.hasRetypedName pf⟩))
-termination_by retypedFromSubschema rs => rs.length
-
-@[reducible]
 def Schema.schemaHasRetypedSubschemaName : {nm : η} →
   {schema : @Schema η} → {rs : RetypedSubschema schema} →
   (h : rs.toSchema.HasName nm) → schema.HasName nm
@@ -417,38 +410,6 @@ def Schema.schemaHasRetypedSubschemaName : {nm : η} →
     rw [Nat.add_comm]
     apply Nat.lt.base;
   schemaHasRetypedSubschemaName h
-
-@[reducible]
-def Schema.retypedSubschemaHasSchemaName :
-  ∀ {sch : @Schema η} {nm : η} (rs : RetypedSubschema sch),
-  HasName nm sch → HasName nm (Schema.retypedFromSubschema rs)
-| sch, nm, [], hnm => hnm
-| (_, _) :: _, nm, ⟨(_, _), _⟩ :: rs', pf =>
-  retypedSubschemaHasSchemaName (List.map _ rs') (Schema.hasRetypedName pf)
-termination_by retypedSubschemaHasSchemaName rs h => rs.length
-
-@[reducible]
-def Schema.retypedFromSubschemaHasNameOfRSToSchema :
-  ∀ {sch : @Schema η} {rs : RetypedSubschema sch} {nm : η},
-  HasName nm rs.toSchema → HasName nm (Schema.retypedFromSubschema rs)
-| [], ⟨_, hrs⟩ :: _, _, _ => nomatch hrs
-| (_, _) :: _, [_], _, .tl h => nomatch h
-| sch, ⟨hdr, hnm⟩ :: rest, nmToFind, hntf =>
-  have hsch := Schema.schemaHasRetypedSubschemaName hntf
-  retypedSubschemaHasSchemaName _ hsch
-
-theorem Schema.retypedFromSubschema_preserves_names :
-  ∀ (sch : @Schema η) (rs : RetypedSubschema sch),
-  Schema.names (Schema.retypedFromSubschema rs) = Schema.names sch
-| ss, [] => rfl
-| (_, _) :: ss, ⟨(nm, τ), pf⟩ :: rs =>
-  by
-    simp only [retypedFromSubschema]
-    have := retypedFromSubschema_preserves_names (Schema.retypeColumn _ pf τ)
-      (List.map (fun ⟨h, pf⟩ => ⟨h, hasRetypedName pf⟩) rs)
-    rw [this]
-    simp only [retypeColumn_preserves_names]
-termination_by retypedFromSubschema_preserves_names sch rs => rs.length
 
 -- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
 def Schema.flattenList (schema : @Schema η)
