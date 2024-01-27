@@ -478,11 +478,15 @@ def flattenOne {schema : @Schema η} :
   -- list of flattened copies of each row × "clean" copy of row for all
   -- columns up to this point
   List (List (Row schema) × Row schema) →
+  -- column to flatten at this iteration
   (c : (c : η) × (τ : Type u_1) × Schema.HasCol (c, List τ) schema) →
+  -- flag indicating whether this is the first col to be flattened (if not, we
+  -- will truncate to the length of the min-length flattened sequence)
+  Bool →
   List (List (Row $ schema.flattenList c) × (Row $ schema.flattenList c))
-| [], c => []
-| ([], _) :: rss, c => flattenOne rss c
-| (r :: rs, cleanR) :: rss, c =>
+| [], c, _ => []
+| ([], _) :: rss, c, isFirst => flattenOne rss c isFirst
+| (r :: rs, cleanR) :: rss, c, isFirst =>
   let vals := match r.getCell c.2.2 with
               | Cell.emp => []
               | Cell.val xs => xs
@@ -492,12 +496,15 @@ def flattenOne {schema : @Schema η} :
     `rs`.) E.g., `setVals [1, 2] [/["a", [1, 2]]] = [/["a", 1], /["a", 2]]`. -/
   let rec setVals : List c.2.1 → List (Row schema) →
                     List (Row $ schema.flattenList c)
-  | [], [] => []
-  | [], r :: rs => (r.retypeCell c.2.2 Cell.emp) :: setVals [] rs
-  | v :: vs, [] => (cleanR.retypeCell c.2.2 (Cell.val v)) :: setVals vs []
+  | [], _ => []
+  | v :: vs, [] =>
+    -- for the first column only, we allow duplication
+    if isFirst
+    then (cleanR.retypeCell c.2.2 (Cell.val v)) :: setVals vs []
+    else []
   | v :: vs, r :: rs => (r.retypeCell c.2.2 (Cell.val v)) :: setVals vs rs
 
-  (setVals vals (r :: rs), r.retypeCell c.2.2 Cell.emp) :: flattenOne rss c
+  (setVals vals (r :: rs), r.retypeCell c.2.2 Cell.emp) :: flattenOne rss c isFirst
 termination_by setVals vs rs => vs.length + rs.length
 
 instance : ToString (@Row η dec_η []) where
@@ -525,16 +532,20 @@ instance {η} {schema : @Schema η}
     ++ List.foldr (λ r acc => inst.toString r ++ "\n" ++ acc) "" t.rows
 
 -- TODO: could probably rewrite this to use the `selectMany` combinator
+-- Note: the number of flattened copies of a given row is equal to the min
+-- length of any sequence in a column specified in cs in that row
 def flatten (t : Table schema) (cs : ActionList Schema.flattenList schema)
   : Table (schema.flattenLists cs) :=
   let rss := t.rows.map (λ r => ([r], r))
   let rec doFlatten {sch : @Schema η} :
     (cs : ActionList Schema.flattenList sch) →
     List (List (Row sch) × Row sch) →
+    Bool →
     List (List (Row $ sch.flattenLists cs))
-  | ActionList.nil, rss => rss.map (λ rs => rs.1)
-  | ActionList.cons c cs, rss => doFlatten cs (flattenOne rss c)
-  {rows := List.flatten (doFlatten cs rss)}
+  | ActionList.nil, rss, _ => rss.map (λ rs => rs.1)
+  | ActionList.cons c cs, rss, isFirst =>
+    doFlatten cs (flattenOne rss c isFirst) false
+  {rows := List.flatten (doFlatten cs rss true)}
 
 #eval flatten (Table.mk [
   Row.cons (name := "hi") (τ := List Nat) (Cell.val [3]) (Row.cons (name := "bye") (τ := List Nat) (Cell.val [1, 2]) Row.nil),
