@@ -88,30 +88,6 @@ def List.prod {α β} : List α → List β → List (α × β)
   prod [x] ys ++ prod (x' :: xs) ys
 termination_by List.prod xs ys => xs.length + ys.length
 
--- TODO: So List.nth *does* still exist in the prelude -- they just changed
--- the name to `List.get`...
-def List.nth {α} : (xs : List α) → (n : Nat) → (n < List.length xs) → α
-| x :: xs, 0, h => x
-| x :: xs, Nat.succ n, h => nth xs n (Nat.le_of_succ_le_succ h)
-
--- TODO: eventually, we need to reconcile `nth` and `get`, but for now...
-theorem List.get_eq_nth : ∀ (xs : List α) (n : Nat) (hn : n < xs.length),
-  xs.nth n hn = xs.get ⟨n, hn⟩
-| x :: xs, 0, h => rfl
-| x :: xs, Nat.succ n, h => get_eq_nth xs n (Nat.le_of_succ_le_succ h)
-
--- TODO: need `map` to be reducible as well -- don't really want to reimplement
--- everything from scratch
-@[reducible]
-def List.nths {α}
-              (xs : List α)
-              (ns : List (Fin (List.length xs))) : List α :=
-  List.map (λ n => List.nth xs n.1 n.2) ns
-
-theorem List.length_nths (xs : List α) (ns : List (Fin xs.length)) :
-  (xs.nths ns).length = ns.length :=
-  List.length_map _ _
-
 def List.dropLastN {α} : Nat → List α → List α :=
   (λ n => reverse ∘ List.drop n ∘ reverse)
 
@@ -2108,44 +2084,3 @@ theorem List.sieve_map_mem_iff_true_unique :
         . apply Nat.lt_of_succ_lt_succ pf1
         . exact hu
         . exact hget
-
--- Lemmas for selectColumns2_spec2
-
-
-theorem List.get_nths_eq_get_get : ∀ (xs : List α) (ns : List (Fin xs.length))
-  (i : Nat) (hi : i < ns.length),
-  List.get (List.nths xs ns) ⟨i, length_nths xs ns ▸ hi⟩ =
-  List.get xs (List.get ns ⟨i, hi⟩)
-| xs, n :: ns, 0, hi => by
-  simp only [nths, map, get]
-  rw [get_eq_nth]
-| xs, n :: ns, .succ i, hi => by
-  simp only [nths, map]
-  rw [get_eq_nth]
-  simp only [get]
-  have ih := get_nths_eq_get_get xs ns i (Nat.le_of_succ_le_succ hi)
-  rw [←ih]
-
-theorem List.get_map :
-  ∀ (f : α → β) (xs : List α) (i : Fin xs.length),
-  f (get xs i) = get (map f xs) ⟨i.val, (length_map xs f).symm.subst i.isLt⟩
-| f, x :: xs, ⟨0, hi⟩ => rfl
-| f, x :: xs, ⟨.succ i, hi⟩ => get_map f xs ⟨i, Nat.lt_of_succ_lt_succ hi⟩
-
-theorem List.get_map_nths_eq_get_get :
-  ∀ (xs : List (α × β)) (ns : List (Fin xs.length)) (i : Nat)
-    (hi : i < ns.length),
-  (List.map Prod.fst (List.nths xs ns)).get ⟨i,
-    length_map (nths xs ns) Prod.fst ▸ length_nths xs ns ▸ hi
-  ⟩ =
-  (List.map Prod.fst xs).get ⟨(ns.get ⟨i, hi⟩).val,
-    (List.length_map xs Prod.fst).symm ▸ (get ns ⟨i, hi⟩).isLt
-  ⟩
-| xs, n :: ns, 0, hi => by
-  simp only [nths, map, get]
-  rw [get_eq_nth]
-  rw [get_map Prod.fst]
-| xs, n :: ns, .succ i, hi => by
-  simp only [nths, map, get]
-  have ih := get_map_nths_eq_get_get xs ns i (Nat.lt_of_succ_lt_succ hi)
-  rw [←ih]

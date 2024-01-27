@@ -1,5 +1,6 @@
 import Table.Cell
 import Table.Schema
+import Table.SchemaFunctions
 
 universe u u_η
 
@@ -27,7 +28,7 @@ def Row.empty : (schema : @Schema η) → Row schema
 | _ :: ss => Row.cons Cell.emp (empty ss)
 
 def Row.append {schema₁ schema₂} :
-    @Row η _ schema₁ → Row schema₂ → Row (List.append schema₁ schema₂)
+    @Row η _ schema₁ → Row schema₂ → Row (Schema.append schema₁ schema₂)
 | Row.nil, rs₂ => rs₂
 | Row.cons r₁ rs₁, rs₂ => Row.cons r₁ (append rs₁ rs₂)
 
@@ -58,7 +59,7 @@ def Row.certifiedFoldr {β} : {schema : @Schema η} →
 -- happen to be identical to table operations in their TS implementation
 def Row.addColumn {η} [DecidableEq η] {schema : @Schema η} {τ}
                   (r : Row schema) (c : η) (v : Option τ) :
-    Row (List.append schema [(c, τ)]) :=
+    Row (Schema.append schema [(c, τ)]) :=
 Row.append r (Row.singleCell $ Cell.fromOption v)
 
 -- Not sure if we'll ever need this...
@@ -93,16 +94,16 @@ def Row.sieve {schema} :
 def Row.nth {schema} : (rs : @Row η dec_η schema) →
                        (n : Nat) →
                        (h : n < List.length schema) →
-                       let (nm, τ) := List.nth schema n h;
+                       let (nm, τ) := Schema.nth schema n h;
                        @Cell η dec_η nm τ
 | Row.nil, _, h => absurd h (by intro nh; cases nh)
 | Row.cons r rs, 0, h => r
 | Row.cons r rs, Nat.succ n, h => nth rs n (Nat.le_of_succ_le_succ h)
 
 def Row.nths {schema} :
-    (ns : List (Fin schema.length))
+    (ns : List (Fin $ List.length schema))
       → Row schema
-      → @Row η dec_η (List.nths schema ns)
+      → @Row η dec_η (Schema.nths schema ns)
 | [], Row.nil => Row.nil
 | [], Row.cons x xs => Row.nil
 | n::ns, Row.nil => nomatch n.2

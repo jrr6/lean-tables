@@ -1,6 +1,36 @@
 import Table.API
 import Lean
 
+section
+open Lean Lean.Elab Lean.Elab.Term Lean.Elab.Command Lean.Meta
+syntax (name := headerTacTerm) "byHeader" : term
+
+elab_rules : term
+| `(headerTacTerm| byHeader) => do
+  Lean.Elab.Term.elabByTactic (← `(tactic| header)) none
+
+-- #reduce (byHeader : Schema.HasCol ("hi", Nat) [("hi", Nat)])
+
+-- private def mkInfoTree (elaborator : Name) (stx : Syntax) (trees : Std.PersistentArray InfoTree) : CommandElabM InfoTree := do
+--   let ctx ← read
+--   let s ← get
+--   let scope := s.scopes.head!
+--   let tree := InfoTree.node (Info.ofCommandInfo { elaborator, stx }) trees
+--   return InfoTree.context {
+--     env := s.env, fileMap := ctx.fileMap, mctx := {}, currNamespace := scope.currNamespace,
+--     openDecls := scope.openDecls, options := scope.opts, ngen := s.ngen
+--   } tree
+-- elab_rules : term
+-- | `(byHeader) => do
+--   let (deLean.Elab.liftMacroM <| Lean.Elab.expandMacroImpl? (←Lean.getEnv) (← `(tactic| header))
+--   withInfoTreeContext (mkInfoTree := mkInfoTree decl stx) do
+--             let stxNew ← liftMacroM <| liftExcept stxNew?
+--             withMacroExpansion stx stxNew do
+--               elabCommand stxNew
+-- -- Lean.Elab.expandMacroImpl? (← `(tactic| header)) none --do Lean.Elab.Term.elabLeadingParserMacro (← `(tactic| header)) none
+-- #check Lean.Elab.Command.elabCommand
+-- #reduce (byHeader : Nat)
+-- end
 
 -- # Table Notation
 declare_syntax_cat cell

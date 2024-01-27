@@ -32,7 +32,7 @@ Table.mk [
 def hairColor := [some "brown", some "red", some "blonde"]
 #test
 addColumn students "hair-color" hairColor
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , "brown"    ],
   /[ "Alice" , 17  , "green"        , "red"      ],
@@ -42,7 +42,7 @@ Table.mk [
 def presentation := [some 9, some 9, some 6]
 #test
 addColumn gradebook "presentation" presentation
-=[by inst]
+=
 Table.mk [
   /[ "Bob"  , 12, 8, 9, 77, 7, 9, 87, 9],
   /[ "Alice", 17, 6, 8, 88, 8, 7, 85, 9],
@@ -56,7 +56,7 @@ def isTeenagerBuilder := λ (r : Row $ schema students) =>
   | _ => some false
 #test
 buildColumn students "is-teenager" isTeenagerBuilder
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , false       ],
   /[ "Alice" , 17  , "green"        , true        ],
@@ -69,7 +69,7 @@ def didWellOnFinal : Row (schema gradebook) → Option Bool := λ r =>
   | _ => some false
 #test
 buildColumn gradebook "did-well-on-final" didWellOnFinal
-=[by inst]
+=
 Table.mk [
   /[ "Bob"  , 12, 8, 9, 77, 7, 9, 87, true ],
   /[ "Alice", 17, 6, 8, 88, 8, 7, 85, true ],
@@ -85,10 +85,9 @@ def increaseAge := λ (r : Row $ schema students) =>
   )
   : Row [("age", Nat)])
 
--- TODO: remove :)
 #test
-vcat students (update [⟨("age", Nat), by name⟩] students increaseAge :)
-=[by inst]
+vcat students (update [⟨("age", Nat), by name⟩] students increaseAge)
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         ],
   /[ "Alice" , 17  , "green"        ],
@@ -110,7 +109,7 @@ def curveMidtermAndFinal := λ (r : Row $ schema gradebook) =>
 #test
 vcat gradebook (update [⟨("midterm", Nat), by name⟩,
                         ⟨("final", Nat), by name⟩] gradebook
-                                                     curveMidtermAndFinal :)
+                                                     curveMidtermAndFinal)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -123,10 +122,8 @@ Table.mk [
 
 -- `hcat`
 #test
-hcat students (dropColumns gradebook A[⟨"name", by name⟩, ⟨"age", by name⟩] :)
-=(Table [("name", String), ("age", Nat), ("favorite color", String),
-         ("quiz1", Nat), ("quiz2", Nat), ("midterm", Nat), ("quiz3", Nat),
-         ("quiz4", Nat), ("final", Nat)])
+hcat students (dropColumns gradebook A[⟨"name", by name⟩, ⟨"age", by name⟩])
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 8     , 9     , 77      , 7     , 9     , 87    ],
   /[ "Alice" , 17  , "green"        , 6     , 8     , 88      , 8     , 7     , 85    ],
@@ -134,8 +131,8 @@ Table.mk [
 ]
 
 #test
-hcat (dropColumns students A[⟨"name", by name⟩, ⟨"age", by name⟩] :) gradebook
-=[by inst]
+hcat (dropColumns students A[⟨"name", by name⟩, ⟨"age", by name⟩]) gradebook
+=
 Table.mk [
   /[ "blue"         , "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
   /[ "green"        , "Alice" , 17  , 6     , 8     , 88      , 8     , 7     , 85    ],
@@ -160,14 +157,15 @@ values [/["Alice", 12], /["Bob", 13]]
 ] : Table [("name", String), ("age", Nat)])
 
 -- `crossJoin`
+#synth OfNat (Fin (ncols $ Table.mk (hs := [("a", Nat)]) [])) 0
 -- FIXME: this is failing because `List.map` (in `List.nths`) isn't reducible
 def petiteJelly :=
 selectRows1
-  (selectColumns2 jellyAnon [⟨0, by decide⟩, ⟨1, by decide⟩, ⟨2, by decide⟩])
-  [⟨0, by decide⟩, ⟨1, by decide⟩]
+  (selectColumns2 jellyAnon [0, 1, 2])
+  [0, 1]
 #test
 crossJoin students petiteJelly
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , true     , false , false ],
   /[ "Bob"   , 12  , "blue"         , true     , false , true  ],
@@ -179,18 +177,16 @@ Table.mk [
 
 #test
 crossJoin emptyTable petiteJelly
-=[by inst]
+=
 Table.mk []
 
 -- `leftJoin`
 -- TODO: we need the `header` (and probably `name`) tactic to be able to "see
 -- through" the various Schema ActionList functions like `removeOtherDecCH`
 #test
-(
 leftJoin students gradebook A[⟨("name", _), inferInstance, by header, by header⟩,
                               ⟨("age", _), inferInstance, by simp only [Schema.removeOtherDecCH]; header, by header⟩]
-:)
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 8     , 9     , 77      , 7     , 9     , 87    ],
   /[ "Alice" , 17  , "green"        , 6     , 8     , 88      , 8     , 7     , 85    ],
