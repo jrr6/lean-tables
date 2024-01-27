@@ -507,30 +507,6 @@ def flattenOne {schema : @Schema η} :
   (setVals vals (r :: rs), r.retypeCell c.2.2 Cell.emp) :: flattenOne rss c isFirst
 termination_by setVals vs rs => vs.length + rs.length
 
-instance : ToString (@Row η dec_η []) where
-  toString := λ_ => ""
-
-instance {η nm τ} {xs : @Schema η}
-         [ToString τ] [DecidableEq η] [ToString (Row xs)]
-    : ToString (Row ((nm, τ) :: xs)) where
-  toString := λ(Row.cons cell d) =>
-                let s := match cell.toOption with
-                         | some v => toString v
-                         | none   => "{empty}";
-                let s_d := toString d;
-                s ++ (if s_d = "" then "" else "\t|\t" ++ s_d)
-
-instance {η} {schema : @Schema η}
-         [ToString η] [DecidableEq η] [inst : ToString (Row schema)]
-    : ToString (Table schema) where
-  toString := λ t =>
-    List.foldr (λ (nm, _) acc =>
-      ToString.toString nm ++
-      (if acc = "" then "" else "\t|\t") ++
-      acc) "" schema
-    ++ "\n"
-    ++ List.foldr (λ r acc => inst.toString r ++ "\n" ++ acc) "" t.rows
-
 -- TODO: could probably rewrite this to use the `selectMany` combinator
 -- Note: the number of flattened copies of a given row is equal to the min
 -- length of any sequence in a column specified in cs in that row
@@ -547,9 +523,6 @@ def flatten (t : Table schema) (cs : ActionList Schema.flattenList schema)
     doFlatten cs (flattenOne rss c isFirst) false
   {rows := List.flatten (doFlatten cs rss true)}
 
-#eval flatten (Table.mk [
-  Row.cons (name := "hi") (τ := List Nat) (Cell.val [3]) (Row.cons (name := "bye") (τ := List Nat) (Cell.val [1, 2]) Row.nil),
-  .cons (.val [4,2]) (.cons (.val [3, 7]) .nil)]) (ActionList.cons ⟨_, _, .hd⟩ (.cons ⟨"bye", Nat, .tl .hd⟩ .nil))
 /- Abandoned `selectMany` approach
 #check @Row.retypeCell
 def flatten' {n : Nat}
