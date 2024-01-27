@@ -222,6 +222,12 @@ theorem leftJoin_spec2 {s₁ s₂ : @Schema η} :
 λ _ _ _ _ _ => Schema.lookup_eq_lookup_append _ _ _ _
 
 -- TODO: spec 3
+-- theorem leftJoin_spec3 {s₁ s₂ : @Schema η} :
+--   ∀ (t₁ : Table s₁) (t₂ : Table s₂)
+--     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
+--     (cn : CertifiedName s₂),
+--     (h : sorry) → --require that it not be in cs
+--     Schema.lookupType (schema (leftJoin t₁ t₂ cs)) cn = s₂.lookupType cn := sorry
 
 -- TODO: Spec 4 appears to be wrong. Consider the following SQLite queries:
 /-
@@ -345,7 +351,95 @@ theorem selectColumns2_spec2 :
   simp only [finHeaderLengthOfFinNcols]
   apply List.get_map_nths_eq_get_get
 
+def Schema.hasNameOfNthsHasName {schema : @Schema η} {nm : η}
+                                {ns : List (Fin schema.length)} :
+  Schema.HasName nm (List.nths schema ns) → schema.HasName nm
+:= sorry
+
+inductive Schema.IsSubschema : @Schema η → @Schema η → Type _
+| nil : IsSubschema [] []
+| cons (xs ys x) : IsSubschema xs ys → IsSubschema xs (x :: ys)
+| cons2 (xs ys x) : IsSubschema xs ys → IsSubschema (x :: xs) (x :: ys)
+
+-- FIXME: this requires List.Unique to be a `Type` to eliminate :(
+def Schema.nths_isSubschema :
+  ∀ (sch : @Schema η) (ns : List (Fin sch.length)) (hns : List.UniqueT ns),
+  Schema.IsSubschema (List.nths sch ns) sch
+| [], [], hns => .nil
+| s :: ss, ⟨0, _⟩ :: ns, .cons hnmem hrest =>
+  have ih := nths_isSubschema (s :: ss) ns hrest
+  by
+  simp only [List.nths, List.map, List.nth]
+  apply IsSubschema.cons2
+  rw [←List.nths]
+  sorry
+
+
+
+def Schema.hasNameOfIsSubschema {nm : η} : ∀ {sch sch' : @Schema η},
+  Schema.IsSubschema sch' sch → Schema.HasName nm sch' → Schema.HasName nm sch
+| _ :: _, _ :: _, _, .hd => _
+
+theorem Schema.lookupSubschemaTypeUnique :
+  ∀ (sch sch' : @Schema η) (hsch : Schema.Unique sch) (c : CertifiedName sch')
+    (h : Schema.IsSubschema sch' sch),
+  sch'.lookupType c = sch.lookupType ⟨c.1, Schema.hasNameOfIsSubschema h c.2⟩
+| (_, _) :: ss, (nm, τ) :: ss', hunique, ⟨.(nm), .hd⟩, .cons2 _ _ _ _ => by
+  simp only [lookupType]
+
+
+-- For the proof in the type (where there's currently a `sorry`):
+-- This won't do b/c we need to eliminate to data (i.e., `Type`)
+-- theorem List.nths_sublist : List.Sublist (List.nths xs ns) xs := sorry
+-- Use a `Subschema`?
 -- TODO: sc2 spec 3
+theorem selectColumns2_spec3 :
+  ∀ {sch : @Schema η} (hsch : Schema.Unique sch) (t : Table sch)
+    (ns : List (Fin (ncols t))) (hns : List.Unique ns),
+  ∀ (c : CertifiedName (schema (selectColumns2 t ns))),
+    (schema (selectColumns2 t ns)).lookupType c
+    = (schema t).lookupType ⟨c.1, Schema.hasNameOfNthsHasName c.2⟩ := by
+  intro sch hsch t ns c
+  unfold schema
+  simp only [ncols] at ns
+  induction sch with
+  | nil =>
+    cases ns with
+    | nil =>
+      cases c with | mk _ hnm =>
+      cases hnm
+    | cons n _ =>
+      cases n with | mk _ hlt =>
+      cases hlt
+  | cons h hs ih =>
+    unfold List.nths
+    cases ns with
+    | nil =>
+      cases c with | mk _ hnm =>
+      cases hnm
+    | cons n ns =>
+      cases n with | mk n hn =>
+      unfold Schema.lookupType
+      simp [List.map]
+      cases n with
+      | zero =>
+        simp only [List.nth]
+
+  done
+    -- have : List.map (fun n => List.nth (h :: hs) n.val (_ : n.val < List.length (h :: hs))) ns
+    --         = List
+  /-
+  Schema.lookupType (List.nths sch ns) c =
+  Schema.lookupType sch ⟨c.1, _⟩
+  -/
+-- | _ :: _, t, [], ⟨c, hc⟩ => nomatch hc
+-- | s :: ss, t, ⟨0, h0⟩ :: ns, ⟨c, .tl h⟩ => by
+--   simp only [schema, List.nths, Schema.lookupType]
+  /-
+    Schema.lookupType (List.map (fun n => List.nth (s :: ss) n.val _) ns) ⟨c, h⟩ =
+    Schema.lookupType (s :: ss) ⟨c, _⟩
+  -/
+  -- TODO:
 
 theorem selectColumns2_spec4 :
   ∀ (t : Table sch) (ns : List (Fin (ncols t))),
@@ -365,13 +459,41 @@ by intros t cs
      . simp only [Function.comp, Schema.lookup_fst_eq_nm, CertifiedName.val]
      . exact ih
 
+-- def Schema.hasNameOfFromCHeaders : (cs : List (CertifiedHeader schema)) →
+--   Schema.HasName nm (Schema.fromCHeaders cs) →
+--   Schema.HasName nm sch
+
 -- TODO: sc3 spec 2
 -- TODO: Same subschema issue as `sc2_s2`
--- theorem selectColumns3_spec2 :
---   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
---     ∀ c : CertifiedName $ schema (selectColumns3 t cs),
---       (schema t).lookupType c =
---       (schema (selectColumns3 t cs)).lookupType c := sorry
+
+def Schema.nil_isSubschema : ∀ (sch : @Schema η), Schema.IsSubschema [] sch
+| [] => .nil
+| .cons _ ss => .cons _ _ _ $ nil_isSubschema ss
+
+-- TODO: finish
+def Schema.mapUniqueSubschema :
+  ∀ (sch : @Schema η) (cs : List (CertifiedHeader sch)) (hcs : List.UniqueT cs),
+    Schema.IsSubschema (List.map Sigma.fst cs) sch
+| ss, [], _ => nil_isSubschema _
+| (nm, τ) :: ss, ⟨_, .hd⟩ :: cs, .cons hnmem hrest =>
+  let ih := mapUniqueSubschema ((nm, τ) :: ss) cs hrest
+  .cons2 _ _ _ $ ih
+| (nm, τ) :: ss, ⟨_, .tl h⟩ :: cs, .cons hnmem hrest =>
+  sorry -- .cons _ _ _ $ mapUniqueSubschema _ _ _
+
+theorem selectColumns3_spec2 :
+  ∀ (hsch : Schema.Unique sch) (t : Table sch)
+    (cs : List (CertifiedHeader sch)) (hcs : List.UniqueT cs),
+  ∀ (c : CertifiedName $ schema (selectColumns3 t cs)),
+    (schema t).lookupType ⟨c.1, Schema.hasNameOfFromCHeaders c.2⟩ =
+    (schema (selectColumns3 t cs)).lookupType c := by
+  intro hsch t cs hcs c
+  unfold schema
+  unfold Schema.fromCHeaders
+  apply Eq.symm
+  apply Schema.lookupSubschemaTypeUnique
+  . exact hsch
+  . exact Schema.mapUniqueSubschema sch cs hcs
 
 theorem selectColumns3_spec3 :
   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
@@ -757,7 +879,65 @@ theorem flatten_spec1 :
     -- exact []
     exact Table.mk []
 
+
+syntax "A[" term,* "]" : term
+macro_rules
+  | `(A[ $elems,* ]) => do
+    let rec expandListLit (i : Nat) (skip : Bool) (result : Lean.TSyntax `term)
+        : Lean.MacroM Lean.Syntax := do
+      match i, skip with
+      | 0,   _     => pure result
+      | i+1, true  => expandListLit i false result
+      | i+1, false => expandListLit i true (← ``(ActionList.cons
+                        $(⟨elems.elemsAndSeps.get! i⟩) $result))
+    expandListLit elems.elemsAndSeps.size false (← ``(ActionList.nil))
+
+def testSchema : @Schema String := [("a", Nat), ("b", String), ("c", String)]
+#check (A[⟨"a", .hd⟩, ⟨"c", .tl .hd⟩] : ActionList Schema.removeCertifiedName testSchema)
+
+theorem test :
+  ActionList.MemT
+    (⟨"a", Schema.HasName.hd⟩ : ((s : String) × testSchema.HasName s))
+    (A[⟨"a", Schema.HasName.hd⟩] : ActionList Schema.removeCertifiedName testSchema) :=
+  by repeat constructor
+theorem test2 :
+  ActionList.MemT
+    (⟨"c", .tl .hd⟩ : ((s : String) × (testSchema.removeName .hd).HasName s))
+    (A[⟨"a", .hd⟩, ⟨"c", .tl .hd⟩, ⟨"b", .hd⟩] : ActionList Schema.removeCertifiedName testSchema) := by
+  repeat constructor
+
+#print test
+
+-- FIXME: this is false because we might flatten the same list multiple times
+-- And defining uniqueness for an action list seems absurdly difficult
+def Schema.flattenListsHasCol {sch' : @Schema η} {nm τ pf} :
+  (cs : ActionList Schema.flattenList sch) →
+  ActionList.MemT (⟨nm, τ, pf⟩ : ((c : η) × (τ : Type u) × (sch'.HasCol (c, List τ)))) cs →
+  Schema.HasCol (nm, τ) (sch.flattenLists cs)
+| .cons ⟨nm, τ, h⟩ cs, .head .(cs) => by
+  unfold flattenLists
+  unfold flattenList
+  cases h with
+  | hd =>
+    simp only [retypeColumn]
+| _, _ => sorry
+
 -- TODO: `flatten` spec 2
+-- Approximation without uniqueness - the `List τ` in the original schema comes
+-- from the type required by the `ActionList`
+theorem flatten_spec2 {sch' : @Schema η} {nm τ pf} :
+  ∀ (t : Table sch) (cs : ActionList Schema.flattenList sch),
+  ActionList.MemT (⟨nm, τ, pf⟩ : ((c : η) × (τ : Type u) × (sch'.HasCol (c, List τ)))) cs →
+  Schema.HasCol (nm, τ) (schema (flatten t cs)) :=
+λ _ => Schema.flattenListsHasCol
+
+theorem flatten_spec2_part2 :
+  ∀ (t : Table sch) (cs : ActionList Schema.flattenList sch),
+  sch.HasCol (nm, τ) →
+  nm ∉ (ActionList.toList (λ _ h _ => h) cs |>.map Sigma.fst) →
+  Schema.HasCol (nm, τ) (schema (flatten t cs)) := by
+  intro t cs hc hnmem
+  sorry
 
 theorem transformColumn_spec1 {τ₁ τ₂} :
   ∀ (t : Table sch)
@@ -813,6 +993,41 @@ theorem transformColumn_spec4 :
 λ t c f hc => List.length_map _ _
 
 -- TODO: `renameColumns` specs 1 and 2
+
+
+-- FIXME: need to account for changing proofs:
+-- If we have .hd at position 2, then it'll be .tl .tl .hd when written as a
+-- top-level
+-- If we use the proof at the f^n iteration (which I think we have to), that
+-- proof may end up being useless for actually doing stuff with the original
+-- schema...
+inductive ActionList.MemT {η : Type u_η} [DecidableEq η]
+  {κ : @Schema η → Type u}
+  {f : ∀ (s : @Schema η), κ s → @Schema η}
+  : ∀ {s s' : @Schema η}, κ s' → ActionList f s → Type _
+| head {x : κ s} (xs : ActionList f (f s x)) : MemT x (ActionList.cons x xs)
+| tail {x : κ s'} (y : κ s) (xs : ActionList f (f s y)) :
+  MemT x xs → MemT x (ActionList.cons y xs)
+#check Schema.renameColumns
+
+def Schema.hasRenamedColumn {η : Type u_η} [DecidableEq η]
+    : {nm : η} → (s : @Schema η) → (hnm : s.HasName nm) → (nm' : η) →
+      Schema.HasName nm' (s.renameColumn hnm nm') := sorry
+
+def Schema.hasRenamedColumnOfColumns {η : Type u_η} [DecidableEq η]
+  {sch sch' : @Schema η} {nm : η} {hnm : sch'.HasName nm} :
+    (ccs : ActionList renameColumnCN s) →
+    ActionList.MemT (⟨nm, hnm⟩, nm') ccs →
+    Schema.HasName nm' (s.renameColumn hnm nm') := sorry
+
+def renameColumns_spec1 {c c'} {hc : sch.HasName c} :
+  ∀ (t : Table sch) (ccs : ActionList Schema.renameColumnCN sch),
+  sch.HasName c →
+  ccs.MemT (⟨c, hc⟩, c') →
+  (schema (renameColumns t ccs)).HasName c' := by
+  intro t ccs hsch hccs
+  simp only [schema]
+
 
 theorem renameColumns_spec3 :
   ∀ (t : Table sch)

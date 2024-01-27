@@ -164,53 +164,6 @@ def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
 def Schema.names {η : Type u_η} (sch : @Schema η) :=
   List.map (@Prod.fst η (Type u)) sch
 
--- -- This is just `List.append`, but we need it to be reducible, and Lean 4
--- -- doesn't allow us to modify the reducibility attribute of that function from
--- -- outside the `List` module
--- @[reducible]
--- def Schema.append {η : Type u_η} : @Schema η → @Schema η → @Schema η
---   | [], hs' => hs'
---   | h :: hs, hs' => h :: append hs hs'
-
--- theorem Schema.append_eq_List_append {η : Type u_η} :
---   ∀ (s s' : @Schema η), Schema.append s s' = List.append s s'
---   | [], hs' => rfl
---   | h :: hs, hs' => congrArg (h :: ·) $ append_eq_List_append hs hs'
-
-@[reducible]
-def Schema.hasAppendedHead :
-  ∀ (sch : @Schema η) (c : η) (τ : Type _) (hs : List Header),
-  HasCol (c, τ) (List.append sch ((c, τ) :: hs))
-| [], _, _, _ => .hd
-| s :: ss, c, τ, _ => .tl (hasAppendedHead ss c τ _)
-
-def Schema.hasNameOfAppend : {sch : @Schema η} →
-                                 {nm : η} →
-                                 {hs : @Schema η} →
-                                 sch.HasName nm →
-  -- Schema.HasName nm (Schema.append sch hs)
-  Schema.HasName nm (List.append sch hs)
-| _, _, _, Schema.HasName.hd => Schema.HasName.hd
-| _, _, _, Schema.HasName.tl h => Schema.HasName.tl $ hasNameOfAppend h
-
-def Schema.hasColOfAppend : {sch : @Schema η} →
-                                 {nm : η} →
-                                 {τ : Type u} →
-                                 {hs : List Header} →
-                                 sch.HasCol (nm, τ) →
-  Schema.HasCol (nm, τ) (sch.append hs)
-| _, _, _, _, Schema.HasCol.hd => Schema.HasCol.hd
-| _, _, _, _, Schema.HasCol.tl h => Schema.HasCol.tl $ hasColOfAppend h
-
-def Schema.hasColOfPrepend : {sch : @Schema η} →
-                                 {nm : η} →
-                                 {τ : Type u} →
-                                 {hs : @Schema η} →
-                                 sch.HasCol (nm, τ) →
-  Schema.HasCol (nm, τ) (hs.append sch)
-| _, _, _, [], pf => pf
-| _, _, _, _ :: hs', pf => .tl $ hasColOfPrepend (hs := hs') pf
-
 -- TODO: when we come back to do uniqueness, this might be helpful
 -- def Schema.removeName :
 --     (s : @Schema η) → {c : η // s.HasName c} → @Schema η
@@ -548,21 +501,6 @@ theorem Schema.lookup_fst_eq_nm :
 | s :: ss, ⟨_, HasName.hd⟩ => rfl
 | s :: ss, ⟨c, HasName.tl h⟩ => lookup_fst_eq_nm ss ⟨c, h⟩
 
-theorem Schema.lookup_eq_lookup_append :
-  ∀ (s : @Schema η) (t : @Schema η) (c : η) (h : s.HasName c),
-  lookup s ⟨c, h⟩ = lookup (s.append t) ⟨c, Schema.hasNameOfAppend h⟩ :=
-by intros s t c h
-   induction h with
-   | hd =>
-     simp only [Schema.hasNameOfAppend, List.append]
-    --  simp only [Schema.hasNameOfAppend]
-     rw [Schema.lookup_eq_1, Schema.lookup_eq_1]
-   | tl h' ih =>
-     simp only [Schema.hasNameOfAppend, List.append]
-    --  simp only [Schema.hasNameOfAppend]
-     rw [Schema.lookup_eq_2, Schema.lookup_eq_2]
-     exact ih
-
 def Schema.schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema)
     → schema.HasCol (schema.lookup c)
 | _, ⟨_, Schema.HasName.hd⟩ => Schema.HasCol.hd
@@ -622,20 +560,6 @@ def Schema.fromCHHasFromCH :
 def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
   | .hd _ _ => .hd
   | .tl _ htl => .tl $ hasColOfMemT htl
-
--- Used in `dropColumn_spec2` proof
-theorem Schema.mem_map_of_HasName : ∀ (sch : @Schema η) (nm : η),
-  Schema.HasName nm sch → nm ∈ sch.map Prod.fst := by
-  intro sch nm h
-  induction h with
-  | hd =>
-    simp only [List.map]
-    apply List.Mem.head
-  | tl _ ih =>
-    simp only [List.map]
-    apply List.Mem.tail
-    apply ih
-
 
 -- Unique schemata
 -- A *unique* schema is one with distinct header names. Unique schemata are
