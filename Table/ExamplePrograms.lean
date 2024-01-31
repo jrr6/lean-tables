@@ -93,7 +93,8 @@ def pHacking {sch: Schema} (t : Table sch)
     if hdr.1.1 = "get acne" then none else
     if hnm : hdr.1.1 = "name" then none else
     let colJB : List (Option Bool) :=
-      cast (congrArg (List ∘ Option) $ hall _ hmem hnm) $ getColumn2 t hdr.1.1 hdr.2
+      cast (congrArg (List ∘ Option) $ hall _ hmem hnm) $
+        getColumn2 t hdr.1.1 hdr.2
     let nonempties := List.zip colAcne colJB
       |>.filterMap (λ
         | (.some x, .some y) => some (x, y)
@@ -154,9 +155,9 @@ buildColumn gradebook "average-quiz" (λ r =>
 )
 =[by inst]
 Table.mk [
-/[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    , 8         ],
-/[ "Alice" , 17  , 6     , 8     , 88      , 8     , 7     , 85    , 7         ],
-/[ "Eve"   , 13  , 7     , 9     , 84      , 8     , 8     , 77    , 8            ]
+/[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    , 8],
+/[ "Alice" , 17  , 6     , 8     , 88      , 8     , 7     , 85    , 7],
+/[ "Eve"   , 13  , 7     , 9     , 84      , 8     , 8     , 77    , 8]
 ]
 
 -- `quizScoreSelect`

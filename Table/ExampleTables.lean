@@ -1,14 +1,16 @@
 import Table.API
 import Table.Notation
 
-def students : Table [("name", String), ("age", Nat), ("favorite color", String)] :=
+def students :
+  Table [("name", String), ("age", Nat), ("favorite color", String)] :=
 Table.mk [
   /["Bob"  , 12, "blue" ],
   /["Alice", 17, "green"],
   /["Eve"  , 13, "red"  ]
 ]
 
-def studentsMissing : Table [("name", String), ("age", Nat), ("favorite color", String)] :=
+def studentsMissing :
+  Table [("name", String), ("age", Nat), ("favorite color", String)] :=
 Table.mk [
   /["Bob"  , EMP, "blue" ],
   /["Alice", 17 , "green"],
@@ -99,16 +101,16 @@ def gradebookTable : Table [("name", ULift String),
                             ("midterm", ULift Nat),
                             ("final", ULift Nat)] :=
 Table.mk [
-  /[ULift.up "Bob"  , ULift.up 12, Table.mk [/[1, 8],
-                                             /[2, 9],
-                                             /[3, 7],
-                                             /[4, 9]], ULift.up 77, ULift.up 87],
-  /[ULift.up "Alice", ULift.up 12, Table.mk [/[1, 6],
-                                             /[2, 8],
-                                             /[3, 8],
-                                             /[4, 7]], ULift.up 88, ULift.up 85],
-  /[ULift.up "Eve"  , ULift.up 13, Table.mk [/[1, 7],
-                                             /[2, 9],
-                                             /[3, 8],
-                                             /[4, 8]], ULift.up 84, ULift.up 77]
+  /[.up "Bob"  , .up 12, Table.mk [/[1, 8],
+                                   /[2, 9],
+                                   /[3, 7],
+                                   /[4, 9]], .up 77, .up 87],
+  /[.up "Alice", .up 12, Table.mk [/[1, 6],
+                                   /[2, 8],
+                                   /[3, 8],
+                                   /[4, 7]], .up 88, .up 85],
+  /[.up "Eve"  , .up 13, Table.mk [/[1, 7],
+                                   /[2, 9],
+                                   /[3, 8],
+                                   /[4, 8]], .up 84, .up 77]
 ]
