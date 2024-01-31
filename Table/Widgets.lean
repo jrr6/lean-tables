@@ -97,10 +97,11 @@ syntax (name := tableWidgetCommand) "#table" term : command
 @[command_elab tableWidgetCommand] private unsafe def elabTableWidget : Lean.Elab.Command.CommandElab :=
   open Lean Lean.Elab Command Term in λ
   | stx@`(#table $table:term) => do
+    let ns ← getCurrNamespace
     let ident ← mkFreshIdent stx
-    let decl := Lean.Syntax.getId ident
-    -- TODO: better way to get from `Syntax` to `TSyntax _`?
-    let ident := mkIdent decl
+    let nm := ident.getId
+    let decl := Name.append ns nm
+
     elabDeclaration (←
       `(@[widget] def $ident := mkTableWidget ($table) (htmlInst := by html_inst))
     )
