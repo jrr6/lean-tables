@@ -5,7 +5,7 @@ import Table.Widgets
 
 -- TODO: set these project-wide
 -- Table equality typeclass resolution requires a lot of instances
-set_option synthInstance.maxSize 12000
+set_option synthInstance.maxSize 120000
 set_option synthInstance.maxHeartbeats 0
 
 universe u_η
@@ -195,4 +195,98 @@ Table.mk [
   /["Bob", 12, 8, 9, 77, 7, 9, 87, 8],
   /["Alice", 17, 6, 8, 88, 8, 7, 85, 7],
   /["Eve", 13, 7, 9, 84, 8, 8, 77, 8]
+]
+
+-- `groupByRetentive`
+def tableOfColumn {τ} (c : η) (vs : List (Option τ)) : Table [(c, τ)] :=
+  Table.mk $ vs.map ((Row.cons ∘ Cell.fromOption) · Row.nil)
+
+deriving instance DecidableEq for ULift
+def groupByRetentive' {schema : @Schema η} {τ : Type u} [DecidableEq τ]
+  (t : Table schema) (c : η) (hc : schema.HasCol (c, τ) := by header)
+    : Table [("key", ULift.{max (u+1) u_η} τ), ("groups", Table schema)] :=
+  let keys : Table [("key", τ)] :=
+    tableOfColumn "key" (List.unique (getColumn2 t c hc))
+  let liftedKeys : Table [("key", ULift.{max (u+1) u_η} τ)] :=
+    Table.mk $
+    keys.rows.map λ r => r.mapHet ULift (λ _ _ => Cell.map ULift.up)
+  let makeGroup (kr : Row [("key", ULift τ)]) : Option (Table schema) :=
+    let k := getValue kr "key" .hd
+    tfilter t (λ r => Option.map ULift.up (getValue r c hc) = k)
+  buildColumn liftedKeys "groups" makeGroup
+
+#test
+groupByRetentive' students "favorite color"
+=
+Table.mk [
+  /[ULift.up "blue", Table.mk [/["Bob", 12, "blue"]]],
+  /[ULift.up "green", Table.mk [/["Alice", 17, "green"]]],
+  /[ULift.up "red", Table.mk [/["Eve", 13, "red"]]]
+]
+
+#test
+groupByRetentive' jellyAnon "brown"
+=
+Table.mk [
+  /[ULift.up false, Table.mk [
+    /[true, false, false, false, true, false, false, true, false, false],
+    /[true, false, true, false, true, true, false, false, false, false],
+    /[false, false, false, false, true, false, false, false, true, false],
+    /[false, false, false, false, false, true, false, false, false, false],
+    /[false, false, false, false, false, true, false, false, true, false],
+    /[true, false, true, false, false, false, false, true, true, false],
+    /[false, false, true, false, false, false, false, false, true, false],
+    /[true, false, false, false, false, false, false, true, false, false]
+  ]],
+  /[ULift.up true, Table.mk [
+    /[true, false, false, false, false, false, true, true, false, false],
+    /[false, true, false, false, false, true, true, false, true, false]
+  ]]
+]
+
+-- TODO: a fun (?) challenge would be to *prove* that this is extensionally
+-- equal to `groupByRetentive`...
+
+-- `groupBySubtractive`
+def groupBySubtractive' {schema : @Schema η} {τ : Type u} [DecidableEq τ]
+  (t : Table schema) (c : η) (hc : schema.HasCol (c, τ) := by header)
+    : Table [("key", ULift.{max (u+1) u_η} τ),
+             ("groups", Table (Schema.removeName schema
+                                (Schema.colImpliesName hc)))] :=
+  let keys := tableOfColumn "key" (List.unique (getColumn2 t c hc))
+  let liftedKeys : Table [("key", ULift τ)] := Table.mk $
+    keys.rows.map λ r => r.mapHet ULift (λ _ _ => Cell.map ULift.up)
+  let makeGroup (kr : Row [("key", ULift τ)]) :=
+    let k := getValue kr "key" .hd
+    let g := tfilter t (λ r => Option.map ULift.up (getValue r c hc) = k)
+    some $ dropColumn g c (Schema.colImpliesName hc)
+  buildColumn liftedKeys "groups" makeGroup
+
+#test
+(groupBySubtractive' students "favorite color" :)
+=
+Table.mk [
+  /[ULift.up "blue", Table.mk [/["Bob", 12]]],
+  /[ULift.up "green", Table.mk [/["Alice", 17]]],
+  /[ULift.up "red", Table.mk [/["Eve", 13]]]
+]
+
+#test
+(groupBySubtractive' jellyAnon "brown" :)
+=
+Table.mk [
+  /[ULift.up false, Table.mk [
+      /[true, false, false, false, true, false, true, false, false],
+      /[true, false, true, false, true, true, false, false, false],
+      /[false, false, false, false, true, false, false, true, false],
+      /[false, false, false, false, false, true, false, false, false],
+      /[false, false, false, false, false, true, false, true, false],
+      /[true, false, true, false, false, false, true, true, false],
+      /[false, false, true, false, false, false, false, true, false],
+      /[true, false, false, false, false, false, true, false, false]
+  ]],
+  /[ULift.up true, Table.mk [
+      /[true, false, false, false, false, false, true, false, false],
+      /[false, true, false, false, false, true, false, true, false]
+  ]]
 ]

@@ -27,6 +27,10 @@ def rename {nm τ} : Cell (η := η) nm τ → (nm' : η) → Cell nm' τ
 | Cell.emp, nm => Cell.emp
 | Cell.val x, nm => Cell.val x
 
+def map {nm : η} {α β} (f : α → β) : Cell nm α → Cell nm β
+| Cell.emp => Cell.emp
+| Cell.val x => Cell.val (f x)
+
 theorem toOption_fromOption {nm : η} :
   ∀ (v : Option τ), toOption (fromOption (nm := nm) v) = v
 | none => rfl
