@@ -83,7 +83,7 @@ def Row.length {schema : @Schema η} : Row schema → Nat
 -- It would also be nice if we could make this function less verbose.
 -- Unfortunately, Lean's type-checker needs some help...
 def Row.sieve {schema} :
-    (bs : List Bool) → Row schema → @Row η dec_η (List.sieve bs schema)
+    (bs : List Bool) → Row schema → @Row η dec_η (Schema.sieve bs schema)
 | [], Row.nil => Row.nil
 | [], Row.cons r rs => Row.cons r rs
 | true :: bs, Row.nil => Row.nil

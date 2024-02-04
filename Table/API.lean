@@ -135,7 +135,7 @@ def selectRows2 (t : Table schema) (bs : List Bool) : Table schema :=
 
 def selectColumns1 (t : Table schema)
                    (bs : List Bool)
-    : Table (List.sieve bs schema) :=
+    : Table (Schema.sieve bs schema) :=
   {rows := t.rows.map (λ r => Row.sieve bs r)}
 
 def selectColumns2 (t : Table schema)

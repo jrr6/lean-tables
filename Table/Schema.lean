@@ -412,6 +412,7 @@ def Schema.schemaHasRetypedSubschemaName : {nm : η} →
   schemaHasRetypedSubschemaName h
 
 -- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
+@[reducible]
 def Schema.flattenList (schema : @Schema η)
   (c : ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))
     : @Schema η :=

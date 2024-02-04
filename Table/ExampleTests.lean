@@ -5,7 +5,7 @@ import Table.Widgets
 import Table.TestingNotation
 
 -- Table equality typeclass resolution requires a lot of instances
-set_option synthInstance.maxSize 12000
+set_option synthInstance.maxSize 12000000
 set_option synthInstance.maxHeartbeats 0
 
 -- `addRows`
@@ -86,7 +86,7 @@ def increaseAge := λ (r : Row $ schema students) =>
   : Row [("age", Nat)])
 
 #test
-vcat students (update [⟨("age", Nat), by name⟩] students increaseAge)
+vcat students (update [⟨("age", Nat), by name⟩] students increaseAge :)
 =
 Table.mk [
   /[ "Bob"   , 12  , "blue"         ],
@@ -109,7 +109,7 @@ def curveMidtermAndFinal := λ (r : Row $ schema gradebook) =>
 #test
 vcat gradebook (update [⟨("midterm", Nat), by name⟩,
                         ⟨("final", Nat), by name⟩] gradebook
-                                                     curveMidtermAndFinal)
+                                                   curveMidtermAndFinal :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -157,14 +157,22 @@ values [/["Alice", 12], /["Bob", 13]]
 ] : Table [("name", String), ("age", Nat)])
 
 -- `crossJoin`
-#synth OfNat (Fin (ncols $ Table.mk (hs := [("a", Nat)]) [])) 0
-#synth OfNat (Fin (nrows $ Table.mk (hs := [("a", Nat)]) [])) 1
-#synth OfNat (Fin (nrows (selectColumns2 jellyAnon [0, 1, 2]))) 1
--- FIXME: this is failing because `List.map` (in `List.nths`) isn't reducible
-def petiteJelly :=
+-- FIXME: this fails without explicitly annotating the (reduced) type of `petiteJelly`
+-- def petiteJelly : Table [("get acne", Bool), ("red", Bool), ("black", Bool)] :=
+def petiteJelly : Table
+    (Schema.nths
+      [("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool), ("yellow", Bool),
+        ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
+      [0, 1, 2]) :=
 selectRows1
   (selectColumns2 jellyAnon [0, 1, 2])
-  [0, 1]
+  [⟨0, by decide⟩, ⟨1, by decide⟩]
+#synth DecidableEq $ Table
+    (Schema.nths
+      [("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool), ("yellow", Bool),
+        ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
+      [0, 1, 2])  -- this fails
+      -- [⟨0, _⟩, ⟨1, _⟩, ⟨2, _⟩])  -- this succeeds
 #test
 crossJoin students petiteJelly
 =
@@ -186,8 +194,10 @@ Table.mk []
 -- TODO: we need the `header` (and probably `name`) tactic to be able to "see
 -- through" the various Schema ActionList functions like `removeOtherDecCH`
 #test
+(
 leftJoin students gradebook A[⟨("name", _), inferInstance, by header, by header⟩,
                               ⟨("age", _), inferInstance, by simp only [Schema.removeOtherDecCH]; header, by header⟩]
+:)
 =
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -199,7 +209,7 @@ Table.mk [
 (
 leftJoin employees departments A[⟨("Department ID", _), inferInstance, by header, by header⟩]
 :)
-=[by inst]
+=
 Table.mk [
   /[ "Rafferty"   , 31            , "Sales"         ],
   /[ "Jones"      , 32            , EMP             ],
@@ -262,12 +272,12 @@ some 12
 -- `getColumn1`
 #test
 getColumn1 students 1
-=(List $ Option Nat)
+=
 [some 12, some 17, some 13]
 
 #test
 getColumn1 gradebook 0
-=(List $ Option String)
+=
 [some "Bob", some "Alice", some "Eve"]
 
 -- `getColumn2`
@@ -317,7 +327,7 @@ Table.mk [/["Eve", 13, 7, 9, 84, 8, 8, 77]]
 -- `selectColumns1`
 #test
 selectColumns1 students [true, true, false]
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  ],
   /[ "Alice" , 17  ],
@@ -326,7 +336,7 @@ Table.mk [
 
 #test
 selectColumns1 gradebook [true, false, false, false, true, false, false, true]
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 77      , 87    ],
   /[ "Alice" , 88      , 85    ],
@@ -336,7 +346,7 @@ Table.mk [
 -- `selectColumns2`
 #test
 selectColumns2 students [⟨2, by decide⟩, ⟨1, by decide⟩]
-=(Table [("favorite color", String), ("age", Nat)])
+=
 Table.mk [
   /[ "blue"         , 12  ],
   /[ "green"        , 17  ],
@@ -345,7 +355,7 @@ Table.mk [
 
 #test
 selectColumns2 gradebook [⟨7, by decide⟩, ⟨0, by decide⟩, ⟨4, by decide⟩]
-=(Table [(_, Nat), (_, String), (_, Nat)])
+=
 Table.mk [
   /[ 87    , "Bob"   , 77      ],
   /[ 85    , "Alice" , 88      ],
@@ -394,7 +404,8 @@ Table.mk [
 
 #test
 distinct (selectColumns3 gradebook [⟨("quiz3", _), by header⟩])
-=(Table [("quiz3", Nat)])
+-- =(Table [("quiz3", Nat)])
+=(Table [_])  -- how is this helping decidability‽
 Table.mk [ /[7], /[8] ]
 
 -- `dropColumn`
@@ -420,8 +431,8 @@ Table.mk [
 
 -- `dropColumns`
 #test
-(dropColumns students A[⟨"age", by name⟩] :)
-=(Table [("name", String), ("favorite color", String)])
+dropColumns students A[⟨"age", by name⟩]
+=
 Table.mk [
   /[ "Bob"   , "blue"         ],
   /[ "Alice" , "green"        ],
@@ -429,8 +440,8 @@ Table.mk [
 ]
 
 #test
-(dropColumns gradebook A[⟨"final", by name⟩, ⟨"midterm", by name⟩] :)
-=[by inst]
+dropColumns gradebook A[⟨"final", by name⟩, ⟨"midterm", by name⟩]
+=
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     ],
   /[ "Alice" , 17  , 6     , 8     , 8     , 7     ],
@@ -588,7 +599,7 @@ def oAverage (xs : List $ Option Nat) : Option Nat := some $
 (
 pivotTable students [⟨("favorite color", _), by header⟩] (by inst) [⟨("age-average", _), ⟨("age", _), by header⟩, oAverage⟩]
 :)
-=[by inst]
+=
 Table.mk [
   /[ "blue"         , 12          ],
   /[ "green"        , 17          ],
@@ -597,7 +608,7 @@ Table.mk [
 
 -- Slightly modified since we aren't using decimals
 def proportion (bs : List $ Option Bool) : Option Nat := some $
-  (100 * (bs.filter (λ | some true => true | _ => false)).length) / bs.length
+  (100 * (bs.filter (· = some true)).length) / bs.length
 
 -- KC says order doesn't matter, so okay that we disagree w/ B2T2
 #test
@@ -609,7 +620,7 @@ pivotTable
   [⟨("red-proportion", _), ⟨("red", _), by header⟩, proportion⟩,
    ⟨("pink-proportion", _), ⟨("pink", _), by header⟩, proportion⟩]
 :)
-=[by inst]
+=
 Table.mk [
   /[ true     , false , 0              , 25              ],
   /[ false    , false , 0              , 75              ],
@@ -759,7 +770,8 @@ Table.mk [
 #eval pivotWider students ⟨"name", .hd⟩ ⟨("age", Nat), .hd⟩
   (inst := (inferInstance : DecidableEq (Row [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])))
 
-#test (pivotWider students "name" "age" :)
+#test
+(pivotWider students "name" "age" :)
 =(Table [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
 Table.mk [
   /["blue", 12, EMP, EMP],
@@ -827,7 +839,7 @@ instance : DecidableEq
 -- `flatten`
 #test
 (flatten gradebookSeq A[⟨"quizzes", _, by header⟩] :)
-=(Table [("name", String), ("age", Nat), ("quizzes", Nat), ("midterm", Nat), ("final", Nat)])
+=
 Table.mk [
   /[ "Bob"   , 12  , 8       , 77      , 87    ],
   /[ "Bob"   , 12  , 9       , 77      , 87    ],
@@ -850,7 +862,7 @@ def t := buildColumn gradebookSeq "quiz-pass?" (λ r =>
 
 #test
 (flatten t A[⟨"quiz-pass?", _, by header⟩, ⟨"quizzes", _, by header⟩] :)
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , 8       , 77      , 87    , true       ],
   /[ "Bob"   , 12  , 9       , 77      , 87    , true       ],
@@ -895,8 +907,8 @@ Table.mk [
 def addLastName := Option.map (· ++ " Smith")
 
 #test
-(transformColumn students "name" addLastName :)
-=(Table [("name", String), ("age", Nat), ("favorite color", String)])
+transformColumn students "name" addLastName
+=
 Table.mk [
   /[ "Bob Smith"   , 12  , "blue"         ],
   /[ "Alice Smith" , 17  , "green"        ],
@@ -909,8 +921,8 @@ def quizScoreToPassFail := Option.map (λ n =>
   else "pass")
 
 #test
-(transformColumn gradebook "quiz1" quizScoreToPassFail :)
-=[by inst]
+transformColumn gradebook "quiz1" quizScoreToPassFail
+=
 Table.mk [
   /[ "Bob"   , 12  , "pass" , 9     , 77      , 7     , 9     , 87    ],
   /[ "Alice" , 17  , "fail" , 8     , 88      , 8     , 7     , 85    ],
@@ -923,7 +935,7 @@ Table.mk [
 renameColumns students A[⟨⟨"favorite color", by name⟩, "preferred color"⟩,
                          ⟨⟨"name", by name⟩, "first name"⟩]
 :)
-=(Table [("first name", String), ("age", Nat), ("preferred color", String)])
+=
 Table.mk [
   /[ "Bob"      , 12  , "blue"          ],
   /[ "Alice"    , 17  , "green"         ],
@@ -935,7 +947,7 @@ Table.mk [
 renameColumns gradebook A[⟨⟨"midterm", by name⟩, "final"⟩,
                           ⟨⟨"final", by name⟩, "midterm"⟩]
 :)
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77    , 7     , 9     , 87      ],
   /[ "Alice" , 17  , 6     , 8     , 88    , 8     , 7     , 85      ],
@@ -971,7 +983,7 @@ Table.mk [
 
 #test
 groupByRetentive jellyAnon "brown"
-=[by inst]
+=
 Table.mk [
   /[ULift.up false, Table.mk [
     /[ true     , false , false , false , true  , false  , false , true   , false , false  ],
@@ -1004,7 +1016,7 @@ Table.mk [
 
 #test
 (groupBySubtractive jellyAnon "brown" :)
-=[by inst]
+=
 Table.mk [
   /[ULift.up false, Table.mk [
     /[ true     , false , false , false , true  , false  , true   , false , false  ],
@@ -1054,7 +1066,7 @@ def didWellUpdate := λ (r : Row $ schema gradebook) =>
 #test
 (update [⟨("midterm", Bool), by name⟩, ⟨("final", Bool), by name⟩]
   gradebook didWellUpdate :)
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , false   , 7     , 9     , true  ],
   /[ "Alice" , 17  , 6     , 8     , true    , 8     , 7     , true  ],
@@ -1145,7 +1157,7 @@ def averageFinal (r : Row $ schema students) (t : Table $ schema gradebook) :=
 
 #test
 groupJoin students gradebook getName getName averageFinal
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 87    ],
   /[ "Alice" , 17  , "green"        , 85    ],
@@ -1161,7 +1173,7 @@ def tableNRows := λ (r : Row $ schema students) (t : Table $ schema gradebook) 
 
 #test
 groupJoin students gradebook nameLength' nameLength' tableNRows
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 2     ],
   /[ "Alice" , 17  , "green"        , 1     ],
@@ -1178,7 +1190,7 @@ def addGradeColumn := λ (r₁ : Row $ schema students) (r₂ : Row $ schema gra
 
 #test
 join students gradebook getName' getName' addGradeColumn
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 87    ],
   /[ "Alice" , 17  , "green"        , 85    ],
@@ -1191,7 +1203,7 @@ def nameLength'' {schema} (r : Row schema)
 
 #test
 join students gradebook nameLength'' nameLength'' addGradeColumn
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 87    ],
   /[ "Bob"   , 12  , "blue"         , 77    ],

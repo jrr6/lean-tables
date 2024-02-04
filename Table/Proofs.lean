@@ -316,8 +316,10 @@ theorem selectRows2_spec2 :
 
 theorem selectColumns1_spec1 :
   ∀ (t : Table sch) (bs : List Bool),
-    List.Sublist (header (selectColumns1 t bs)) (header t) :=
-λ t bs => List.sublist_of_map_sublist _ _ Prod.fst $ List.sieve_sublist bs sch
+    List.Sublist (header (selectColumns1 t bs)) (header t) := by
+  intro t bs
+  simp only [header, Schema.names, Schema.sieve_eq_List_sieve]
+  exact List.sublist_of_map_sublist _ _ Prod.fst $ List.sieve_sublist bs sch
 
 -- Helper for `selectColumns1_spec2`
 theorem ncols_eq_header_length :
@@ -333,14 +335,17 @@ theorem selectColumns1_spec2 :
   (header t).get ⟨i, ncols_eq_header_length t ▸ hlt⟩
     ∈ header (selectColumns1 t bs)
   ↔ bs.get ⟨i, h ▸ hlt⟩ = true :=
-λ hu t bs h i hlt =>
-  List.sieve_map_mem_iff_true_unique (Schema.length_eq_List_length ▸ hlt)
-    (h.symm ▸ hlt) Prod.fst hu
+λ hu t bs h i hlt => by
+  simp only [header, Schema.sieve_eq_List_sieve]
+  exact List.sieve_map_mem_iff_true_unique (Schema.length_eq_List_length ▸ hlt)
+          (h.symm ▸ hlt) Prod.fst hu
 
 theorem selectColumns1_spec3 :
   ∀ (t : Table sch) (bs : List Bool),
     List.Sublist (schema (selectColumns1 t bs)) (schema t) :=
-λ t bs => List.sieve_sublist _ _
+λ t bs => by
+  simp only [schema, Schema.sieve_eq_List_sieve]
+  apply List.sieve_sublist
 
 theorem selectColumns1_spec4 :
   ∀ (t : Table sch) (bs : List Bool),

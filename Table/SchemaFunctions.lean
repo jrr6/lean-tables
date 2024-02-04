@@ -70,6 +70,23 @@ theorem Schema.length_nths (xs : List α) (ns : List (Fin $ Schema.length xs)) :
   List.length (Schema.nths xs ns) = List.length ns := by
   rw [nths, Schema.map_eq_List_map]
   apply List.length_map
+
+@[reducible]
+def Schema.sieve {α} : List Bool → List α → List α
+| [], xs => xs
+| _, [] => []
+| true :: bs, x :: xs => x :: sieve bs xs
+| false :: bs, _ :: xs => sieve bs xs
+
+theorem Schema.sieve_eq_List_sieve : @Schema.sieve = @List.sieve :=
+funext λ τ => funext λ bs => funext λ xs =>
+  let rec pf : ∀ bs xs, sieve bs xs = List.sieve bs xs := λ
+    | [], xs => by simp only [sieve, List.sieve]
+    | _ :: _, [] => by simp only [sieve, List.sieve]
+    | true :: bs, x :: xs => congrArg (x :: ·) (pf bs xs)
+    | false :: bs, _ :: xs => pf bs xs
+  pf bs xs
+
 /- -------------------- -/
 
 theorem List.length_rw {T : α → Type _} {s t : α} :
