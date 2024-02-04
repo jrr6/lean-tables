@@ -774,7 +774,7 @@ def pivotTable (t : Table schema)
                 (c : CertifiedHeader schema) ×
                 (List (Option c.1.2) → Option c'.2)))
   : Table (Schema.append (Schema.fromCHeaders cs)
-                       (aggs.map (λ a => a.1))) :=
+                       (Schema.map (·.1) aggs)) :=
                       --  (Schema.fromCHeaders (aggs.map (λ a => a.2.1)))) :=
 groupBy t
   (λ r => r.pick cs)
@@ -785,16 +785,16 @@ groupBy t
       (as : List ((c' : @Header η) ×
                   (c : CertifiedHeader schema) ×
                   (List (Option c.1.2) → Option c'.2))) →
-      Row (as.map (λ a => a.1))
+      Row (Schema.map (·.1) as)
       -- Row $ Schema.fromCHeaders (as.map (λ a => a.2.1))
     | [] => Row.nil
     | ⟨c', c, f⟩ :: as =>
       let newCell : Cell c'.1 c'.2 := Cell.fromOption $
         f (getColumn2 subT c.1.1 c.2)
-      let rest : Row $ as.map (λ a => a.1) := mkSubrow as
-      let newRow : Row $ c' :: as.map (λ a => a.1) := Row.cons newCell rest
-      have h : Row (c' :: as.map (λ a => a.1)) =
-               Row ((⟨c', c, f⟩ :: as).map (λ a => a.1)) := rfl
+      let rest : Row $ Schema.map (·.1) as := mkSubrow as
+      let newRow : Row $ c' :: Schema.map (·.1) as := Row.cons newCell rest
+      have h : Row (c' :: Schema.map (·.1) as) =
+               Row (Schema.map (·.1) (⟨c', c, f⟩ :: as)) := rfl
       -- TODO: why won't the type checker unfold `map`‽
       -- let newNewRow : Row $ (a :: as).map (λ a => a.1) := newRow
       -- Row.cons (newCell : Cell c'.1 c'.2) (rest : Row $ as.map (λ a => a.1)) --  : Row $ a.1 :: as.map (λ a => a.1))
