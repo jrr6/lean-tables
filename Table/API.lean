@@ -8,6 +8,7 @@ universe u_η
 universe u
 
 -- # Assumptions
+@[reducible]
 def schema {η : Type u_η} [DecidableEq η]
            {sch : @Schema η}
            (t : Table sch) : @Schema η := sch
