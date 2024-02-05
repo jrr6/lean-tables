@@ -122,7 +122,7 @@ Table.mk [
 
 -- `hcat`
 #test
-hcat students (dropColumns gradebook A[⟨"name", by name⟩, ⟨"age", by name⟩])
+hcat students (dropColumns gradebook A["name", "age"])
 =
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -131,7 +131,7 @@ Table.mk [
 ]
 
 #test
-hcat (dropColumns students A[⟨"name", by name⟩, ⟨"age", by name⟩]) gradebook
+hcat (dropColumns students A["name", "age"]) gradebook
 =
 Table.mk [
   /[ "blue"         , "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -195,8 +195,7 @@ Table.mk []
 -- through" the various Schema ActionList functions like `removeOtherDecCH`
 #test
 (
-leftJoin students gradebook A[⟨("name", _), inferInstance, by header, by header⟩,
-                              ⟨("age", _), inferInstance, by simp only [Schema.removeOtherDecCH]; header, by header⟩]
+leftJoin students gradebook A["name", "age"]
 :)
 =
 Table.mk [
@@ -207,7 +206,7 @@ Table.mk [
 
 #test
 (
-leftJoin employees departments A[⟨("Department ID", _), inferInstance, by header, by header⟩]
+leftJoin employees departments A["Department ID"]
 :)
 =
 Table.mk [
@@ -227,7 +226,7 @@ Table.mk [
   /["name" := "Bob", "location" := "USA"],
   /["name" := "Bob", "location" := "UK"]
 ])
-A[⟨("name", _), inferInstance, by header, by header⟩]
+A["name"]
 
 -- `nrows`
 #test nrows (@emptyTable String _) = 0
@@ -431,7 +430,7 @@ Table.mk [
 
 -- `dropColumns`
 #test
-dropColumns students A[⟨"age", by name⟩]
+dropColumns students A["age"]
 =
 Table.mk [
   /[ "Bob"   , "blue"         ],
@@ -440,7 +439,7 @@ Table.mk [
 ]
 
 #test
-dropColumns gradebook A[⟨"final", by name⟩, ⟨"midterm", by name⟩]
+dropColumns gradebook A["final", "midterm"]
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     ],
@@ -721,7 +720,7 @@ Table.mk [
 -- TODO: more typeclass issues...
 #test
 (
-pivotLonger gradebook A[⟨"midterm", by header⟩, ⟨"final", by header⟩] "exam" "score"
+pivotLonger gradebook A["midterm", "final"] "exam" "score"
 :)
 =[by simp only [List.append]; inst]
 Table.mk [
@@ -735,9 +734,7 @@ Table.mk [
 
 #test
 (
-pivotLonger gradebook A[⟨"quiz1", by header⟩, ⟨"quiz2", by header⟩,
-                        ⟨"quiz3", by header⟩, ⟨"quiz4", by header⟩,
-                        ⟨"midterm", by header⟩, ⟨"final", by header⟩]
+pivotLonger gradebook A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
             "test" "score"
 :)
 =(Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)])
@@ -780,9 +777,7 @@ Table.mk [
 ]
 
 def longerTable :=
-  pivotLonger gradebook A[⟨"quiz1", by header⟩, ⟨"quiz2", by header⟩,
-                        ⟨"quiz3", by header⟩, ⟨"quiz4", by header⟩,
-                        ⟨"midterm", by header⟩, ⟨"final", by header⟩]
+  pivotLonger gradebook A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
             "test" "score"
 -- This is the above:
 -- def longerTable : Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)] :=
@@ -838,7 +833,7 @@ instance : DecidableEq
 
 -- `flatten`
 #test
-(flatten gradebookSeq A[⟨"quizzes", _, by header⟩] :)
+flatten gradebookSeq A["quizzes"]
 =
 Table.mk [
   /[ "Bob"   , 12  , 8       , 77      , 87    ],
@@ -861,7 +856,7 @@ def t := buildColumn gradebookSeq "quiz-pass?" (λ r =>
 )
 
 #test
-(flatten t A[⟨"quiz-pass?", _, by header⟩, ⟨"quizzes", _, by header⟩] :)
+(flatten t A["quiz-pass?", "quizzes"] :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8       , 77      , 87    , true       ],
@@ -899,8 +894,8 @@ Table.mk [
 -- so it goes...)
 -- TODO: notify B2T2 that their implementation crashes on the (valid) example
 -- given by the row with ID 4.
-#eval flatten unbalancedTable A[⟨"seq1", _, by header⟩]
-#eval flatten unbalancedTable A[⟨"seq1", _, by header⟩, ⟨"seq2", _, by header⟩]
+#eval flatten unbalancedTable A["seq1"]
+#eval flatten unbalancedTable A["seq1", "seq2"]
 
 -- FIXME: more typeclass issues
 -- `transformColumn`
@@ -931,25 +926,21 @@ Table.mk [
 
 -- `renameColumns`
 #test
-(
-renameColumns students A[⟨⟨"favorite color", by name⟩, "preferred color"⟩,
-                         ⟨⟨"name", by name⟩, "first name"⟩]
-:)
+renameColumns students A[("favorite color", "preferred color"),
+                         ("name", "first name")]
 =
 Table.mk [
-  /[ "Bob"      , 12  , "blue"          ],
+  /[ "first name" := "Bob", "age" := 12, "preferred color" := "blue"],
   /[ "Alice"    , 17  , "green"         ],
   /[ "Eve"      , 13  , "red"           ]
 ]
 
+-- FIXME: this test fails -- not sure how to work around this
 #test
-(
-renameColumns gradebook A[⟨⟨"midterm", by name⟩, "final"⟩,
-                          ⟨⟨"final", by name⟩, "midterm"⟩]
-:)
+renameColumns gradebook A[("midterm", "final"), ("final", "midterm")]
 =
 Table.mk [
-  /[ "Bob"   , 12  , 8     , 9     , 77    , 7     , 9     , 87      ],
+  /[ "name" := "Bob", "age" := 12, "quiz1" := 8, "quiz2" := 9, "final" := 77, "quiz3" := 7, "quiz4" := 9, "midterm" := 87],
   /[ "Alice" , 17  , 6     , 8     , 88    , 8     , 7     , 85      ],
   /[ "Eve"   , 13  , 7     , 9     , 84    , 8     , 8     , 77      ]
 ]

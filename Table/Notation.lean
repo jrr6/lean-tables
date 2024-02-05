@@ -76,6 +76,29 @@ macro_rules
 
 -- # ActionList Notation
 syntax "A[" term,* "]" : term
+
+-- Tactic to autogenerate ActionList proofs (we may need to cycle the goals
+-- so that our Schema proof can figure out what type we need to find an instance
+-- for, etc.)
+open Lean Elab Tactic in
+elab "cycle_goals" : tactic => do
+  let goals ← getGoals
+  match goals with
+    | [] => throwError "No goals!"
+    | [g] => throwError "Only one goal; can't cycle"
+    | g :: gs => setGoals (gs ++ [g])
+macro "action_list_tactic" : tactic =>
+`(tactic|
+  repeat (first | apply Sigma.mk
+                | apply Prod.mk
+                | apply Schema.HasCol.hd
+                | apply Schema.HasCol.tl
+                | apply Schema.HasName.hd
+                | apply Schema.HasName.tl
+                | exact inferInstance
+                | cycle_goals)
+)
+
 macro_rules
   | `(A[ $elems,* ]) => do
     let rec expandListLit (i : Nat) (skip : Bool) (result : Lean.TSyntax `term)
@@ -83,8 +106,14 @@ macro_rules
       match i, skip with
       | 0,   _     => pure result
       | i+1, true  => expandListLit i false result
-      | i+1, false => expandListLit i true (← ``(ActionList.cons
-                        $(⟨elems.elemsAndSeps.get! i⟩) $result))
+      -- TODO: auto-generate:
+      --  - The type slot in the tuple for ActionLists that want headers
+      --  - Any instances or proof terms required as subsequent components of
+      --    the ActionList entry (this won't always just be a single
+      --    `by name/header`)
+      | i+1, false =>
+        expandListLit i true (←``(ActionList.cons
+          ⟨$(⟨elems.elemsAndSeps.get! i⟩), by action_list_tactic⟩ $result))
     expandListLit elems.elemsAndSeps.size false (← ``(ActionList.nil))
 
 -- # Table `toString`

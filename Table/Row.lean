@@ -147,7 +147,7 @@ def Row.renameCells {schema : @Schema η}
       Row schema →
       Row (schema.renameColumns cs)
 | ActionList.nil, r => r
-| ActionList.cons c cs, r => renameCells cs (renameCell r c.1.2 c.2)
+| ActionList.cons c cs, r => renameCells cs (renameCell r c.2 c.1.2)
 
 def Row.pick {schema : @Schema η} :
                Row schema →
@@ -190,7 +190,7 @@ def Row.removeOtherSchemaCols {schema' schema : @Schema η} :
   Row (Schema.removeOtherDecCHs schema' schema cs)
 | ActionList.nil, r => r
 | ActionList.cons c cs, r =>
-  removeOtherSchemaCols cs (r.removeColumn $ Schema.colImpliesName c.2.2.1)
+  removeOtherSchemaCols cs (r.removeColumn $ Schema.colImpliesName c.2.2.2.1)
 
   def Row.retypedSubschemaPres :
   ∀ {sch : @Schema η} {retNm : η} {τ : Type _} {hretNm : sch.HasName retNm}

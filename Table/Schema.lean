@@ -289,9 +289,9 @@ def Schema.removeHeaders {η : Type u_η} [DecidableEq η] :
 @[reducible]
 def Schema.removeOtherDecCH
   (schema' schema : @Schema η)
-  (c : (hdr : @Header η) × DecidableEq hdr.2 ×
-    schema.HasCol hdr × schema'.HasCol hdr) :
-  @Schema η := schema.removeHeader c.2.2.1
+  (c : (nm : η) × (τ : Type u) × DecidableEq τ ×
+    schema.HasCol (nm, τ) × schema'.HasCol (nm, τ)) :
+  @Schema η := schema.removeHeader c.2.2.2.1
 
 @[reducible]
 def Schema.removeOtherDecCHs (schema' : @Schema η) :
@@ -304,12 +304,13 @@ def Schema.removeOtherDecCHs (schema' : @Schema η) :
 
 def Schema.removeOtherCHPres :
   (s : Schema) →
-  (k : (hdr : Header) × DecidableEq hdr.snd ×
-    HasCol hdr s × HasCol hdr schema₁) →
-  (hdr : Header) × DecidableEq hdr.snd ×
-    HasCol hdr (removeOtherDecCH schema₁ s k) × HasCol hdr schema₁ →
-  (hdr : Header) × DecidableEq hdr.snd × HasCol hdr s × HasCol hdr schema₁ :=
-λ _ _ c => ⟨c.1, c.2.1, removeHeaderPres c.2.2.1, c.2.2.2⟩
+  (k : (nm : η) × (τ : Type u) × DecidableEq τ ×
+    HasCol (nm, τ) s × HasCol (nm, τ) schema₁) →
+  (nm : η) × (τ : Type u) × DecidableEq τ ×
+    HasCol (nm, τ) (removeOtherDecCH schema₁ s k) × HasCol (nm, τ) schema₁ →
+  (nm : η) × (τ : Type u) × DecidableEq τ ×
+    HasCol (nm, τ) s × HasCol (nm, τ) schema₁ :=
+λ _ _ c => ⟨c.1, c.2.1, c.2.2.1, removeHeaderPres c.2.2.2.1, c.2.2.2.2⟩
 
 -- Returns the schema entry with the specified name
 def Schema.lookup {η : Type u_η} [DecidableEq η]
@@ -433,9 +434,10 @@ def Schema.renameColumn {η : Type u_η} [DecidableEq η]
 
 @[reducible]
 def Schema.renameColumnCN {η : Type u_η} [DecidableEq η]
-                          (s : @Schema η) (entry : CertifiedName s × η)
+                          (s : @Schema η)
+                          (entry : (nmAndNew : η × η) × s.HasName nmAndNew.1)
     : @Schema η :=
-  renameColumn s entry.1.2 entry.2
+  renameColumn s entry.2 entry.1.2
 
 @[reducible]
 def Schema.renameColumns {η : Type u_η} [DecidableEq η]

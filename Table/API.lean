@@ -55,9 +55,9 @@ def leftJoin {schema₁ schema₂ : @Schema η}
   t1.rows.flatMap (λ r₁ =>
     let rs2 := t2.rows.filter (λ r₂ =>
       let mismatch := (cs.toList Schema.removeOtherCHPres).find? (λ c =>
-        let _ : DecidableEq (Cell c.1.1 c.1.2) :=
-          instDecidableEqCell (inst := c.2.1)
-        decide $ r₁.getCell c.2.2.2 ≠ r₂.getCell c.2.2.1)
+        let _ : DecidableEq (Cell c.1 c.2.1) :=
+          instDecidableEqCell (inst := c.2.2.1)
+        decide $ r₁.getCell c.2.2.2.2 ≠ r₂.getCell c.2.2.2.1)
 
       match mismatch with
       | none => true
