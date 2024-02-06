@@ -84,8 +84,8 @@ open Lean Elab Tactic in
 elab "cycle_goals" : tactic => do
   let goals ← getGoals
   match goals with
-    | [] => throwError "No goals!"
-    | [g] => throwError "Only one goal; can't cycle"
+    | [] => throwError "No goals to cycle"
+    | [_] => throwError "Only one goal; can't cycle"
     | g :: gs => setGoals (gs ++ [g])
 macro "action_list_tactic" : tactic =>
 `(tactic|
@@ -106,11 +106,8 @@ macro_rules
       match i, skip with
       | 0,   _     => pure result
       | i+1, true  => expandListLit i false result
-      -- TODO: auto-generate:
-      --  - The type slot in the tuple for ActionLists that want headers
-      --  - Any instances or proof terms required as subsequent components of
-      --    the ActionList entry (this won't always just be a single
-      --    `by name/header`)
+      -- In addition to unfolding to cons/nil applications, we also insert any
+      -- necessary proof terms in subsequent tuple elements
       | i+1, false =>
         expandListLit i true (←``(ActionList.cons
           ⟨$(⟨elems.elemsAndSeps.get! i⟩), by action_list_tactic⟩ $result))
