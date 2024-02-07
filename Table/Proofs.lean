@@ -792,7 +792,8 @@ theorem pivotTable_spec2 :
   header (pivotTable t cs inst aggs) =
   List.append (cs.map (·.1.1)) (aggs.map (·.1.1)) := by
   intro t cs inst aggs
-  simp only [header, Schema.names, Schema.append_eq_List_append]
+  simp only [header, Schema.names, Schema.append_eq_List_append,
+             Schema.map_eq_List_map]
   exact List.map_map_append cs aggs Prod.fst Sigma.fst Sigma.fst
 
 -- TODO: get rid of `Classical.choice` (termination proof)
@@ -802,7 +803,7 @@ theorem pivotTable_spec3_aux :
                   (List (Option c.fst.snd) → Option c'.snd)))
     (cn : CertifiedName (Schema.fromCHeaders cs)),
   Schema.lookup
-    (Schema.append (Schema.fromCHeaders cs) (aggs.map (·.fst)))
+    (Schema.append (Schema.fromCHeaders cs) (Schema.map (·.fst) aggs))
     ⟨cn.fst, Schema.hasNameOfAppend cn.snd⟩ =
   Schema.lookup sch ⟨cn.fst, Schema.hasNameOfFromCHeaders cn.snd⟩
 | ⟨(.(nm), τ), _⟩ :: cs, aggs, ⟨nm, .hd⟩ => by
@@ -865,7 +866,9 @@ by intros t key proj agg
 theorem completeCases_spec {τ : Type u} :
   ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
   (completeCases t c hc).length = nrows t :=
-λ t c hc => Eq.trans (List.length_map _ _) (List.length_map _ _)
+λ t c hc => by
+  simp only [nrows, Schema.length_eq_List_length]
+  exact Eq.trans (List.length_map _ _) (List.length_map _ _)
 
 theorem dropna_spec : ∀ (t : Table sch), schema (dropna t) = schema t :=
 λ t => rfl
@@ -1071,13 +1074,15 @@ def Schema.hasRenamedColumnOfColumns {η : Type u_η} [DecidableEq η]
     ActionList.MemT (⟨nm, hnm⟩, nm') ccs →
     Schema.HasName nm' (s.renameColumn hnm nm') := sorry
 
+-- FIXME: this is false -- we might rename the same column multiple times
 def renameColumns_spec1 {c c'} {hc : sch.HasName c} :
   ∀ (t : Table sch) (ccs : ActionList Schema.renameColumnCN sch),
   sch.HasName c →
-  ccs.MemT (⟨c, hc⟩, c') →
+  ccs.MemT ⟨(c, c'), hc⟩ →
   (schema (renameColumns t ccs)).HasName c' := by
   intro t ccs hsch hccs
   simp only [schema]
+
 
 
 theorem renameColumns_spec3 :
