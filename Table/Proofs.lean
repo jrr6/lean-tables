@@ -1082,6 +1082,10 @@ def renameColumns_spec1 {c c'} {hc : sch.HasName c} :
   (schema (renameColumns t ccs)).HasName c' := by
   intro t ccs hsch hccs
   simp only [schema]
+  cases hccs with
+  | head h =>
+    simp
+
 
 
 

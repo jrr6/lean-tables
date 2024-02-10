@@ -363,7 +363,8 @@ Table.mk [
 
 -- `selectColumns3`
 #test
-selectColumns3 students [⟨("favorite color", _), by header⟩, ⟨("age", _), by header⟩]
+-- selectColumns3 students [⟨("favorite color", _), by header⟩, ⟨("age", _), by header⟩]
+(selectColumns3 students L["favorite color", "age"] :)
 =(Table [("favorite color", String), ("age", Nat)])
 Table.mk [
   /[ "blue"         , 12  ],
@@ -372,7 +373,8 @@ Table.mk [
 ]
 
 #test
-selectColumns3 gradebook [⟨("final", _), by header⟩, ⟨("name", _), by header⟩, ⟨("midterm", _), by header⟩]
+-- selectColumns3 gradebook [⟨("final", _), by header⟩, ⟨("name", _), by header⟩, ⟨("midterm", _), by header⟩]
+(selectColumns3 gradebook L["final", "name", "midterm"] :)
 =(Table [("final", Nat), ("name", String), ("midterm", Nat)])
 Table.mk [
   /[ 87    , "Bob"   , 77      ],
@@ -1040,7 +1042,7 @@ def abstractAgeUpdate := λ (r : Row $ schema students) =>
 -- FIXME: why are we back to needing the `:)` notation here?
 #test
 (update [⟨("age", String), by name⟩] students abstractAgeUpdate :)
-=[by inst]--(Table [("name", String), ("age", String), ("favorite color", String)])
+=--[by inst]--(Table [("name", String), ("age", String), ("favorite color", String)])
 Table.mk [
   /[ "Bob"   , "kid"      , "blue"         ],
   /[ "Alice" , "teenager" , "green"        ],

@@ -24,7 +24,7 @@ def Schema.map {α β} : (α → β) → List α → List β
   | _, [] => []
   | f, x :: xs => f x :: map f xs
 
-@[simp]
+-- @[simp]
 theorem Schema.map_eq_List_map : @Schema.map = @List.map := by
   funext _ _ _ xs
   induction xs with
@@ -204,15 +204,25 @@ theorem Schema.mem_map_of_HasName : ∀ (sch : @Schema η) (nm : η),
     apply ih
 
 
+@[simp] theorem Schema.length_map : ∀ (f : α → β) (xs : List α),
+  Schema.length (Schema.map f xs) = Schema.length xs
+  | f, [] => rfl
+  | f, x :: xs => congrArg (·+1) $ length_map f xs
+
 /- Retype from subschema: `update` -/
 @[reducible]
 def Schema.retypedFromSubschema :
   ∀ {sch : @Schema η}, RetypedSubschema sch → @Schema η
 | hs, [] => hs
 | hs, ⟨(_, ρ), pf⟩ :: rs =>
+  have := Schema.length_map
+    (α := (h : Header) × hs.HasName h.fst)
+    (β := (h : Header) × (hs.retypeColumn pf ρ).HasName h.fst)
+    (λ ⟨h, pf⟩ => ⟨h, Schema.hasRetypedName pf⟩)
+    rs
   @retypedFromSubschema (hs.retypeColumn pf ρ)
     (Schema.map (λ ⟨h, pf⟩ => ⟨h, Schema.hasRetypedName pf⟩) rs)
-termination_by retypedFromSubschema rs => rs.length
+termination_by retypedFromSubschema rs => Schema.length rs
 
 @[reducible]
 def Schema.retypedSubschemaHasSchemaName :
@@ -221,7 +231,7 @@ def Schema.retypedSubschemaHasSchemaName :
 | sch, nm, [], hnm => hnm
 | (_, _) :: _, nm, ⟨(_, _), _⟩ :: rs', pf =>
   retypedSubschemaHasSchemaName (Schema.map _ rs') (Schema.hasRetypedName pf)
-termination_by retypedSubschemaHasSchemaName rs h => rs.length
+termination_by retypedSubschemaHasSchemaName rs h => Schema.length rs
 
 @[reducible]
 def Schema.retypedFromSubschemaHasNameOfRSToSchema :
@@ -244,4 +254,4 @@ theorem Schema.retypedFromSubschema_preserves_names :
       (Schema.map (fun ⟨h, pf⟩ => ⟨h, hasRetypedName pf⟩) rs)
     rw [this]
     simp only [retypeColumn_preserves_names]
-termination_by retypedFromSubschema_preserves_names sch rs => rs.length
+termination_by retypedFromSubschema_preserves_names sch rs => Schema.length rs

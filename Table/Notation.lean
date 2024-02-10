@@ -113,6 +113,21 @@ macro_rules
           ⟨$(⟨elems.elemsAndSeps.get! i⟩), by action_list_tactic⟩ $result))
     expandListLit elems.elemsAndSeps.size false (← ``(ActionList.nil))
 
+syntax "L[" term,* "]" : term
+macro_rules
+  | `(L[ $elems,* ]) => do
+    let rec expandListLit (i : Nat) (skip : Bool) (result : Lean.TSyntax `term)
+        : Lean.MacroM Lean.Syntax := do
+      match i, skip with
+      | 0,   _     => pure result
+      | i+1, true  => expandListLit i false result
+      -- In addition to unfolding to cons/nil applications, we also insert any
+      -- necessary proof terms in subsequent tuple elements
+      | i+1, false =>
+        expandListLit i true (←``(List.cons
+          ⟨$(⟨elems.elemsAndSeps.get! i⟩), by action_list_tactic⟩ $result))
+    expandListLit elems.elemsAndSeps.size false (← ``(List.nil))
+
 -- # Table `toString`
 -- TODO: make this prettier
 instance : ToString (@Row η dec_η []) where
