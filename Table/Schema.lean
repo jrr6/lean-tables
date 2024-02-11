@@ -491,13 +491,12 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
 --   (Schema.fromCHeaders cs).HasCol (c, τ)
 -- | .head, c :: cs, .hd => .hd
 
--- TODO: figure out why it won't let us name the proof in the first clause
 def Schema.hasNameOfFromCHeaders :
   ∀ {sch : @Schema η} {cs : List $ CertifiedHeader sch} {nm : η},
   Schema.HasName nm (Schema.fromCHeaders cs) → Schema.HasName nm sch
 | [], ⟨hdr, hpf⟩ :: _, _, _ => nomatch hpf
-| _ :: _, ⟨(.(nm), τ), _⟩ :: _, nm, .hd =>
-  Schema.colImpliesName (τ := τ) (by assumption)
+| _ :: _, ⟨(nm, τ), hpf⟩ :: _, .(nm), .hd =>
+  Schema.colImpliesName (τ := τ) hpf
 | _ :: _, ⟨hdr, hpf⟩ :: cs, nm, .tl h => hasNameOfFromCHeaders h
 
 theorem Schema.hasNameOfFromCHeaders_eq_1 :
