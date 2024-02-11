@@ -380,10 +380,63 @@ theorem selectColumns2_spec2 :
   simp only [finHeaderLengthOfFinNcols]
   apply List.get_map_nths_eq_get_get
 
-def Schema.hasNameOfNthsHasName {schema : @Schema η} {nm : η}
-                                {ns : List (Fin $ Schema.length schema)} :
+
+def Schema.hasNthName :
+  ∀ {schema : @Schema η} (n : Fin $ Schema.length schema),
+  schema.HasCol (Schema.nth schema n.val n.isLt) := sorry
+
+def Schema.hasMappedName :
+  ∀ {schema : @Schema η} {f : @Header η → @Header η} {nm : η} {τ : Type u},
+    Schema.HasName (Prod.fst $ f (nm, τ)) (Schema.map f schema) →
+    schema.HasName nm
+| (snm, sτ) :: hs, f, .(snm), .(sτ), .hd => _
+
+-- def Schema.hasNameOfNthsHasName :
+--   ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η},
+--   Schema.HasName nm (Schema.nths schema ns) → schema.HasName nm
+
+set_option pp.proofs true
+def Schema.hasColOfNthsHasCol :
+  ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)}
+    {nm : η} {τ : Type u},
+    Schema.HasCol (nm, τ) (Schema.nths schema ns) →
+    schema.HasCol (nm, τ) := by
+  intro sch ns nm τ h
+  cases ns with | nil => contradiction | cons n ns =>
+  simp only [nths, map] at h
+  cases n with | mk n hlt =>
+  cases sch with | nil => contradiction | cons hdr sch' =>
+  cases n with
+  | zero =>
+    cases h with
+    | hd => exact HasCol.hd
+    | tl h' =>
+      rw [←nths] at h'
+      apply hasColOfNthsHasCol h'
+  | succ n' =>
+    simp only at h
+    -- The thing being recursed on here is `hlt`, but we can't case on that for
+    -- some reason ("error assigning motive"...)
+    sorry
+termination_by hasColOfNthsHasCol sch ns nm τ h => ns.length
+-- hasNthName n
+
+def Schema.hasNameOfNthsHasName :
+  ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η},
   Schema.HasName nm (Schema.nths schema ns) → schema.HasName nm
-:= sorry
+| [], ⟨_, hlt⟩ :: ns, nm, h => nomatch hlt
+| (snm, τ) :: hs, ⟨0, _⟩ :: ns, .(snm), .hd => .hd
+-- | hdr1 :: hdr2 :: hs, ⟨.succ n', hlt⟩ :: ns, .(Prod.fst (Schema.nth (hdr2 :: hs) n' (Nat.le_of_succ_le_succ hlt))), .hd =>
+| hdr1 :: hdr2 :: hs, ⟨.succ n', hlt⟩ :: ns, _, .hd =>
+  sorry
+-- | hdr :: hs, ⟨.succ n', hlt⟩ :: ns, _, .tl h =>
+--   sorry
+| _, _, _, _ => sorry
+/-
+Schema.HasName _ (Schema.nths (h :: hs) (⟨.succ n', hlt⟩ :: ns))
+= Schema.HasName _ (Schema.nths )
+-/
+  --_ --.tl $ @hasNameOfNthsHasName hs _ (⟨n', _⟩ :: ns) .hd
 
 inductive Schema.IsSubschema : @Schema η → @Schema η → Type _
 | nil : IsSubschema [] []
@@ -416,12 +469,40 @@ theorem Schema.lookupSubschemaTypeUnique :
 | (_, _) :: ss, (nm, τ) :: ss', hunique, ⟨.(nm), .hd⟩, .cons2 _ _ _ _ => by
   simp only [lookupType]
 
-
+#check Schema.lookupType
 -- For the proof in the type (where there's currently a `sorry`):
 -- This won't do b/c we need to eliminate to data (i.e., `Type`)
 -- theorem List.nths_sublist : List.Sublist (List.nths xs ns) xs := sorry
 -- Use a `Subschema`?
 -- TODO: sc2 spec 3
+
+/-
+
+Schema.lookupType (Schema.nths sch ns) ⟨nm, pf⟩ =
+  Schema.lookupType sch ⟨nm, pf⟩
+
+-/
+/-
+Schema.nths sch (n :: ns)
+= Schema.map (λ n => Schema.nth sch n.1 n.2) (n :: ns)
+= (Schema.nth sch n.1 n.2) :: map _ ns
+=
+-/
+#print Schema.nth
+#check Schema.hasNameOfNthsHasName
+theorem real_sc2_s3 :
+  ∀ {sch : @Schema η}
+    (hsch : Schema.Unique sch)
+    (ns : List (Fin (Schema.length sch)))
+    (hns : List.Unique ns)
+    (nm : η)
+    (pf : Schema.HasName nm (Schema.nths sch ns)),
+  Schema.lookupType (Schema.nths sch ns) ⟨nm, pf⟩ =
+  Schema.lookupType sch ⟨nm, Schema.hasNameOfNthsHasName pf⟩
+-- | [], hsch, ⟨n, hlt⟩ :: ns, hns, nm, pf => nomatch hlt
+| (snm, sτ) :: sch, hsch, ⟨0, pf⟩ :: ns, hns, .(snm), .hd => by
+  simp only [Schema.lookupType, Schema.nths]
+
 theorem selectColumns2_spec3 :
   ∀ {sch : @Schema η} (hsch : Schema.Unique sch) (t : Table sch)
     (ns : List (Fin (ncols t))) (hns : List.Unique ns),
@@ -429,8 +510,12 @@ theorem selectColumns2_spec3 :
     (schema (selectColumns2 t ns)).lookupType c
     = (schema t).lookupType ⟨c.1, Schema.hasNameOfNthsHasName c.2⟩ := by
   intro sch hsch t ns hns c
-  unfold schema
+  unfold schema at *
   simp only [ncols] at ns
+  simp only [Schema.nths] at c
+  cases c with | mk nm pf =>
+  simp only
+  unfold Schema.nths
   induction sch with
   | nil =>
     cases ns with
@@ -512,19 +597,77 @@ def Schema.mapUniqueSubschema :
 | (nm, τ) :: ss, ⟨_, .tl h⟩ :: cs, .cons hnmem hrest =>
   sorry -- .cons _ _ _ $ mapUniqueSubschema _ _ _
 
+-- fromCHeaders need not give a subschema (i.e., there may be dups), so we can't
+-- use that proof
+-- theorem Schema.lookupTypeFromCHeadersUnique :
+--   ∀ {sch : @Schema η},
+--   Schema.Unique sch →
+--   ∀ (cs : List (CertifiedHeader sch))
+--     (c : CertifiedName (Schema.fromCHeaders cs)),
+--     Schema.lookupType sch ⟨c.1, Schema.hasNameOfFromCHeaders c.2⟩ =
+--     Schema.lookupType (Schema.fromCHeaders cs) c :=
+-- by
+--   intro sch hsch cs c
+--   have := hasNameOfFromCHeaders c.2
+
+theorem Schema.lookupType_of_colImpliesName :
+  ∀ {sch: @Schema η} (nm : η) (τ : Type u) (h : sch.HasCol (nm, τ)),
+  lookupType sch ⟨nm, colImpliesName h⟩ = τ
+| (nm, τ) :: _, .(nm), .(τ), .hd => rfl
+| (nm, τ) :: sch', nm', τ', .tl h => lookupType_of_colImpliesName nm' τ' h
+
+
+#check Schema.hasNameOfFromCHeaders
+theorem Schema.lookupTypeFromCHeadersUnique :
+  ∀ {sch : @Schema η},
+  Schema.Unique sch →
+  ∀ (cs : List (CertifiedHeader sch))
+    (c : CertifiedName (Schema.fromCHeaders cs)),
+    Schema.lookupType sch ⟨c.1, Schema.hasNameOfFromCHeaders c.2⟩ =
+    Schema.lookupType (Schema.fromCHeaders cs) c
+| [], _, [], ⟨_, h⟩ => nomatch h
+| (nm, τ) :: hs, hsch , ⟨_, .hd⟩ :: cs, ⟨_, .hd⟩ => by
+  simp only [lookupType]
+  simp only [hasNameOfFromCHeaders_eq_1]
+  -- TODO: Lean bug - this silently raises internal exception #7:
+  -- have := colImpliesName_eq_1 (hdr := (nm, τ))
+  rw [@colImpliesName_eq_1 η hs (nm, τ)]
+  simp only [lookupType]
+| (nm, τ) :: hs, hsch, ⟨(ch_nm, ch_τ), .tl h⟩ :: cs, ⟨.(ch_nm), .hd⟩ =>
+  -- have ih := lookupTypeFromCHeadersUnique hsch' (cast sorry cs) ⟨ch_nm, _⟩
+  by
+  simp only [lookupType]
+  simp only [hasNameOfFromCHeaders_eq_1]
+  rw [@colImpliesName_eq_2 η hs (nm, τ) (ch_nm, ch_τ) h]
+  simp only [lookupType]
+  apply lookupType_of_colImpliesName
+| (nm, τ) :: hs, hsch, ⟨_, pf⟩ :: cs, ⟨s_nm, .tl hn⟩ => by
+  simp only [lookupType]
+  simp only [hasNameOfFromCHeaders_eq_2]
+  exact lookupTypeFromCHeadersUnique hsch cs ⟨s_nm, hn⟩
+-- | (nm, τ) :: hs, hsch, ⟨(_, _), .tl _⟩ :: _, ⟨_, .tl _⟩ => _
+-- | _, _, _, _ => sorry
+
+  -- simp only [colImpliesName_eq_1]
+
+
+-- Note: this requires the CertifiedHeader version of sc3, not the
+-- `L[]`-optimized form
 theorem selectColumns3_spec2 :
   ∀ (hsch : Schema.Unique sch) (t : Table sch)
-    (cs : List (CertifiedHeader sch)) (hcs : List.UniqueT cs),
+    (cs : List (CertifiedHeader sch)),
   ∀ (c : CertifiedName $ schema (selectColumns3 t cs)),
     (schema t).lookupType ⟨c.1, Schema.hasNameOfFromCHeaders c.2⟩ =
     (schema (selectColumns3 t cs)).lookupType c := by
-  intro hsch t cs hcs c
+  intro hsch t cs c
   unfold schema
   unfold Schema.fromCHeaders
-  apply Eq.symm
-  apply Schema.lookupSubschemaTypeUnique
+  -- apply Eq.symm
+  simp only [schema] at c
+  -- apply Schema.lookupSubschemaTypeUnique
+  apply Schema.lookupTypeFromCHeadersUnique
   . exact hsch
-  . exact Schema.mapUniqueSubschema sch cs hcs
+  -- . exact Schema.mapUniqueSubschema sch cs hcs
 
 theorem selectColumns3_spec3 :
   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),

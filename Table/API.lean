@@ -145,12 +145,15 @@ def selectColumns2 (t : Table schema)
 
 -- FIXME: need to figure out a better way to handle the type -- this breaks
 -- (see `ExampleTests.lean`)
-def selectColumns3 (t : Table schema)
-    -- It would be simpler to use a `List CertifiedHeader`, but this makes the
-    -- notation nicer
-    (cs : List ((c : η) × (τ : Type u) × (schema.HasCol (c, τ))))
-    : Table (Schema.fromCHeaders $ Schema.map (λ c => ⟨(c.1, c.2.1), c.2.2⟩) cs) :=
-  {rows := t.rows.map (λ r => r.pick (Schema.map (λ c => ⟨(c.1, c.2.1), c.2.2⟩) cs))}
+-- def selectColumns3 (t : Table schema)
+--     -- It would be simpler to use a `List CertifiedHeader`, but this makes the
+--     -- notation nicer
+--     (cs : List ((c : η) × (τ : Type u) × (schema.HasCol (c, τ))))
+--     : Table (Schema.fromCHeaders $ Schema.map (λ c => ⟨(c.1, c.2.1), c.2.2⟩) cs) :=
+--   {rows := t.rows.map (λ r => r.pick (Schema.map (λ c => ⟨(c.1, c.2.1), c.2.2⟩) cs))}
+def selectColumns3 (t : Table schema) (cs : List (CertifiedHeader schema))
+    : Table (Schema.fromCHeaders cs) :=
+  {rows := t.rows.map (λ r => r.pick cs)}
 
 -- TODO: subtype or proof? (should standardize this for other functions, too)
 -- Once again, since drop/take doesn't require it, we don't strictly *need* the
