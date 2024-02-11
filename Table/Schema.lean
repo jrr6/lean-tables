@@ -519,6 +519,38 @@ def Schema.fromCHHasFromCH :
 | _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .hd _ _ => .hd
 | _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .tl _ htl => .tl $ fromCHHasFromCH _ hs htl
 
+-- For `selectColumns3_spec2`
+theorem Schema.lookupType_of_colImpliesName :
+  ∀ {sch: @Schema η} (nm : η) (τ : Type u) (h : sch.HasCol (nm, τ)),
+  lookupType sch ⟨nm, colImpliesName h⟩ = τ
+| (nm, τ) :: _, .(nm), .(τ), .hd => rfl
+| (nm, τ) :: sch', nm', τ', .tl h => lookupType_of_colImpliesName nm' τ' h
+
+theorem Schema.lookupTypeFromCHeadersUnique :
+  ∀ {sch : @Schema η} (cs : List (CertifiedHeader sch))
+    (c : CertifiedName (Schema.fromCHeaders cs)),
+    Schema.lookupType sch ⟨c.1, Schema.hasNameOfFromCHeaders c.2⟩ =
+    Schema.lookupType (Schema.fromCHeaders cs) c
+| [], [], ⟨_, h⟩ => nomatch h
+| (nm, τ) :: hs, ⟨_, .hd⟩ :: cs, ⟨_, .hd⟩ => by
+  simp only [lookupType]
+  simp only [hasNameOfFromCHeaders_eq_1]
+  -- TODO: Lean bug - this silently raises internal exception #7:
+  -- have := colImpliesName_eq_1 (hdr := (nm, τ))
+  rw [@colImpliesName_eq_1 η hs (nm, τ)]
+  simp only [lookupType]
+| (nm, τ) :: hs, ⟨(ch_nm, ch_τ), .tl h⟩ :: cs, ⟨.(ch_nm), .hd⟩ =>
+  by
+  simp only [lookupType]
+  simp only [hasNameOfFromCHeaders_eq_1]
+  rw [@colImpliesName_eq_2 η hs (nm, τ) (ch_nm, ch_τ) h]
+  simp only [lookupType]
+  apply lookupType_of_colImpliesName
+| (nm, τ) :: hs, ⟨_, pf⟩ :: cs, ⟨s_nm, .tl hn⟩ => by
+  simp only [lookupType]
+  simp only [hasNameOfFromCHeaders_eq_2]
+  exact lookupTypeFromCHeadersUnique cs ⟨s_nm, hn⟩
+
 -- `pivotWider` stuff
 def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
   | .hd _ _ => .hd

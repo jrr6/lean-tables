@@ -469,6 +469,21 @@ theorem Schema.lookupSubschemaTypeUnique :
 | (_, _) :: ss, (nm, τ) :: ss', hunique, ⟨.(nm), .hd⟩, .cons2 _ _ _ _ => by
   simp only [lookupType]
 
+def Schema.nil_isSubschema : ∀ (sch : @Schema η), Schema.IsSubschema [] sch
+| [] => .nil
+| .cons _ ss => .cons _ _ _ $ nil_isSubschema ss
+
+-- TODO: finish
+def Schema.mapUniqueSubschema :
+  ∀ (sch : @Schema η) (cs : List (CertifiedHeader sch)) (hcs : List.UniqueT cs),
+    Schema.IsSubschema (List.map Sigma.fst cs) sch
+| ss, [], _ => nil_isSubschema _
+| (nm, τ) :: ss, ⟨_, .hd⟩ :: cs, .cons hnmem hrest =>
+  let ih := mapUniqueSubschema ((nm, τ) :: ss) cs hrest
+  .cons2 _ _ _ $ ih
+| (nm, τ) :: ss, ⟨_, .tl h⟩ :: cs, .cons hnmem hrest =>
+  sorry -- .cons _ _ _ $ mapUniqueSubschema _ _ _
+
 #check Schema.lookupType
 -- For the proof in the type (where there's currently a `sorry`):
 -- This won't do b/c we need to eliminate to data (i.e., `Type`)
@@ -575,99 +590,19 @@ by intros t cs
      . simp only [Function.comp, Schema.lookup_fst_eq_nm, CertifiedName.val]
      . exact ih
 
--- def Schema.hasNameOfFromCHeaders : (cs : List (CertifiedHeader schema)) →
---   Schema.HasName nm (Schema.fromCHeaders cs) →
---   Schema.HasName nm sch
-
--- TODO: sc3 spec 2
--- TODO: Same subschema issue as `sc2_s2`
-
-def Schema.nil_isSubschema : ∀ (sch : @Schema η), Schema.IsSubschema [] sch
-| [] => .nil
-| .cons _ ss => .cons _ _ _ $ nil_isSubschema ss
-
--- TODO: finish
-def Schema.mapUniqueSubschema :
-  ∀ (sch : @Schema η) (cs : List (CertifiedHeader sch)) (hcs : List.UniqueT cs),
-    Schema.IsSubschema (List.map Sigma.fst cs) sch
-| ss, [], _ => nil_isSubschema _
-| (nm, τ) :: ss, ⟨_, .hd⟩ :: cs, .cons hnmem hrest =>
-  let ih := mapUniqueSubschema ((nm, τ) :: ss) cs hrest
-  .cons2 _ _ _ $ ih
-| (nm, τ) :: ss, ⟨_, .tl h⟩ :: cs, .cons hnmem hrest =>
-  sorry -- .cons _ _ _ $ mapUniqueSubschema _ _ _
-
--- fromCHeaders need not give a subschema (i.e., there may be dups), so we can't
--- use that proof
--- theorem Schema.lookupTypeFromCHeadersUnique :
---   ∀ {sch : @Schema η},
---   Schema.Unique sch →
---   ∀ (cs : List (CertifiedHeader sch))
---     (c : CertifiedName (Schema.fromCHeaders cs)),
---     Schema.lookupType sch ⟨c.1, Schema.hasNameOfFromCHeaders c.2⟩ =
---     Schema.lookupType (Schema.fromCHeaders cs) c :=
--- by
---   intro sch hsch cs c
---   have := hasNameOfFromCHeaders c.2
-
-theorem Schema.lookupType_of_colImpliesName :
-  ∀ {sch: @Schema η} (nm : η) (τ : Type u) (h : sch.HasCol (nm, τ)),
-  lookupType sch ⟨nm, colImpliesName h⟩ = τ
-| (nm, τ) :: _, .(nm), .(τ), .hd => rfl
-| (nm, τ) :: sch', nm', τ', .tl h => lookupType_of_colImpliesName nm' τ' h
-
-
-#check Schema.hasNameOfFromCHeaders
-theorem Schema.lookupTypeFromCHeadersUnique :
-  ∀ {sch : @Schema η},
-  Schema.Unique sch →
-  ∀ (cs : List (CertifiedHeader sch))
-    (c : CertifiedName (Schema.fromCHeaders cs)),
-    Schema.lookupType sch ⟨c.1, Schema.hasNameOfFromCHeaders c.2⟩ =
-    Schema.lookupType (Schema.fromCHeaders cs) c
-| [], _, [], ⟨_, h⟩ => nomatch h
-| (nm, τ) :: hs, hsch , ⟨_, .hd⟩ :: cs, ⟨_, .hd⟩ => by
-  simp only [lookupType]
-  simp only [hasNameOfFromCHeaders_eq_1]
-  -- TODO: Lean bug - this silently raises internal exception #7:
-  -- have := colImpliesName_eq_1 (hdr := (nm, τ))
-  rw [@colImpliesName_eq_1 η hs (nm, τ)]
-  simp only [lookupType]
-| (nm, τ) :: hs, hsch, ⟨(ch_nm, ch_τ), .tl h⟩ :: cs, ⟨.(ch_nm), .hd⟩ =>
-  -- have ih := lookupTypeFromCHeadersUnique hsch' (cast sorry cs) ⟨ch_nm, _⟩
-  by
-  simp only [lookupType]
-  simp only [hasNameOfFromCHeaders_eq_1]
-  rw [@colImpliesName_eq_2 η hs (nm, τ) (ch_nm, ch_τ) h]
-  simp only [lookupType]
-  apply lookupType_of_colImpliesName
-| (nm, τ) :: hs, hsch, ⟨_, pf⟩ :: cs, ⟨s_nm, .tl hn⟩ => by
-  simp only [lookupType]
-  simp only [hasNameOfFromCHeaders_eq_2]
-  exact lookupTypeFromCHeadersUnique hsch cs ⟨s_nm, hn⟩
--- | (nm, τ) :: hs, hsch, ⟨(_, _), .tl _⟩ :: _, ⟨_, .tl _⟩ => _
--- | _, _, _, _ => sorry
-
-  -- simp only [colImpliesName_eq_1]
-
-
 -- Note: this requires the CertifiedHeader version of sc3, not the
 -- `L[]`-optimized form
 theorem selectColumns3_spec2 :
-  ∀ (hsch : Schema.Unique sch) (t : Table sch)
+  ∀ (t : Table sch)
     (cs : List (CertifiedHeader sch)),
   ∀ (c : CertifiedName $ schema (selectColumns3 t cs)),
     (schema t).lookupType ⟨c.1, Schema.hasNameOfFromCHeaders c.2⟩ =
     (schema (selectColumns3 t cs)).lookupType c := by
-  intro hsch t cs c
+  intro t cs c
   unfold schema
   unfold Schema.fromCHeaders
-  -- apply Eq.symm
   simp only [schema] at c
-  -- apply Schema.lookupSubschemaTypeUnique
   apply Schema.lookupTypeFromCHeadersUnique
-  . exact hsch
-  -- . exact Schema.mapUniqueSubschema sch cs hcs
 
 theorem selectColumns3_spec3 :
   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
