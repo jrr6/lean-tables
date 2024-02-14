@@ -96,6 +96,7 @@ macro "action_list_tactic" : tactic =>
                 | apply Schema.HasName.hd
                 | apply Schema.HasName.tl
                 | exact inferInstance
+                | decide  -- for `Fin`s
                 | cycle_goals)
 )
 
@@ -113,20 +114,42 @@ macro_rules
           ⟨$(⟨elems.elemsAndSeps.get! i⟩), by action_list_tactic⟩ $result))
     expandListLit elems.elemsAndSeps.size false (← ``(ActionList.nil))
 
-syntax "L[" term,* "]" : term
-macro_rules
-  | `(L[ $elems,* ]) => do
+syntax (name := autocomp_list) "L[" term,* "]" : term
+@[term_elab autocomp_list] def elabAutocompList : TermElab
+  | `(L[ $elems,* ]), expType? => do
     let rec expandListLit (i : Nat) (skip : Bool) (result : Lean.TSyntax `term)
-        : Lean.MacroM Lean.Syntax := do
+        : TermElabM Lean.Syntax := do
       match i, skip with
       | 0,   _     => pure result
       | i+1, true  => expandListLit i false result
       -- In addition to unfolding to cons/nil applications, we also insert any
       -- necessary proof terms in subsequent tuple elements
       | i+1, false =>
+        -- TODO: make this a *lot* more robust
+        let isCHApp :=
+          if let some $ .app (.const `List _) rest := expType?
+          then rest.isAppOf `CertifiedHeader else false
+        let item : TSyntax `term :=
+          if isCHApp
+          then (← `(($(⟨elems.elemsAndSeps.get! i⟩), _)))
+          else ⟨elems.elemsAndSeps.get! i⟩
+          -- | some expType =>
+          --   -- TODO: why can't we just directly match against the following?
+          --   -- .app (.const `List _) (.app (.const `CertifiedHeader _) _)
+          --   let item :=
+          --     match expType with
+          --     | .app (.const `List _) rest =>
+          --       if rest.isAppOf `CertifiedHeader then
+          --         pure ()
+          --       else
+          --         pure ()
+          --     | _ => pure ()
+          -- | none => pure ()
         expandListLit i true (←``(List.cons
-          ⟨$(⟨elems.elemsAndSeps.get! i⟩), by action_list_tactic⟩ $result))
-    expandListLit elems.elemsAndSeps.size false (← ``(List.nil))
+          ⟨$item, by action_list_tactic⟩ $result))
+    elabTerm (← expandListLit elems.elemsAndSeps.size false (← ``(List.nil))) expType?
+  | _, _ => throwUnsupportedSyntax
+
 
 -- # Table `toString`
 -- TODO: make this prettier

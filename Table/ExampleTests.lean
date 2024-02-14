@@ -163,16 +163,10 @@ def petiteJelly : Table
     (Schema.nths
       [("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool), ("yellow", Bool),
         ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
-      [0, 1, 2]) :=
+      L[0, 1, 2]) := -- Note that decidability fails if the `L` is omitted
 selectRows1
-  (selectColumns2 jellyAnon [0, 1, 2])
-  [⟨0, by decide⟩, ⟨1, by decide⟩]
-#synth DecidableEq $ Table
-    (Schema.nths
-      [("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool), ("yellow", Bool),
-        ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
-      [0, 1, 2])  -- this fails
-      -- [⟨0, _⟩, ⟨1, _⟩, ⟨2, _⟩])  -- this succeeds
+  (selectColumns2 jellyAnon L[0, 1, 2])
+  L[0, 1]
 #test
 crossJoin students petiteJelly
 =
