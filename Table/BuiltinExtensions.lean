@@ -1082,6 +1082,8 @@ theorem List.mem_reverse_iff (x : α) (xs : List α) :
 --     apply congrArg
 --     rfl
 
+-- TODO: when switching to Lean 4.5, delete the first simp, then switch the
+-- `foldr` simps to `all` simps
 theorem List.all_pred {p : α → Prop} [DecidablePred p] {xs : List α} :
   xs.all (λ x => decide (p x)) ↔ ∀ x, x ∈ xs → p x := by
   simp only [all]
