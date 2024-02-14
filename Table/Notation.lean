@@ -153,34 +153,6 @@ elab_rules : term <= expType
 -- #reduce (A["a1", "a"] : ActionList (Schema.removeOtherDecCH [("a", Nat), ("a1", Nat)]) [("a", Nat), ("a1", Nat), ("b", Nat)])
 
 
--- TODO: now that we have term elab, consolidate all of this into `A[]`
-syntax (name := autocomp_list) "L[" term,* "]" : term
-@[term_elab autocomp_list] def elabAutocompList : TermElab
-  | `(L[ $elems,* ]), expType? => do
-    let rec expandListLit (i : Nat) (skip : Bool) (result : Lean.TSyntax `term)
-        : TermElabM Lean.Syntax := do
-      match i, skip with
-      | 0,   _     => pure result
-      | i+1, true  => expandListLit i false result
-      -- In addition to unfolding to cons/nil applications, we also insert any
-      -- necessary proof terms in subsequent tuple elements
-      | i+1, false =>
-        -- TODO: make this a *lot* more robust
-        let isCHApp :=
-          if let some $ .app (.const `List _) rest := expType?
-          -- TODO: account for case where it's a sigma with a prod in the first arg
-          -- (Probably want to consolidate a list of all the args)
-          then isProdArgTp rest else false
-        let item : TSyntax `term :=
-          if isCHApp
-          then (← `(($(⟨elems.elemsAndSeps.get! i⟩), _)))
-          else ⟨elems.elemsAndSeps.get! i⟩
-        expandListLit i true (←``(List.cons
-          ⟨$item, by action_list_tactic⟩ $result))
-    elabTerm (← expandListLit elems.elemsAndSeps.size false (← ``(List.nil))) expType?
-  | _, _ => throwUnsupportedSyntax
-
-
 -- # Table `toString`
 -- TODO: make this prettier
 instance : ToString (@Row η dec_η []) where
