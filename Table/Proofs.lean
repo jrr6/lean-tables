@@ -590,8 +590,6 @@ by intros t cs
      . simp only [Function.comp, Schema.lookup_fst_eq_nm, CertifiedName.val]
      . exact ih
 
--- Note: this requires the CertifiedHeader version of sc3, not the
--- `L[]`-optimized form
 theorem selectColumns3_spec2 :
   ∀ (t : Table sch)
     (cs : List (CertifiedHeader sch)),

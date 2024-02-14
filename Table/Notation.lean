@@ -131,7 +131,6 @@ elab_rules : term <= expType
         (match actionListParam with
           | .forallE _ tp _ _ => pure (isProdArgTp tp)
           | _ => pure false)
-    dbg_trace needTuple
     let rec expandListLit (i : Nat) (skip : Bool)
         (result : Lean.TSyntax `term) : TermElabM Lean.Syntax := do
       match i, skip with

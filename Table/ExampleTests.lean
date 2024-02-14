@@ -354,8 +354,8 @@ Table.mk [
 -- `selectColumns3`
 #test
 -- selectColumns3 students [⟨("favorite color", _), by header⟩, ⟨("age", _), by header⟩]
-(selectColumns3 students A["favorite color", "age"] :)
-=(Table [("favorite color", String), ("age", Nat)])
+selectColumns3 students A["favorite color", "age"]
+=
 Table.mk [
   /[ "blue"         , 12  ],
   /[ "green"        , 17  ],
@@ -364,8 +364,8 @@ Table.mk [
 
 #test
 -- selectColumns3 gradebook [⟨("final", _), by header⟩, ⟨("name", _), by header⟩, ⟨("midterm", _), by header⟩]
-(selectColumns3 gradebook A["final", "name", "midterm"] :)
-=(Table [("final", Nat), ("name", String), ("midterm", Nat)])
+selectColumns3 gradebook A["final", "name", "midterm"]
+=
 Table.mk [
   /[ 87    , "Bob"   , 77      ],
   /[ 85    , "Alice" , 88      ],
@@ -394,9 +394,8 @@ Table.mk [
 ]
 
 #test
-distinct (selectColumns3 gradebook [⟨("quiz3", _), by header⟩])
--- =(Table [("quiz3", Nat)])
-=(Table [_])  -- how is this helping decidability‽
+distinct (selectColumns3 gradebook A["quiz3"] :)
+=
 Table.mk [ /[7], /[8] ]
 
 -- `dropColumn`
@@ -409,8 +408,6 @@ Table.mk [
   /[ "Eve"   , "red"          ]
 ]
 
--- TODO: investigate why providing just the *typing* hint allows *typeclass resolution*
--- to succeed (???)
 #test
 dropColumn gradebook "final"
 =
@@ -714,7 +711,7 @@ Table.mk [
 (
 pivotLonger gradebook A["midterm", "final"] "exam" "score"
 :)
-=[by simp only [List.append]; inst]
+=[by inst]
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , "midterm" , 77    ],
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , "final"   , 87    ],
