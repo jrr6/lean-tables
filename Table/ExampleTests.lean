@@ -163,10 +163,10 @@ def petiteJelly : Table
     (Schema.nths
       [("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool), ("yellow", Bool),
         ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
-      L[0, 1, 2]) := -- Note that decidability fails if the `L` is omitted
+      A[0, 1, 2]) := -- Note that decidability fails if the `A` is omitted
 selectRows1
-  (selectColumns2 jellyAnon L[0, 1, 2])
-  L[0, 1]
+  (selectColumns2 jellyAnon A[0, 1, 2])
+  A[0, 1]
 #test
 crossJoin students petiteJelly
 =
@@ -188,9 +188,7 @@ Table.mk []
 -- TODO: we need the `header` (and probably `name`) tactic to be able to "see
 -- through" the various Schema ActionList functions like `removeOtherDecCH`
 #test
-(
 leftJoin students gradebook A["name", "age"]
-:)
 =
 Table.mk [
   /[ "Bob"   , 12  , "blue"         , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -199,9 +197,7 @@ Table.mk [
 ]
 
 #test
-(
 leftJoin employees departments A["Department ID"]
-:)
 =
 Table.mk [
   /[ "Rafferty"   , 31            , "Sales"         ],
@@ -358,7 +354,7 @@ Table.mk [
 -- `selectColumns3`
 #test
 -- selectColumns3 students [⟨("favorite color", _), by header⟩, ⟨("age", _), by header⟩]
-(selectColumns3 students L["favorite color", "age"] :)
+(selectColumns3 students A["favorite color", "age"] :)
 =(Table [("favorite color", String), ("age", Nat)])
 Table.mk [
   /[ "blue"         , 12  ],
@@ -368,7 +364,7 @@ Table.mk [
 
 #test
 -- selectColumns3 gradebook [⟨("final", _), by header⟩, ⟨("name", _), by header⟩, ⟨("midterm", _), by header⟩]
-(selectColumns3 gradebook L["final", "name", "midterm"] :)
+(selectColumns3 gradebook A["final", "name", "midterm"] :)
 =(Table [("final", Nat), ("name", String), ("midterm", Nat)])
 Table.mk [
   /[ 87    , "Bob"   , 77      ],

@@ -75,7 +75,7 @@ macro_rules
       return ts_res
 
 -- # ActionList Notation
-syntax "A[" term,* "]" : term
+syntax (name := autocomp_actionlist) "A[" term,* "]" : term
 
 -- Tactic to autogenerate ActionList proofs (we may need to cycle the goals
 -- so that our Schema proof can figure out what type we need to find an instance
@@ -100,20 +100,60 @@ macro "action_list_tactic" : tactic =>
                 | cycle_goals)
 )
 
-macro_rules
+-- Detects whether an argument type for an (Action)List requires tuple insertion
+def isProdArgTp (e : Expr) : Bool :=
+  -- "Vanilla" product cases
+  e.isAppOf `Header || e.isAppOf `Prod ||
+  -- Nested product cases
+  e.isAppOf `CertifiedHeader ||
+  (e.isAppOf `Sigma &&
+    (e.getAppArgs[0]!.isAppOf `Header || e.getAppArgs[0]!.isAppOf `Prod))
+
+elab_rules : term <= expType
+-- @[term_elab autocomp_actionlist] def elabAutocompActionList : TermElab
   | `(A[ $elems,* ]) => do
-    let rec expandListLit (i : Nat) (skip : Bool) (result : Lean.TSyntax `term)
-        : Lean.MacroM Lean.Syntax := do
+    -- Detect (a) if we need an ActionList or List and (b) whether we need
+    -- tuples with holes
+    let isList := expType.isAppOf `List
+    let needTuple ←
+      if let .app (.const `List _) rest := expType
+      then pure (isProdArgTp rest)
+      else do
+        -- TODO: find a way to avoid having to hardcode the position of the
+        -- relevant arg to the `ActionList` constructor?
+
+        -- Type of the "action function" for this action list
+        let actionListFnType ← inferType expType.getAppArgs[3]!.getAppFn
+        -- Type of the "action item" argument to the action function (i.e., the
+        -- argument that goes in the action list)
+        let actionListParam := actionListFnType.getForallBodyMaxDepth 3
+        -- TODO: I don't think this "sees through" `Certified_`
+        (match actionListParam with
+          | .forallE _ tp _ _ => pure (isProdArgTp tp)
+          | _ => pure false)
+    dbg_trace needTuple
+    let rec expandListLit (i : Nat) (skip : Bool)
+        (result : Lean.TSyntax `term) : TermElabM Lean.Syntax := do
       match i, skip with
       | 0,   _     => pure result
       | i+1, true  => expandListLit i false result
       -- In addition to unfolding to cons/nil applications, we also insert any
       -- necessary proof terms in subsequent tuple elements
       | i+1, false =>
-        expandListLit i true (←``(ActionList.cons
-          ⟨$(⟨elems.elemsAndSeps.get! i⟩), by action_list_tactic⟩ $result))
-    expandListLit elems.elemsAndSeps.size false (← ``(ActionList.nil))
+        let ctor : TSyntax `term ←
+          if isList then ``(List.cons) else ``(ActionList.cons)
+        let item : TSyntax `term :=
+          if needTuple
+          then (← `(($(⟨elems.elemsAndSeps.get! i⟩), _)))
+          else ⟨elems.elemsAndSeps.get! i⟩
+        expandListLit i true (←``($ctor ⟨$item, by action_list_tactic⟩ $result))
 
+    let nil ← if isList then ``(List.nil) else ``(ActionList.nil)
+    elabTerm (← expandListLit elems.elemsAndSeps.size false nil) expType
+-- #reduce (A["a1", "a"] : ActionList (Schema.removeOtherDecCH [("a", Nat), ("a1", Nat)]) [("a", Nat), ("a1", Nat), ("b", Nat)])
+
+
+-- TODO: now that we have term elab, consolidate all of this into `A[]`
 syntax (name := autocomp_list) "L[" term,* "]" : term
 @[term_elab autocomp_list] def elabAutocompList : TermElab
   | `(L[ $elems,* ]), expType? => do
@@ -128,23 +168,13 @@ syntax (name := autocomp_list) "L[" term,* "]" : term
         -- TODO: make this a *lot* more robust
         let isCHApp :=
           if let some $ .app (.const `List _) rest := expType?
-          then rest.isAppOf `CertifiedHeader else false
+          -- TODO: account for case where it's a sigma with a prod in the first arg
+          -- (Probably want to consolidate a list of all the args)
+          then isProdArgTp rest else false
         let item : TSyntax `term :=
           if isCHApp
           then (← `(($(⟨elems.elemsAndSeps.get! i⟩), _)))
           else ⟨elems.elemsAndSeps.get! i⟩
-          -- | some expType =>
-          --   -- TODO: why can't we just directly match against the following?
-          --   -- .app (.const `List _) (.app (.const `CertifiedHeader _) _)
-          --   let item :=
-          --     match expType with
-          --     | .app (.const `List _) rest =>
-          --       if rest.isAppOf `CertifiedHeader then
-          --         pure ()
-          --       else
-          --         pure ()
-          --     | _ => pure ()
-          -- | none => pure ()
         expandListLit i true (←``(List.cons
           ⟨$item, by action_list_tactic⟩ $result))
     elabTerm (← expandListLit elems.elemsAndSeps.size false (← ``(List.nil))) expType?
