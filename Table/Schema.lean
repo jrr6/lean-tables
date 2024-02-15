@@ -147,6 +147,7 @@ def Schema.colImpliesName_eq_2 {sch' : @Schema η} {s hdr : @Header η}
   colImpliesName (schema := s :: sch') (HasCol.tl h) =
   HasName.tl (colImpliesName h) := rfl
 
+@[reducible]
 def Schema.cNameOfCHead {schema : @Schema η} :
       CertifiedHeader schema → CertifiedName schema
 | ⟨(nm, τ), pf⟩ => ⟨nm, Schema.colImpliesName pf⟩
