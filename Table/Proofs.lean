@@ -395,8 +395,7 @@ def Schema.hasMappedName :
 --   ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η},
 --   Schema.HasName nm (Schema.nths schema ns) → schema.HasName nm
 
-set_option pp.proofs true
-def Schema.hasColOfNthsHasCol :
+def Schema.hasColOfNthsHasCol_tac :
   ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)}
     {nm : η} {τ : Type u},
     Schema.HasCol (nm, τ) (Schema.nths schema ns) →
@@ -421,6 +420,17 @@ def Schema.hasColOfNthsHasCol :
 termination_by hasColOfNthsHasCol sch ns nm τ h => ns.length
 -- hasNthName n
 
+def Schema.hasColOfNthsHasCol :
+  ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)}
+    {hdr : η × Type u},
+    Schema.HasCol hdr (Schema.nths schema ns) →
+    schema.HasCol hdr
+| [], ⟨_, hlt⟩ :: ns, hdr, h => nomatch hlt
+| hdr :: hs, ⟨0, _⟩ :: ns, .(hdr), .hd => .hd
+| hdr :: hs, ⟨.succ n, hlt⟩ :: ns, _, .hd => _
+-- | hdr :: hs, ⟨.succ n, hlt⟩ :: ns, .(Schema.nth hs n (Nat.le_of_succ_le_succ hlt)), .hd => _
+| _, _, _, _ => sorry
+
 def Schema.hasNameOfNthsHasName :
   ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η},
   Schema.HasName nm (Schema.nths schema ns) → schema.HasName nm
@@ -429,6 +439,7 @@ def Schema.hasNameOfNthsHasName :
 -- | hdr1 :: hdr2 :: hs, ⟨.succ n', hlt⟩ :: ns, .(Prod.fst (Schema.nth (hdr2 :: hs) n' (Nat.le_of_succ_le_succ hlt))), .hd =>
 | hdr1 :: hdr2 :: hs, ⟨.succ n', hlt⟩ :: ns, _, .hd =>
   sorry
+-- | hdr :: hs, _ :: ns, _, .tl h => sorry
 -- | hdr :: hs, ⟨.succ n', hlt⟩ :: ns, _, .tl h =>
 --   sorry
 | _, _, _, _ => sorry
