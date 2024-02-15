@@ -775,10 +775,10 @@ def pivotTable (t : Table schema)
   -- just let Lean infer it using `Row $ Schema.fromCHeaders etc`, but I'm not
   -- sure it's smart enough to do that -- should test!)
   (cs : List (CertifiedHeader schema))
-  (inst : DecidableEq (Row (Schema.fromCHeaders cs)))
   (aggs : List ((c' : @Header η) ×
                 (c : CertifiedHeader schema) ×
                 (List (Option c.1.2) → Option c'.2)))
+  [inst : DecidableEq (Row (Schema.fromCHeaders cs))]
   : Table (Schema.append (Schema.fromCHeaders cs)
                        (Schema.map (·.1) aggs)) :=
                       --  (Schema.fromCHeaders (aggs.map (λ a => a.2.1)))) :=

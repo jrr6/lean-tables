@@ -584,9 +584,7 @@ def oAverage (xs : List $ Option Nat) : Option Nat := some $
   List.foldl (λ acc => λ | none => acc | some x => x + acc) 0 xs / xs.length
 
 #test
-(
-pivotTable students [⟨("favorite color", _), by header⟩] (by inst) [⟨("age-average", _), ⟨("age", _), by header⟩, oAverage⟩]
-:)
+pivotTable students A["favorite color"] [⟨("age-average", _), ⟨("age", _), by header⟩, oAverage⟩]
 =
 Table.mk [
   /[ "blue"         , 12          ],
@@ -604,7 +602,6 @@ def proportion (bs : List $ Option Bool) : Option Nat := some $
 pivotTable
   jellyNamed
   [⟨("get acne", Bool), by header⟩, ⟨("brown", _), by header⟩]
-  (by inst)
   [⟨("red-proportion", _), ⟨("red", _), by header⟩, proportion⟩,
    ⟨("pink-proportion", _), ⟨("pink", _), by header⟩, proportion⟩]
 :)
