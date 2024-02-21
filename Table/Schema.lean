@@ -467,6 +467,12 @@ def Schema.schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema
 | _ :: s', ⟨c, Schema.HasName.tl h⟩ =>
   Schema.HasCol.tl (schemaHasLookup s' ⟨c, h⟩)
 
+  def Schema.schemaHasLookupType :
+    (schema : @Schema η) → (nm : η) → (hnm : schema.HasName nm) →
+    schema.HasCol (nm, schema.lookupType ⟨nm, hnm⟩)
+| _, _, .hd => .hd
+| _, _, .tl h => .tl (schemaHasLookupType _ _ h)
+
 def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
                                 {schema : @Schema η} →
                                 {subschema : Subschema schema} →

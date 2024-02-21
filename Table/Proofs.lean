@@ -381,44 +381,21 @@ theorem selectColumns2_spec2 :
   apply List.get_map_nths_eq_get_get
 
 
-def Schema.hasNthName :
+def Schema.hasNthCol :
   ∀ {schema : @Schema η} (n : Fin $ Schema.length schema),
-  schema.HasCol (Schema.nth schema n.val n.isLt) := sorry
+  schema.HasCol (Schema.nth schema n.val n.isLt)
+| h :: hs, ⟨0, hlt⟩ => .hd
+| h :: hs, ⟨.succ n, hlt⟩ => .tl (hasNthCol ⟨n, Nat.lt_of_succ_lt_succ hlt⟩)
 
-def Schema.hasMappedName :
-  ∀ {schema : @Schema η} {f : @Header η → @Header η} {nm : η} {τ : Type u},
-    Schema.HasName (Prod.fst $ f (nm, τ)) (Schema.map f schema) →
-    schema.HasName nm
-| (snm, sτ) :: hs, f, .(snm), .(sτ), .hd => _
+inductive EqT : α → α → Type where
+  | refl (a : α) : EqT a a
+infix:50 " ≡ " => EqT
 
--- def Schema.hasNameOfNthsHasName :
---   ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η},
---   Schema.HasName nm (Schema.nths schema ns) → schema.HasName nm
-
-def Schema.hasColOfNthsHasCol_tac :
-  ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)}
-    {nm : η} {τ : Type u},
-    Schema.HasCol (nm, τ) (Schema.nths schema ns) →
-    schema.HasCol (nm, τ) := by
-  intro sch ns nm τ h
-  cases ns with | nil => contradiction | cons n ns =>
-  simp only [nths, map] at h
-  cases n with | mk n hlt =>
-  cases sch with | nil => contradiction | cons hdr sch' =>
-  cases n with
-  | zero =>
-    cases h with
-    | hd => exact HasCol.hd
-    | tl h' =>
-      rw [←nths] at h'
-      apply hasColOfNthsHasCol h'
-  | succ n' =>
-    simp only at h
-    -- The thing being recursed on here is `hlt`, but we can't case on that for
-    -- some reason ("error assigning motive"...)
-    sorry
-termination_by hasColOfNthsHasCol sch ns nm τ h => ns.length
--- hasNthName n
+def Schema.hasColEqHeadOrTail :
+  ∀ {h : @Header η} {hs : Schema},
+  Schema.HasCol hdr (h :: hs) → h ≡ hdr ⊕ HasCol hdr hs
+| _, _, .hd => .inl (.refl _)
+| _, _, .tl htl => .inr htl
 
 def Schema.hasColOfNthsHasCol :
   ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)}
@@ -426,23 +403,19 @@ def Schema.hasColOfNthsHasCol :
     Schema.HasCol hdr (Schema.nths schema ns) →
     schema.HasCol hdr
 | [], ⟨_, hlt⟩ :: ns, hdr, h => nomatch hlt
-| hdr :: hs, ⟨0, _⟩ :: ns, .(hdr), .hd => .hd
-| hdr :: hs, ⟨.succ n, hlt⟩ :: ns, _, .hd => _
--- | hdr :: hs, ⟨.succ n, hlt⟩ :: ns, .(Schema.nth hs n (Nat.le_of_succ_le_succ hlt)), .hd => _
-| _, _, _, _ => sorry
+-- TODO: the better approach would be to directly pattern-match on `h`, but this
+-- doesn't currently work:
+| hs, n :: ns, hdr, h =>
+  match hasColEqHeadOrTail h with
+    | .inl (.refl .(nth hs n.val n.isLt)) => hasNthCol n
+    | .inr hhcol => hasColOfNthsHasCol hhcol
 
-def Schema.hasNameOfNthsHasName :
-  ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η},
-  Schema.HasName nm (Schema.nths schema ns) → schema.HasName nm
-| [], ⟨_, hlt⟩ :: ns, nm, h => nomatch hlt
-| (snm, τ) :: hs, ⟨0, _⟩ :: ns, .(snm), .hd => .hd
--- | hdr1 :: hdr2 :: hs, ⟨.succ n', hlt⟩ :: ns, .(Prod.fst (Schema.nth (hdr2 :: hs) n' (Nat.le_of_succ_le_succ hlt))), .hd =>
-| hdr1 :: hdr2 :: hs, ⟨.succ n', hlt⟩ :: ns, _, .hd =>
-  sorry
--- | hdr :: hs, _ :: ns, _, .tl h => sorry
--- | hdr :: hs, ⟨.succ n', hlt⟩ :: ns, _, .tl h =>
---   sorry
-| _, _, _, _ => sorry
+#check Schema.schemaHasLookup
+
+def Schema.hasNameOfNthsHasName
+  {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η}
+  (h : Schema.HasName nm (Schema.nths schema ns)) : schema.HasName nm :=
+  colImpliesName (hasColOfNthsHasCol (schemaHasLookupType _ nm h))
 /-
 Schema.HasName _ (Schema.nths (h :: hs) (⟨.succ n', hlt⟩ :: ns))
 = Schema.HasName _ (Schema.nths )
@@ -516,18 +489,31 @@ Schema.nths sch (n :: ns)
 -/
 #print Schema.nth
 #check Schema.hasNameOfNthsHasName
-theorem real_sc2_s3 :
+
+theorem underlying_sc2_s3 :
   ∀ {sch : @Schema η}
-    (hsch : Schema.Unique sch)
+    --(hsch : Schema.Unique sch)
     (ns : List (Fin (Schema.length sch)))
-    (hns : List.Unique ns)
+    --(hns : List.Unique ns)
     (nm : η)
     (pf : Schema.HasName nm (Schema.nths sch ns)),
   Schema.lookupType (Schema.nths sch ns) ⟨nm, pf⟩ =
   Schema.lookupType sch ⟨nm, Schema.hasNameOfNthsHasName pf⟩
+| sch, [], nm, pf => nomatch pf
 -- | [], hsch, ⟨n, hlt⟩ :: ns, hns, nm, pf => nomatch hlt
-| (snm, sτ) :: sch, hsch, ⟨0, pf⟩ :: ns, hns, .(snm), .hd => by
+| (snm, sτ) :: sch, ⟨0, hlt⟩ :: ns, .(snm), .hd => by
   simp only [Schema.lookupType, Schema.nths]
+  simp only [Schema.hasNameOfNthsHasName, Schema.schemaHasLookupType]
+  unfold Schema.hasColOfNthsHasCol
+  sorry
+| (snm, sτ) :: sch, ⟨0, hlt⟩ :: ns, _, .tl h => by
+  simp only [Schema.nths]
+  simp only [Schema.lookupType]
+  have h : Schema.nths ((snm, sτ) :: sch) ns = Schema.map (λ n => Schema.nth ((snm, sτ) :: sch) n.val _) ns := rfl
+  -- TODO: if we rewrite, motive is not type correct...for a change
+  sorry
+| (snm, sτ) :: sch, ⟨.succ n, pf⟩ :: ns, _, hnths => sorry
+
 
 theorem selectColumns2_spec3 :
   ∀ {sch : @Schema η} (hsch : Schema.Unique sch) (t : Table sch)
