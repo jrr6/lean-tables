@@ -64,11 +64,7 @@ macro_rules
     let accCell : (Lean.TSyntax `term × Lean.TSyntax `cell) → Lean.TSyntax `term
                     → Lean.MacroM (Lean.TSyntax `term)
     | (nm, val), acc => do
-        -- TODO: This is madness! Figure out how to actually get from
-        -- `TSyntax cell` to `TSyntax term` without invoking arrays...
-        let arr : Lean.Syntax.TSepArray `cell "," :=
-          Lean.Syntax.TSepArray.mk (Array.mk [val])
-        let cell ← `(($(⟨arr.elemsAndSeps.get! 0⟩) : Cell $nm _))
+        let cell ← `(($(⟨val.raw⟩) : Cell $nm _))
         `(Row.cons $cell $acc)
       let nil ← `(Row.nil)
       let ts_res ← Array.foldrM accCell nil (Array.zip nms vals)
@@ -100,37 +96,89 @@ macro "action_list_tactic" : tactic =>
                 | cycle_goals)
 )
 
+#check String
+#check @List.nil
+-- set_option pp.all true
+#reduce @Header.{0,0} String
+#reduce @CertifiedHeader String ([] : List (String × Type))
+example : @CertifiedHeader String [] = @Sigma (Prod String Type) (λ h => @Schema.HasCol String h []) := by
+  rfl
+
 -- Detects whether an argument type for an (Action)List requires tuple insertion
-def isProdArgTp (e : Expr) : Bool :=
-  -- "Vanilla" product cases
+-- FIXME: defeq approach would be more robust, but doesn't work because `e` may
+-- contain bound arguments that break `isDefEq`
+def isProdArgTp (e : Expr) : MetaM Bool := do
+  let e ← whnfD e
+  pure $
+    -- "Vanilla" product cases
   e.isAppOf `Header || e.isAppOf `Prod ||
   -- Nested product cases
   e.isAppOf `CertifiedHeader ||
   (e.isAppOf `Sigma &&
     (e.getAppArgs[0]!.isAppOf `Header || e.getAppArgs[0]!.isAppOf `Prod))
-
+  -- let prodUnifTgt := mkAppN (Expr.const ``Prod
+  --                             [(← mkFreshLevelMVar), (← mkFreshLevelMVar)])
+  --                           #[(← mkFreshTypeMVar), (← mkFreshTypeMVar)]
+  -- let sigmaUnifTgt :=
+  --   mkAppN (.const ``Sigma [(← mkFreshLevelMVar), (← mkFreshLevelMVar)])
+  --          #[prodUnifTgt, (← mkFreshExprMVar none)]
+  -- return (← isDefEq e prodUnifTgt) || (← isDefEq e sigmaUnifTgt)
 elab_rules : term <= expType
 -- @[term_elab autocomp_actionlist] def elabAutocompActionList : TermElab
   | `(A[ $elems,* ]) => do
     -- Detect (a) if we need an ActionList or List and (b) whether we need
     -- tuples with holes
-    let isList := expType.isAppOf `List
-    let needTuple ←
-      if let .app (.const `List _) rest := expType
-      then pure (isProdArgTp rest)
+    -- let isList := expType.isAppOf `List
+    let listTpMVar ← mkFreshTypeMVar
+    let isList ← isDefEq expType
+                  (.app (.const ``List [(← mkFreshLevelMVar)]) listTpMVar)
+    let paramTp ←
+      if isList
+      then instantiateMVars listTpMVar
       else do
         -- TODO: find a way to avoid having to hardcode the position of the
         -- relevant arg to the `ActionList` constructor?
 
+        -- let actionListFnType ← mkFreshTypeMVar
+        -- TODO: issue is that we're extracting *under* a binder; of course there
+        -- are bound variables!
+        -- let c ← isDefEq expType (.forallE `x (← mkFreshTypeMVar) (← mkFreshExprMVar none) _)
+        let actionListFnMVar ← mkFreshExprMVar none
+        let defeqOK ← isDefEq expType
+          (mkAppN (.const ``ActionList
+            [←mkFreshLevelMVar, ←mkFreshLevelMVar, ←mkFreshLevelMVar])
+            #[←mkFreshTypeMVar, ←mkFreshExprMVar none, ←mkFreshExprMVar none,
+              actionListFnMVar, ←mkFreshExprMVar none])
+        if ! defeqOK then
+          throwError "Invalid expected type found during unification"
+
+        let actionListFn ← instantiateMVars actionListFnMVar
+        let actionListFnType ← inferType actionListFn
+        -- let paramArg ← mkFreshExprMVar none
+        -- let predType : Expr :=
+        --   .forallE .anonymous (← mkFreshTypeMVar)
+        --     (.forallE .anonymous paramArg (←mkFreshTypeMVar) .default) .default
+        -- let defeqOK ← isDefEq actionListFnType predType
+        -- if ! defeqOK then
+        --   throwError "Found invalid ActionList function type"
+        -- let paramArg ← instantiateMVars paramArg
+        -- dbg_trace s!"the param arg is {paramArg}"
+        -- let oldActionListFnType ← inferType expType.getAppArgs[3]!.getAppFn
+        -- dbg_trace s!"Old type: {oldActionListFnType}"
+        -- dbg_trace ("there for type " ++ toString expType.getAppArgs[3]! ++ ":")
+        -- dbg_trace (← inferType actionListFnName)
+
+
         -- Type of the "action function" for this action list
-        let actionListFnType ← inferType expType.getAppArgs[3]!.getAppFn
+        -- let actionListFnType ← inferType expType.getAppArgs[3]!.getAppFn
         -- Type of the "action item" argument to the action function (i.e., the
         -- argument that goes in the action list)
-        let actionListParam := actionListFnType.getForallBodyMaxDepth 3
-        -- TODO: I don't think this "sees through" `Certified_`
-        (match actionListParam with
-          | .forallE _ tp _ _ => pure (isProdArgTp tp)
-          | _ => pure false)
+        let actionListParam := actionListFnType.getForallBodyMaxDepth 1
+        -- TODO: check whether this "sees through" `Certified_`
+        (match ← whnfD actionListParam with
+          | .forallE _ tp _ _ => pure tp
+          | _ => throwError "Invalid expected type for A[]")
+    let needTuple ← isProdArgTp paramTp
     let rec expandListLit (i : Nat) (skip : Bool)
         (result : Lean.TSyntax `term) : TermElabM Lean.Syntax := do
       match i, skip with
@@ -141,16 +189,23 @@ elab_rules : term <= expType
       | i+1, false =>
         let ctor : TSyntax `term ←
           if isList then ``(List.cons) else ``(ActionList.cons)
+        let elemRaw : TSyntax `term := ⟨elems.elemsAndSeps.get! i⟩
+        let elemRawTp ← inferType (← elabTerm elemRaw none)
+        let elemRawIsTuple := (← whnfD elemRawTp).isAppOf ``Prod  -- or use paramTp
+        -- let unifTgt := mkAppN (Expr.const ``Prod
+        --                         [(← mkFreshLevelMVar), (← mkFreshLevelMVar)])
+        --                       #[(← mkFreshTypeMVar), (← mkFreshTypeMVar)]
+        -- let elemRawIsTuple ← isDefEq elemRawTp unifTgt
+        dbg_trace elemRawIsTuple
         let item : TSyntax `term :=
-          if needTuple
-          then (← `(($(⟨elems.elemsAndSeps.get! i⟩), _)))
-          else ⟨elems.elemsAndSeps.get! i⟩
+          if needTuple && !elemRawIsTuple
+          then (← `(($elemRaw, _)))
+          else elemRaw
         expandListLit i true (←``($ctor ⟨$item, by action_list_tactic⟩ $result))
 
     let nil ← if isList then ``(List.nil) else ``(ActionList.nil)
     elabTerm (← expandListLit elems.elemsAndSeps.size false nil) expType
 -- #reduce (A["a1", "a"] : ActionList (Schema.removeOtherDecCH [("a", Nat), ("a1", Nat)]) [("a", Nat), ("a1", Nat), ("b", Nat)])
-
 
 -- # Table `toString`
 -- TODO: make this prettier
@@ -177,3 +232,37 @@ instance {η} {schema : @Schema η}
       acc) "" schema
     ++ "\n"
     ++ List.foldr (λ r acc => inst.toString r ++ "\n" ++ acc) "" t.rows
+
+-- def students : Table [("name", String), ("age", Nat), ("favorite color", String)] :=
+-- Table.mk [
+--   /["Bob"  , 12, "blue" ],
+--   /["Alice", 17, "green"],
+--   /["Eve"  , 13, "red"  ]
+-- ]
+
+-- #eval renameColumns students A[("favorite color", "preferred color"),
+--                          ("name", "first name")]
+
+-- def abstractAgeUpdate := λ (r : Row $ schema students) =>
+--   match getValue r "age" (by header) with
+--   | some age =>
+--     match (age ≤ 12 : Bool), (age ≤ 19 : Bool) with
+--     | true, _ => /["age" := "kid"]
+--     | _, true => /["age" := "teenager"]
+--     | _, _ => /["age" := "adult"]
+--   | _ => /["age" := EMP]
+
+-- #reduce RetypedSubschema (schema students)
+-- -- TODO: why aren't any of the `RetypedSubschema` metavars being synthesized
+-- -- prior to elaborating the `A[]` syntax?
+-- #eval (update A["age"] students abstractAgeUpdate :)
+
+-- #eval (A[1,2,3] : List (Fin 4))
+
+-- #reduce (A["name", "hello"] : List (String × (Schema.HasName "hi" [("hi", Nat)])))
+
+-- -- #check Schema.removeTypedName
+-- #eval pivotLonger students A["age"] "attribute" "value"
+-- #eval leftJoin students students A["name", "age"]
+-- #eval dropColumns students A["age", "name"]
+#check CertifiedHeader

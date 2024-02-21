@@ -704,11 +704,23 @@ Table.mk [
 
 -- `pivotLonger`
 -- TODO: more typeclass issues...
+
+#synth Decidable
+    (pivotLonger students (ActionList.cons { fst := "age", snd := Schema.HasCol.tl Schema.HasCol.hd } ActionList.nil)
+        "attribute" "value" =
+      { rows := [] })
+#synth DecidableEq (Table (Schema.append (Schema.removeTypedNames [("name", String), ("age", String), ("favorite color", String)] (ActionList.cons { fst := "age", snd := Schema.HasCol.tl Schema.HasCol.hd } ActionList.nil)) [("attribute", String), ("value", Nat)]))
+
+#test
+pivotLonger students A["age"] "attribute" "value"
+  =
+Table.mk []
+
 #test
 (
 pivotLonger gradebook A["midterm", "final"] "exam" "score"
 :)
-=[by inst]
+=--[by inst]
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , "midterm" , 77    ],
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , "final"   , 87    ],
@@ -723,7 +735,7 @@ Table.mk [
 pivotLonger gradebook A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
             "test" "score"
 :)
-=(Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)])
+=--(Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)])
 Table.mk [
   /[ "Bob"   , 12  , "quiz1"   , 8     ],
   /[ "Bob"   , 12  , "quiz2"   , 9     ],
@@ -750,12 +762,21 @@ Table.mk [
 -- itself) isn't being synthesized
 
 #synth DecidableEq (Row [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
-#eval pivotWider students ⟨"name", .hd⟩ ⟨("age", Nat), .hd⟩
-  (inst := (inferInstance : DecidableEq (Row [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])))
+#synth DecidableEq
+    (Row
+      (Schema.removeNames [("name", String), ("age", Nat), ("favorite color", String)]
+        (ActionList.cons (Schema.cNameOfCHead { fst := ("name", String), snd := Schema.HasCol.hd })
+          (ActionList.cons (Schema.cNameOfCHead { fst := ("age", Nat), snd := Schema.HasCol.hd }) ActionList.nil))))
+#table @pivotWider _ _ _ _ students "name" "age" _ _
+  ((by inst :  DecidableEq
+    (Row
+      (Schema.removeNames [("name", String), ("age", Nat), ("favorite color", String)]
+        (ActionList.cons (Schema.cNameOfCHead { fst := ("name", String), snd := Schema.HasCol.hd })
+          (ActionList.cons (Schema.cNameOfCHead { fst := ("age", Nat), snd := Schema.HasCol.hd }) ActionList.nil))))))
 
 #test
 (pivotWider students "name" "age" :)
-=(Table [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
+=--(Table [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
 Table.mk [
   /["blue", 12, EMP, EMP],
   /["green", EMP, 17, EMP],
@@ -1025,7 +1046,7 @@ def abstractAgeUpdate := λ (r : Row $ schema students) =>
 
 -- FIXME: why are we back to needing the `:)` notation here?
 #test
-(update [⟨("age", String), by name⟩] students abstractAgeUpdate :)
+(update A["age"] students abstractAgeUpdate :)
 =--[by inst]--(Table [("name", String), ("age", String), ("favorite color", String)])
 Table.mk [
   /[ "Bob"   , "kid"      , "blue"         ],
