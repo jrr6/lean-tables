@@ -104,10 +104,6 @@ def EqSubschema.toSchema {schm : @Schema η} : EqSubschema schm → @Schema η
 | [] => []
 | ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
 
-def Schema.fromCHeaders {schema : @Schema η}
-                        (cs : List (CertifiedHeader schema))
-    : @Schema η :=
-  cs.map Sigma.fst
 
 def Schema.HasCol.size : {schema : @Schema η} →
                          {hdr : @Header η} →
@@ -151,6 +147,7 @@ def Schema.colImpliesName_eq_2 {sch' : @Schema η} {s hdr : @Header η}
   colImpliesName (schema := s :: sch') (HasCol.tl h) =
   HasName.tl (colImpliesName h) := rfl
 
+@[reducible]
 def Schema.cNameOfCHead {schema : @Schema η} :
       CertifiedHeader schema → CertifiedName schema
 | ⟨(nm, τ), pf⟩ => ⟨nm, Schema.colImpliesName pf⟩
@@ -163,53 +160,6 @@ def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
 -- Note: if written point-free, dot notation fails
 def Schema.names {η : Type u_η} (sch : @Schema η) :=
   List.map (@Prod.fst η (Type u)) sch
-
--- -- This is just `List.append`, but we need it to be reducible, and Lean 4
--- -- doesn't allow us to modify the reducibility attribute of that function from
--- -- outside the `List` module
--- @[reducible]
--- def Schema.append {η : Type u_η} : @Schema η → @Schema η → @Schema η
---   | [], hs' => hs'
---   | h :: hs, hs' => h :: append hs hs'
-
--- theorem Schema.append_eq_List_append {η : Type u_η} :
---   ∀ (s s' : @Schema η), Schema.append s s' = List.append s s'
---   | [], hs' => rfl
---   | h :: hs, hs' => congrArg (h :: ·) $ append_eq_List_append hs hs'
-
-@[reducible]
-def Schema.hasAppendedHead :
-  ∀ (sch : @Schema η) (c : η) (τ : Type _) (hs : List Header),
-  HasCol (c, τ) (List.append sch ((c, τ) :: hs))
-| [], _, _, _ => .hd
-| s :: ss, c, τ, _ => .tl (hasAppendedHead ss c τ _)
-
-def Schema.hasNameOfAppend : {sch : @Schema η} →
-                                 {nm : η} →
-                                 {hs : @Schema η} →
-                                 sch.HasName nm →
-  -- Schema.HasName nm (Schema.append sch hs)
-  Schema.HasName nm (List.append sch hs)
-| _, _, _, Schema.HasName.hd => Schema.HasName.hd
-| _, _, _, Schema.HasName.tl h => Schema.HasName.tl $ hasNameOfAppend h
-
-def Schema.hasColOfAppend : {sch : @Schema η} →
-                                 {nm : η} →
-                                 {τ : Type u} →
-                                 {hs : List Header} →
-                                 sch.HasCol (nm, τ) →
-  Schema.HasCol (nm, τ) (sch.append hs)
-| _, _, _, _, Schema.HasCol.hd => Schema.HasCol.hd
-| _, _, _, _, Schema.HasCol.tl h => Schema.HasCol.tl $ hasColOfAppend h
-
-def Schema.hasColOfPrepend : {sch : @Schema η} →
-                                 {nm : η} →
-                                 {τ : Type u} →
-                                 {hs : @Schema η} →
-                                 sch.HasCol (nm, τ) →
-  Schema.HasCol (nm, τ) (hs.append sch)
-| _, _, _, [], pf => pf
-| _, _, _, _ :: hs', pf => .tl $ hasColOfPrepend (hs := hs') pf
 
 -- TODO: when we come back to do uniqueness, this might be helpful
 -- def Schema.removeName :
@@ -409,6 +359,7 @@ def Schema.pick {η : Type u_η} [DecidableEq η] (s : @Schema η)
 | [] => []
 | c::cs => lookup s c :: pick s cs
 
+@[reducible]
 def Schema.retypeColumn {η : Type u_η} [DecidableEq η]
     : {nm : η} → (s : @Schema η) → s.HasName nm → Type u → @Schema η
 | _, (nm, τ) :: cs, Schema.HasName.hd, τ' => (nm, τ') :: cs
@@ -421,6 +372,7 @@ theorem Schema.retypeColumn_preserves_names :
 | s :: ss, nm, HasName.tl h, τ =>
   congrArg (s.1 :: ·) (retypeColumn_preserves_names ss h τ)
 
+@[reducible]
 def Schema.hasRetypedName {τ : Type u} :
   ∀ {retNm nm : η} {sch : @Schema η} {hretNm : sch.HasName retNm}
     (c : sch.HasName nm),
@@ -445,15 +397,6 @@ def RetypedSubschema.toSchema {schm : @Schema η} :
 | ⟨hdr, _⟩ :: ss => hdr :: toSchema ss
 
 @[reducible]
-def Schema.retypedFromSubschema :
-  ∀ {sch : @Schema η}, RetypedSubschema sch → @Schema η
-| hs, [] => hs
-| hs, ⟨(_, ρ), pf⟩ :: rs =>
-  @retypedFromSubschema (hs.retypeColumn pf ρ)
-    (rs.map (λ ⟨h, pf⟩ => ⟨h, Schema.hasRetypedName pf⟩))
-termination_by retypedFromSubschema rs => rs.length
-
-@[reducible]
 def Schema.schemaHasRetypedSubschemaName : {nm : η} →
   {schema : @Schema η} → {rs : RetypedSubschema schema} →
   (h : rs.toSchema.HasName nm) → schema.HasName nm
@@ -465,39 +408,8 @@ def Schema.schemaHasRetypedSubschemaName : {nm : η} →
     apply Nat.lt.base;
   schemaHasRetypedSubschemaName h
 
-@[reducible]
-def Schema.retypedSubschemaHasSchemaName :
-  ∀ {sch : @Schema η} {nm : η} (rs : RetypedSubschema sch),
-  HasName nm sch → HasName nm (Schema.retypedFromSubschema rs)
-| sch, nm, [], hnm => hnm
-| (_, _) :: _, nm, ⟨(_, _), _⟩ :: rs', pf =>
-  retypedSubschemaHasSchemaName (List.map _ rs') (Schema.hasRetypedName pf)
-termination_by retypedSubschemaHasSchemaName rs h => rs.length
-
-@[reducible]
-def Schema.retypedFromSubschemaHasNameOfRSToSchema :
-  ∀ {sch : @Schema η} {rs : RetypedSubschema sch} {nm : η},
-  HasName nm rs.toSchema → HasName nm (Schema.retypedFromSubschema rs)
-| [], ⟨_, hrs⟩ :: _, _, _ => nomatch hrs
-| (_, _) :: _, [_], _, .tl h => nomatch h
-| sch, ⟨hdr, hnm⟩ :: rest, nmToFind, hntf =>
-  have hsch := Schema.schemaHasRetypedSubschemaName hntf
-  retypedSubschemaHasSchemaName _ hsch
-
-theorem Schema.retypedFromSubschema_preserves_names :
-  ∀ (sch : @Schema η) (rs : RetypedSubschema sch),
-  Schema.names (Schema.retypedFromSubschema rs) = Schema.names sch
-| ss, [] => rfl
-| (_, _) :: ss, ⟨(nm, τ), pf⟩ :: rs =>
-  by
-    simp only [retypedFromSubschema]
-    have := retypedFromSubschema_preserves_names (Schema.retypeColumn _ pf τ)
-      (List.map (fun ⟨h, pf⟩ => ⟨h, hasRetypedName pf⟩) rs)
-    rw [this]
-    simp only [retypeColumn_preserves_names]
-termination_by retypedFromSubschema_preserves_names sch rs => rs.length
-
 -- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
+@[reducible]
 def Schema.flattenList (schema : @Schema η)
   (c : ((c : η) × (τ : Type u) × schema.HasCol (c, List τ)))
     : @Schema η :=
@@ -518,9 +430,10 @@ def Schema.renameColumn {η : Type u_η} [DecidableEq η]
 
 @[reducible]
 def Schema.renameColumnCN {η : Type u_η} [DecidableEq η]
-                          (s : @Schema η) (entry : CertifiedName s × η)
+                          (s : @Schema η)
+                          (entry : (nmAndNew : η × η) × s.HasName nmAndNew.1)
     : @Schema η :=
-  renameColumn s entry.1.2 entry.2
+  renameColumn s entry.2 entry.1.2
 
 @[reducible]
 def Schema.renameColumns {η : Type u_η} [DecidableEq η]
@@ -548,26 +461,17 @@ theorem Schema.lookup_fst_eq_nm :
 | s :: ss, ⟨_, HasName.hd⟩ => rfl
 | s :: ss, ⟨c, HasName.tl h⟩ => lookup_fst_eq_nm ss ⟨c, h⟩
 
-theorem Schema.lookup_eq_lookup_append :
-  ∀ (s : @Schema η) (t : @Schema η) (c : η) (h : s.HasName c),
-  lookup s ⟨c, h⟩ = lookup (s.append t) ⟨c, Schema.hasNameOfAppend h⟩ :=
-by intros s t c h
-   induction h with
-   | hd =>
-     simp only [Schema.hasNameOfAppend, List.append]
-    --  simp only [Schema.hasNameOfAppend]
-     rw [Schema.lookup_eq_1, Schema.lookup_eq_1]
-   | tl h' ih =>
-     simp only [Schema.hasNameOfAppend, List.append]
-    --  simp only [Schema.hasNameOfAppend]
-     rw [Schema.lookup_eq_2, Schema.lookup_eq_2]
-     exact ih
-
 def Schema.schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema)
     → schema.HasCol (schema.lookup c)
 | _, ⟨_, Schema.HasName.hd⟩ => Schema.HasCol.hd
 | _ :: s', ⟨c, Schema.HasName.tl h⟩ =>
   Schema.HasCol.tl (schemaHasLookup s' ⟨c, h⟩)
+
+def Schema.schemaHasLookupType :
+  (schema : @Schema η) → (nm : η) → (hnm : schema.HasName nm) →
+  schema.HasCol (nm, schema.lookupType ⟨nm, hnm⟩)
+| _, _, .hd => .hd
+| _, _, .tl h => .tl (schemaHasLookupType _ _ h)
 
 def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
                                 {schema : @Schema η} →
@@ -582,60 +486,10 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
     apply Nat.lt.base;
   schemaHasSubschema h
 
--- def Schema.hasColFromHeadersOfHasCol {c : η} {τ : Type u} :
---   (cs : List (CertifiedHeader sch)) →
---   (pf : sch.HasCol (c, τ)) →
---   pf ∈ cs.map (·.2) →
---   (Schema.fromCHeaders cs).HasCol (c, τ)
--- | .head, c :: cs, .hd => .hd
-
--- TODO: figure out why it won't let us name the proof in the first clause
-def Schema.hasNameOfFromCHeaders :
-  ∀ {sch : @Schema η} {cs : List $ CertifiedHeader sch} {nm : η},
-  Schema.HasName nm (Schema.fromCHeaders cs) → Schema.HasName nm sch
-| [], ⟨hdr, hpf⟩ :: _, _, _ => nomatch hpf
-| _ :: _, ⟨(.(nm), τ), _⟩ :: _, nm, .hd =>
-  Schema.colImpliesName (τ := τ) (by assumption)
-| _ :: _, ⟨hdr, hpf⟩ :: cs, nm, .tl h => hasNameOfFromCHeaders h
-
-theorem Schema.hasNameOfFromCHeaders_eq_1 :
-  @hasNameOfFromCHeaders η sch (⟨(nm, τ), hpf⟩ :: cs) nm HasName.hd =
-  colImpliesName hpf := by
-  cases sch with
-  | nil => contradiction
-  | cons s ss => simp [hasNameOfFromCHeaders]
-
-theorem Schema.hasNameOfFromCHeaders_eq_2 :
-  @hasNameOfFromCHeaders η sch (⟨hdr, hpf⟩ :: cs) nm (HasName.tl h) =
-  hasNameOfFromCHeaders h := by
-  cases sch with
-  | nil => contradiction
-  | cons s ss => simp [hasNameOfFromCHeaders]
-
-def Schema.fromCHHasFromCH :
-  ∀ {sch : @Schema η} (h : CertifiedHeader sch) (hs : List (CertifiedHeader sch)),
-  List.MemT h hs → Schema.HasCol h.1 (Schema.fromCHeaders hs)
-| _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .hd _ _ => .hd
-| _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .tl _ htl => .tl $ fromCHHasFromCH _ hs htl
-
 -- `pivotWider` stuff
 def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
   | .hd _ _ => .hd
   | .tl _ htl => .tl $ hasColOfMemT htl
-
--- Used in `dropColumn_spec2` proof
-theorem Schema.mem_map_of_HasName : ∀ (sch : @Schema η) (nm : η),
-  Schema.HasName nm sch → nm ∈ sch.map Prod.fst := by
-  intro sch nm h
-  induction h with
-  | hd =>
-    simp only [List.map]
-    apply List.Mem.head
-  | tl _ ih =>
-    simp only [List.map]
-    apply List.Mem.tail
-    apply ih
-
 
 -- Unique schemata
 -- A *unique* schema is one with distinct header names. Unique schemata are

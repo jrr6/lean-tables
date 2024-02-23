@@ -1,5 +1,6 @@
 import Table.Cell
 import Table.Schema
+import Table.SchemaFunctions
 import Table.Row
 import Table.Table
 
@@ -7,6 +8,7 @@ universe u_η
 universe u
 
 -- # Assumptions
+@[reducible]
 def schema {η : Type u_η} [DecidableEq η]
            {sch : @Schema η}
            (t : Table sch) : @Schema η := sch
@@ -21,7 +23,7 @@ def addRows (t : Table schema) (r : List (Row schema)) : Table schema :=
   {rows := t.rows ++ r}
 
 def addColumn {τ} (t : Table schema) (c : η) (vs : List (Option τ)) :
-    Table (List.append schema [(c, τ)]) :=
+    Table (Schema.append schema [(c, τ)]) :=
   {rows := (List.map (λ (olds, new) => olds.addColumn c new)
                      (List.zip t.rows vs))}
 
@@ -33,14 +35,14 @@ def vcat (t1 : Table schema) (t2 : Table schema) : Table schema :=
 
 def hcat {schema₁ schema₂ : @Schema η}
   (t1 : Table schema₁) (t2 : Table schema₂) :
-  Table (List.append schema₁ schema₂) :=
+  Table (Schema.append schema₁ schema₂) :=
   {rows := List.map (λ (r1, r2) => Row.append r1 r2) (List.zip t1.rows t2.rows)}
 
 def values : List (Row schema) → Table schema := Table.mk
 
 def crossJoin {schema₁ schema₂ : @Schema η}
   (t1 : Table schema₁) (t2 : Table schema₂) :
-  Table (List.append schema₁ schema₂) :=
+  Table (Schema.append schema₁ schema₂) :=
   {rows := List.map (λ (c1, c2) => Row.append c1 c2)
                     (List.prod t1.rows t2.rows)}
 
@@ -48,7 +50,7 @@ def leftJoin {schema₁ schema₂ : @Schema η}
              (t1 : Table schema₁)
              (t2 : Table schema₂)
              (cs : ActionList (Schema.removeOtherDecCH schema₁) schema₂)
-: Table (List.append schema₁ (Schema.removeOtherDecCHs schema₁ schema₂ cs)) :=
+: Table (Schema.append schema₁ (Schema.removeOtherDecCHs schema₁ schema₂ cs)) :=
 {rows :=
   t1.rows.flatMap (λ r₁ =>
     let rs2 := t2.rows.filter (λ r₂ =>
@@ -71,10 +73,17 @@ def leftJoin {schema₁ schema₂ : @Schema η}
 }
 
 -- # Properties
--- TODO: Use Fin instead of ad-hoc quotients
-def nrows (t : Table schema) : Nat := List.length t.rows
+-- TODO: Use Fin instead of ad-hoc autoParams (e.g., for `getRow`)
+-- These must be reducible because they appear in types later on
+@[reducible]
+def nrows (t : Table schema) : Nat := Schema.length t.rows
 
-def ncols (t : Table schema) : Nat := List.length schema
+theorem nrows_eq_List_length (t : Table schema) :
+  nrows t = List.length t.rows :=
+  Schema.length_eq_List_length ▸ rfl
+
+@[reducible]
+def ncols (t : Table schema) : Nat := Schema.length schema
 
 def header (t : Table schema) : List η := Schema.names schema
 
@@ -85,7 +94,6 @@ def getRow (t : Table schema) (n : Nat) (h : n < nrows t := by decide)
   | [], n => by
     simp only [nrows] at h
     rw [htr] at h
-    simp only [List.length] at h
     apply False.elim
     apply Nat.not_lt_zero
     apply h
@@ -106,7 +114,7 @@ def getValue {τ}
 def getColumn1 (t : Table schema)
                (n : Nat)
                (h : n < ncols t := by decide)
-    : List (Option (List.nth schema n h).2) :=
+    : List (Option (Schema.nth schema n h).2) :=
   List.map (λr => Cell.toOption $ Row.nth r n h) t.rows
 
 def getColumn2 {τ}
@@ -127,16 +135,22 @@ def selectRows2 (t : Table schema) (bs : List Bool) : Table schema :=
 
 def selectColumns1 (t : Table schema)
                    (bs : List Bool)
-    : Table (List.sieve bs schema) :=
+    : Table (Schema.sieve bs schema) :=
   {rows := t.rows.map (λ r => Row.sieve bs r)}
 
 def selectColumns2 (t : Table schema)
                    (ns : List (Fin (ncols t)))
-    : Table (List.nths schema ns) :=
+    : Table (Schema.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 
 -- FIXME: need to figure out a better way to handle the type -- this breaks
 -- (see `ExampleTests.lean`)
+-- def selectColumns3 (t : Table schema)
+--     -- It would be simpler to use a `List CertifiedHeader`, but this makes the
+--     -- notation nicer
+--     (cs : List ((c : η) × (τ : Type u) × (schema.HasCol (c, τ))))
+--     : Table (Schema.fromCHeaders $ Schema.map (λ c => ⟨(c.1, c.2.1), c.2.2⟩) cs) :=
+--   {rows := t.rows.map (λ r => r.pick (Schema.map (λ c => ⟨(c.1, c.2.1), c.2.2⟩) cs))}
 def selectColumns3 (t : Table schema) (cs : List (CertifiedHeader schema))
     : Table (Schema.fromCHeaders cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
@@ -376,7 +390,8 @@ def select {schema' : @Schema η}
            (t : Table schema)
            (f : Row schema → Fin (nrows t) → Row schema')
     : Table schema' :=
-  {rows := t.rows.verifiedEnum.map (λ (n, r) => f r n)}
+  {rows := t.rows.verifiedEnum.map (λ (n, r) =>
+            f r (nrows_eq_List_length t ▸ n))}
 
 def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
                {schema₂ : @Schema ζ} {schema₃ : @Schema θ}
@@ -386,10 +401,16 @@ def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
     : Table schema₃ :=
 {rows :=
   t.rows.verifiedEnum.flatMap (λ (n, r) =>
-    let projection := project r n
+    let projection := project r (nrows_eq_List_length t ▸ n)
+      -- (by
+      -- unfold nrows
+      -- rw [Schema.length_eq_List_length]
+      -- exact n)
     projection.rows.map (λ r' => result r r')
   )
 }
+
+#print selectMany
 
 def groupJoin {κ : Type u_η} [DecidableEq κ]
               {schema₁ schema₂ schema₃ : @Schema η}
@@ -609,7 +630,7 @@ def find {schema : @Schema η}
 | {rows := []}, r => none
 | {rows := r :: rs}, r' =>
   if isSubRow r' r
-  then some ⟨0, Nat.zero_lt_succ rs.length⟩
+  then some ⟨0, Nat.zero_lt_succ (Schema.length rs)⟩
   else (find subschema {rows := rs} r').map (λ n =>
           ⟨n.val + 1, Nat.succ_lt_succ n.isLt⟩)
 
@@ -643,7 +664,7 @@ def pivotLonger {τ : Type u_η}
                 (cs : ActionList (Schema.removeTypedName τ) schema)
                 (c1 : η)
                 (c2 : η)
-    : Table (List.append (schema.removeTypedNames cs) [(c1, η), (c2, τ)]) :=
+    : Table (Schema.append (schema.removeTypedNames cs) [(c1, η), (c2, τ)]) :=
   selectMany t
     (λ r _ =>
       values ((cs.toList Schema.removeTNPres).map
@@ -679,7 +700,7 @@ def pivotWider {τ} (t : Table schema)
                   (ActionList.cons (Schema.cNameOfCHead ⟨(c1, η), hc1⟩)
                   (ActionList.cons (Schema.cNameOfCHead ⟨(c2, τ), hc2⟩) ActionList.nil)))]
     : Table $
-      List.append
+      Schema.append
         (schema.removeHeaders $ ActionList.cons ⟨(c1, η), hc1⟩
                                   (ActionList.cons ⟨(c2, τ), hc2⟩ ActionList.nil))
         ((getColumn2 t c1 hc1).somes.unique.map (λ x => (x, τ))) :=
@@ -754,12 +775,12 @@ def pivotTable (t : Table schema)
   -- just let Lean infer it using `Row $ Schema.fromCHeaders etc`, but I'm not
   -- sure it's smart enough to do that -- should test!)
   (cs : List (CertifiedHeader schema))
-  (inst : DecidableEq (Row (Schema.fromCHeaders cs)))
   (aggs : List ((c' : @Header η) ×
                 (c : CertifiedHeader schema) ×
                 (List (Option c.1.2) → Option c'.2)))
-  : Table (List.append (Schema.fromCHeaders cs)
-                       (aggs.map (λ a => a.1))) :=
+  [inst : DecidableEq (Row (Schema.fromCHeaders cs))]
+  : Table (Schema.append (Schema.fromCHeaders cs)
+                       (Schema.map (·.1) aggs)) :=
                       --  (Schema.fromCHeaders (aggs.map (λ a => a.2.1)))) :=
 groupBy t
   (λ r => r.pick cs)
@@ -770,16 +791,16 @@ groupBy t
       (as : List ((c' : @Header η) ×
                   (c : CertifiedHeader schema) ×
                   (List (Option c.1.2) → Option c'.2))) →
-      Row (as.map (λ a => a.1))
+      Row (Schema.map (·.1) as)
       -- Row $ Schema.fromCHeaders (as.map (λ a => a.2.1))
     | [] => Row.nil
     | ⟨c', c, f⟩ :: as =>
       let newCell : Cell c'.1 c'.2 := Cell.fromOption $
         f (getColumn2 subT c.1.1 c.2)
-      let rest : Row $ as.map (λ a => a.1) := mkSubrow as
-      let newRow : Row $ c' :: as.map (λ a => a.1) := Row.cons newCell rest
-      have h : Row (c' :: as.map (λ a => a.1)) =
-               Row ((⟨c', c, f⟩ :: as).map (λ a => a.1)) := rfl
+      let rest : Row $ Schema.map (·.1) as := mkSubrow as
+      let newRow : Row $ c' :: Schema.map (·.1) as := Row.cons newCell rest
+      have h : Row (c' :: Schema.map (·.1) as) =
+               Row (Schema.map (·.1) (⟨c', c, f⟩ :: as)) := rfl
       -- TODO: why won't the type checker unfold `map`‽
       -- let newNewRow : Row $ (a :: as).map (λ a => a.1) := newRow
       -- Row.cons (newCell : Cell c'.1 c'.2) (rest : Row $ as.map (λ a => a.1)) --  : Row $ a.1 :: as.map (λ a => a.1))

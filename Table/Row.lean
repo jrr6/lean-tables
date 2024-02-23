@@ -1,5 +1,6 @@
 import Table.Cell
 import Table.Schema
+import Table.SchemaFunctions
 
 universe u u_η
 
@@ -27,7 +28,7 @@ def Row.empty : (schema : @Schema η) → Row schema
 | _ :: ss => Row.cons Cell.emp (empty ss)
 
 def Row.append {schema₁ schema₂} :
-    @Row η _ schema₁ → Row schema₂ → Row (List.append schema₁ schema₂)
+    @Row η _ schema₁ → Row schema₂ → Row (Schema.append schema₁ schema₂)
 | Row.nil, rs₂ => rs₂
 | Row.cons r₁ rs₁, rs₂ => Row.cons r₁ (append rs₁ rs₂)
 
@@ -64,7 +65,7 @@ def Row.certifiedFoldr {β} : {schema : @Schema η} →
 -- happen to be identical to table operations in their TS implementation
 def Row.addColumn {η} [DecidableEq η] {schema : @Schema η} {τ}
                   (r : Row schema) (c : η) (v : Option τ) :
-    Row (List.append schema [(c, τ)]) :=
+    Row (Schema.append schema [(c, τ)]) :=
 Row.append r (Row.singleCell $ Cell.fromOption v)
 
 -- Not sure if we'll ever need this...
@@ -88,7 +89,7 @@ def Row.length {schema : @Schema η} : Row schema → Nat
 -- It would also be nice if we could make this function less verbose.
 -- Unfortunately, Lean's type-checker needs some help...
 def Row.sieve {schema} :
-    (bs : List Bool) → Row schema → @Row η dec_η (List.sieve bs schema)
+    (bs : List Bool) → Row schema → @Row η dec_η (Schema.sieve bs schema)
 | [], Row.nil => Row.nil
 | [], Row.cons r rs => Row.cons r rs
 | true :: bs, Row.nil => Row.nil
@@ -98,17 +99,17 @@ def Row.sieve {schema} :
 
 def Row.nth {schema} : (rs : @Row η dec_η schema) →
                        (n : Nat) →
-                       (h : n < List.length schema) →
-                       let (nm, τ) := List.nth schema n h;
+                       (h : n < Schema.length schema) →
+                       let (nm, τ) := Schema.nth schema n h;
                        @Cell η dec_η nm τ
 | Row.nil, _, h => absurd h (by intro nh; cases nh)
 | Row.cons r rs, 0, h => r
 | Row.cons r rs, Nat.succ n, h => nth rs n (Nat.le_of_succ_le_succ h)
 
 def Row.nths {schema} :
-    (ns : List (Fin schema.length))
+    (ns : List (Fin $ Schema.length schema))
       → Row schema
-      → @Row η dec_η (List.nths schema ns)
+      → @Row η dec_η (Schema.nths schema ns)
 | [], Row.nil => Row.nil
 | [], Row.cons x xs => Row.nil
 | n::ns, Row.nil => nomatch n.2
@@ -152,7 +153,7 @@ def Row.renameCells {schema : @Schema η}
       Row schema →
       Row (schema.renameColumns cs)
 | ActionList.nil, r => r
-| ActionList.cons c cs, r => renameCells cs (renameCell r c.1.2 c.2)
+| ActionList.cons c cs, r => renameCells cs (renameCell r c.2 c.1.2)
 
 def Row.pick {schema : @Schema η} :
                Row schema →
@@ -201,9 +202,9 @@ def Row.removeOtherSchemaCols {schema' schema : @Schema η} :
   ∀ {sch : @Schema η} {retNm : η} {τ : Type _} {hretNm : sch.HasName retNm}
     {rs : RetypedSubschema sch},
   Row (RetypedSubschema.toSchema rs) →
-  Row (RetypedSubschema.toSchema (rs.map (λ ⟨h, pf⟩ =>
+  Row (RetypedSubschema.toSchema (Schema.map (λ ⟨h, pf⟩ =>
     ⟨h, Schema.hasRetypedName (retNm := retNm) (τ := τ) (hretNm := hretNm) pf⟩
-  )))
+  ) rs))
 | sch, retNm, τ, pf, [], Row.nil => Row.nil
 | sch, retNm, τ, pf, ⟨(_, _), _⟩ :: _, Row.cons c cs =>
   have hterm : length cs < length (cons c cs) := Nat.lt_succ_self _
