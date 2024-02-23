@@ -86,7 +86,7 @@ def increaseAge := λ (r : Row $ schema students) =>
   : Row [("age", Nat)])
 
 #test
-vcat students (update [⟨("age", Nat), by name⟩] students increaseAge :)
+vcat students (update A["age"] students increaseAge :)
 =
 Table.mk [
   /[ "Bob"   , 12  , "blue"         ],
@@ -107,9 +107,7 @@ def curveMidtermAndFinal := λ (r : Row $ schema gradebook) =>
    : Row [("midterm", Nat), ("final", Nat)])
 
 #test
-vcat gradebook (update [⟨("midterm", Nat), by name⟩,
-                        ⟨("final", Nat), by name⟩] gradebook
-                                                   curveMidtermAndFinal :)
+vcat gradebook (update A["midterm", "final"] gradebook curveMidtermAndFinal :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -282,7 +280,7 @@ getColumn2 gradebook "name"
 
 -- `selectRows1`
 #test
-selectRows1 students [⟨2, by decide⟩, ⟨0, by decide⟩, ⟨2, by decide⟩, ⟨1, by decide⟩]
+selectRows1 students A[2, 0, 2, 1]
 =
 Table.mk [
   /[ "Eve"   , 13  , "red"          ],
@@ -292,7 +290,7 @@ Table.mk [
 ]
 
 #test
-selectRows1 gradebook [⟨2, by decide⟩, ⟨1, by decide⟩]
+selectRows1 gradebook A[2, 1]
 =
 Table.mk [
   /[ "Eve"   , 13  , 7     , 9     , 84      , 8     , 8     , 77    ],
@@ -334,7 +332,7 @@ Table.mk [
 
 -- `selectColumns2`
 #test
-selectColumns2 students [⟨2, by decide⟩, ⟨1, by decide⟩]
+selectColumns2 students A[2, 1]
 =
 Table.mk [
   /[ "blue"         , 12  ],
@@ -343,7 +341,7 @@ Table.mk [
 ]
 
 #test
-selectColumns2 gradebook [⟨7, by decide⟩, ⟨0, by decide⟩, ⟨4, by decide⟩]
+selectColumns2 gradebook A[7, 0, 4]
 =
 Table.mk [
   /[ 87    , "Bob"   , 77      ],
@@ -353,7 +351,6 @@ Table.mk [
 
 -- `selectColumns3`
 #test
--- selectColumns3 students [⟨("favorite color", _), by header⟩, ⟨("age", _), by header⟩]
 selectColumns3 students A["favorite color", "age"]
 =
 Table.mk [
@@ -363,7 +360,6 @@ Table.mk [
 ]
 
 #test
--- selectColumns3 gradebook [⟨("final", _), by header⟩, ⟨("name", _), by header⟩, ⟨("midterm", _), by header⟩]
 selectColumns3 gradebook A["final", "name", "midterm"]
 =
 Table.mk [
@@ -481,7 +477,7 @@ Table.mk [
 
 -- `sortByColumns`
 #test
-sortByColumns students [⟨("age", Nat), by header, inferInstance⟩]
+sortByColumns students A["age"]
 =
 Table.mk [
   /[ "Bob"   , 12  , "blue"         ],
@@ -490,8 +486,7 @@ Table.mk [
 ]
 
 #test
-sortByColumns gradebook [⟨("quiz2", Nat), by header, inferInstance⟩,
-                         ⟨("quiz1", Nat), by header, inferInstance⟩]
+sortByColumns gradebook A["quiz2", "quiz1"]
 =
 Table.mk [
   /[ "Alice" , 17  , 6     , 8     , 88      , 8     , 7     , 85    ],
@@ -533,7 +528,8 @@ def compareGradeOB (g1 : List $ Option Nat) (g2 : List $ Option Nat) :=
   leOB (averageOB g1) (averageOB g2)
 
 #test
-orderBy gradebook [⟨_, nameLengthOB', geOB⟩, ⟨_, midtermAndFinalOB, compareGradeOB⟩]
+orderBy gradebook [⟨_, nameLengthOB', geOB⟩,
+                   ⟨_, midtermAndFinalOB, compareGradeOB⟩]
 =
 Table.mk [
   /[ "Alice" , 17  , 6     , 8     , 88      , 8     , 7     , 85    ],
@@ -601,7 +597,7 @@ def proportion (bs : List $ Option Bool) : Option Nat := some $
 (
 pivotTable
   jellyNamed
-  [⟨("get acne", Bool), by header⟩, ⟨("brown", _), by header⟩]
+  A["get acne", "brown"]
   [⟨("red-proportion", _), ⟨("red", _), by header⟩, proportion⟩,
    ⟨("pink-proportion", _), ⟨("pink", _), by header⟩, proportion⟩]
 :)
@@ -891,14 +887,6 @@ Table.mk [
   /[4, [], []]
 ]
 
--- This behavior matches the B2T2 implementation, although I don't think the
--- behavior of leaving row 4 in the first eval is actually what we'd want.
--- (And I'd argue that leaving the last row in the second example actually
--- violates the spec.)
--- One potential workaround would be to check after each flattening to see if
--- the last row we get is equal (up to cell emptiness -- no need for DecEq)
--- to the clean template row and ditch it if so. (Even more ugly dynamicity, but
--- so it goes...)
 -- TODO: notify B2T2 that their implementation crashes on the (valid) example
 -- given by the row with ID 4.
 #eval flatten unbalancedTable A["seq1"]
@@ -954,12 +942,12 @@ Table.mk [
 
 -- `find`
 #test
-find [⟨("age", Nat), by header, inferInstance⟩] students /["age" := 13]
+find A["age"] students /["age" := 13]
 =
 some ⟨2, by decide⟩
 
 #test
-find [⟨("age", _), by header, inferInstance⟩] students /["age" := 14]
+find A["age"] students /["age" := 14]
 =
 none
 
@@ -1062,8 +1050,7 @@ def didWellUpdate := λ (r : Row $ schema gradebook) =>
   | none, none   => /["midterm" := EMP, "final" := EMP]
 
 #test
-(update [⟨("midterm", Bool), by name⟩, ⟨("final", Bool), by name⟩]
-  gradebook didWellUpdate :)
+(update A["midterm", "final"] gradebook didWellUpdate :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , false   , 7     , 9     , true  ],
