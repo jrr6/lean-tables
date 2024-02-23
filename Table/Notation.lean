@@ -73,6 +73,11 @@ macro_rules
 -- # ActionList Notation
 syntax (name := autocomp_actionlist) "A[" term,* "]" : term
 
+open Lean Elab Tactic in
+elab "print_goal" : tactic => withMainContext do
+  let goal ← getMainTarget
+  dbg_trace goal
+
 -- Tactic to autogenerate ActionList proofs (we may need to cycle the goals
 -- so that our Schema proof can figure out what type we need to find an instance
 -- for, etc.)
@@ -83,7 +88,9 @@ elab "cycle_goals" : tactic => do
     | [] => throwError "No goals to cycle"
     | [_] => throwError "Only one goal; can't cycle"
     | g :: gs => setGoals (gs ++ [g])
-macro "action_list_tactic" : tactic =>
+-- We can't just throw `cycle_goals` into the list of repeatable tactics and
+-- call it a day b/c if there are multiple unsolvable goals, `cycle_goals` loops
+macro "action_list_tactic_no_cycle" : tactic =>
 `(tactic|
   repeat (first | apply Sigma.mk
                 | apply Prod.mk
@@ -93,36 +100,68 @@ macro "action_list_tactic" : tactic =>
                 | apply Schema.HasName.tl
                 | exact inferInstance
                 | decide  -- for `Fin`s
-                | cycle_goals)
+  )
 )
 
-#check String
-#check @List.nil
--- set_option pp.all true
-#reduce @Header.{0,0} String
-#reduce @CertifiedHeader String ([] : List (String × Type))
-example : @CertifiedHeader String [] = @Sigma (Prod String Type) (λ h => @Schema.HasCol String h []) := by
-  rfl
+open Lean Elab Tactic in
+/-
+TODO: better termination checking
+* We can't detect cycling through goals by observing whether we've reached the
+  first goal again b/c we may have been able to discharge that. We'd need
+  something like a set of previously seen goals.
+* We can't check that the number of goals is decreasing after every cycle b/c
+  `Prod.mk`
+-/
+elab "action_list_tactic" : tactic => do
+  -- let maxPasses := 10
+  -- let mut numCycles := 0
+  let maxIters := 100
+  let mut numIters := 0
+  -- We shouldn't need to make more than 2 passes through the goals; if we do,
+  -- then the goal is probably unsolvable
+  let mut curGoals ← getGoals
+  -- let firstGoal := curGoals[0]!
+  -- while curGoals.length > 0 && numCycles < maxPasses do
+  -- TODO: detect failure intelligently rather than spinning
+  while curGoals.length > 0 && numIters < maxIters do
+    -- let mut failure := false
+    -- -- Work on this goal as much as we can
+    -- while ! failure do
+    --   try
+    --     evalTactic (← `(tactic| action_list_tactic_one_goal))
+    --   catch _ =>
+    --     failure := true
+    -- curGoals ← getGoals
+    -- if curGoals.length > 0 && curGoals[0]! == firstGoal then
+      -- numCycles := numCycles + 1
+    evalTactic (← `(tactic| action_list_tactic_no_cycle))
+    evalTactic (← `(tactic| rotate_left))
+    numIters := numIters + 1
+    curGoals ← getGoals
+  -- if curGoals.length > 0 && numCycles == maxPasses then
+  --   throwError "Unable to generate required (Action)List proof"
 
 -- Detects whether an argument type for an (Action)List requires tuple insertion
--- FIXME: defeq approach would be more robust, but doesn't work because `e` may
--- contain bound arguments that break `isDefEq`
+-- TODO: decide which approach to use
+-- Previously, defeq approach would break because `e` contained bound arguments
 def isProdArgTp (e : Expr) : MetaM Bool := do
+  -- `whnfD` approach
   let e ← whnfD e
   pure $
-    -- "Vanilla" product cases
-  e.isAppOf `Header || e.isAppOf `Prod ||
+  -- "Vanilla" product cases
+  e.isAppOf `Prod ||
   -- Nested product cases
-  e.isAppOf `CertifiedHeader ||
-  (e.isAppOf `Sigma &&
-    (e.getAppArgs[0]!.isAppOf `Header || e.getAppArgs[0]!.isAppOf `Prod))
+  (e.isAppOf `Sigma && (← whnfD e.getAppArgs[0]!).isAppOf `Prod)
+
+  -- `isDefEq` approach
   -- let prodUnifTgt := mkAppN (Expr.const ``Prod
   --                             [(← mkFreshLevelMVar), (← mkFreshLevelMVar)])
   --                           #[(← mkFreshTypeMVar), (← mkFreshTypeMVar)]
   -- let sigmaUnifTgt :=
   --   mkAppN (.const ``Sigma [(← mkFreshLevelMVar), (← mkFreshLevelMVar)])
-  --          #[prodUnifTgt, (← mkFreshExprMVar none)]
+  --         #[prodUnifTgt, (← mkFreshExprMVar none)]
   -- return (← isDefEq e prodUnifTgt) || (← isDefEq e sigmaUnifTgt)
+
 elab_rules : term <= expType
 -- @[term_elab autocomp_actionlist] def elabAutocompActionList : TermElab
   | `(A[ $elems,* ]) => do
@@ -174,7 +213,6 @@ elab_rules : term <= expType
         -- Type of the "action item" argument to the action function (i.e., the
         -- argument that goes in the action list)
         let actionListParam := actionListFnType.getForallBodyMaxDepth 1
-        -- TODO: check whether this "sees through" `Certified_`
         (match ← whnfD actionListParam with
           | .forallE _ tp _ _ => pure tp
           | _ => throwError "Invalid expected type for A[]")
@@ -196,7 +234,6 @@ elab_rules : term <= expType
         --                         [(← mkFreshLevelMVar), (← mkFreshLevelMVar)])
         --                       #[(← mkFreshTypeMVar), (← mkFreshTypeMVar)]
         -- let elemRawIsTuple ← isDefEq elemRawTp unifTgt
-        dbg_trace elemRawIsTuple
         let item : TSyntax `term :=
           if needTuple && !elemRawIsTuple
           then (← `(($elemRaw, _)))
@@ -205,7 +242,6 @@ elab_rules : term <= expType
 
     let nil ← if isList then ``(List.nil) else ``(ActionList.nil)
     elabTerm (← expandListLit elems.elemsAndSeps.size false nil) expType
--- #reduce (A["a1", "a"] : ActionList (Schema.removeOtherDecCH [("a", Nat), ("a1", Nat)]) [("a", Nat), ("a1", Nat), ("b", Nat)])
 
 -- # Table `toString`
 -- TODO: make this prettier
@@ -253,16 +289,25 @@ instance {η} {schema : @Schema η}
 --   | _ => /["age" := EMP]
 
 -- #reduce RetypedSubschema (schema students)
--- -- TODO: why aren't any of the `RetypedSubschema` metavars being synthesized
--- -- prior to elaborating the `A[]` syntax?
--- #eval (update A["age"] students abstractAgeUpdate :)
-
+-- TODO: why aren't any of the `RetypedSubschema` metavars being synthesized
+-- prior to elaborating the `A[]` syntax?
+-- #eval update A["age"] students abstractAgeUpdate
 -- #eval (A[1,2,3] : List (Fin 4))
 
+-- This is an example that *won't* work with our syntax, since we expect that
+-- any non-dependent tuples have inferrable second arguments
 -- #reduce (A["name", "hello"] : List (String × (Schema.HasName "hi" [("hi", Nat)])))
 
--- -- #check Schema.removeTypedName
+-- #reduce (A["hi"] : List ((s : String) × Schema.HasName s [("hi", Nat)]))
+
 -- #eval pivotLonger students A["age"] "attribute" "value"
+
 -- #eval leftJoin students students A["name", "age"]
 -- #eval dropColumns students A["age", "name"]
-#check CertifiedHeader
+-- #eval selectColumns3 students A["favorite color", "age"]
+-- def oAverage (xs : List $ Option Nat) : Option Nat := some $
+--   List.foldl (λ acc => λ | none => acc | some x => x + acc) 0 xs / xs.length
+
+-- #eval
+-- pivotTable students A["favorite color"] [⟨("age-average", _), ⟨("age", _), by header⟩, oAverage⟩]
+-- #reduce (A["a1", "a"] : ActionList (Schema.removeOtherDecCH [("a", Nat), ("a1", Nat)]) [("a", Nat), ("a1", Nat), ("b", Nat)])
