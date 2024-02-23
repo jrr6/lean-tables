@@ -129,15 +129,15 @@ theorem Schema.get_map_nths_eq_get_get :
     List.length_map (nths xs ns) Prod.fst ▸ length_nths xs ns ▸ hi
   ⟩ =
   (List.map Prod.fst xs).get ⟨(ns.get ⟨i, hi⟩).val,
-    -- (List.length_map xs Prod.fst).symm ▸ (List.get ns ⟨i, hi⟩).isLt
-    sorry
+    (List.length_map xs Prod.fst) ▸
+    (Eq.subst (Schema.length_eq_List_length ▸ rfl)
+              (List.get ns ⟨i, hi⟩).isLt)
   ⟩
 | xs, n :: ns, 0, hi => by
   simp only [nths, map, get]
-  sorry
-  -- rw [nth_eq_get]
-  -- simp only [List.get]
-  -- rw [List.get_map Prod.fst]
+  rw [nth_eq_get]
+  simp only [List.get]
+  rw [List.get_map Prod.fst]
 | xs, n :: ns, .succ i, hi => by
   simp only [nths, map, get]
   have ih := get_map_nths_eq_get_get xs ns i (Nat.lt_of_succ_lt_succ hi)

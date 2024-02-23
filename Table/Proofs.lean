@@ -378,8 +378,7 @@ theorem selectColumns2_spec2 :
   intro t ns i hi
   simp only [header]
   simp only [finHeaderLengthOfFinNcols]
-  apply List.get_map_nths_eq_get_get
-
+  apply Schema.get_map_nths_eq_get_get
 
 def Schema.hasNthCol :
   ∀ {schema : @Schema η} (n : Fin $ Schema.length schema),
@@ -858,15 +857,15 @@ theorem bin_spec3 [ToString η] :
 theorem pivotTable_spec2 :
   ∀ (t : Table sch)
     (cs : List $ CertifiedHeader sch)
-    (inst : DecidableEq (Row (Schema.fromCHeaders cs)))
+    [inst : DecidableEq (Row (Schema.fromCHeaders cs))]
     (aggs : List ((c' : Header) ×
                   (c : CertifiedHeader sch) ×
                   (List (Option c.fst.snd) → Option c'.snd))),
-  header (pivotTable t cs inst aggs) =
+  header (pivotTable t cs aggs) =
   List.append (cs.map (·.1.1)) (aggs.map (·.1.1)) := by
   intro t cs inst aggs
-  simp only [header, Schema.names, Schema.append_eq_List_append,
-             Schema.map_eq_List_map]
+  simp only [header, Schema.names, Schema.fromCHeaders,
+             Schema.append_eq_List_append, Schema.map_eq_List_map]
   exact List.map_map_append cs aggs Prod.fst Sigma.fst Sigma.fst
 
 -- TODO: get rid of `Classical.choice` (termination proof)
@@ -893,15 +892,15 @@ theorem pivotTable_spec3_aux :
 theorem pivotTable_spec3 :
   ∀ (t : Table sch)
     (cs : List $ CertifiedHeader sch)
-    (inst : DecidableEq (Row (Schema.fromCHeaders cs)))
+    [inst : DecidableEq (Row (Schema.fromCHeaders cs))]
     (aggs : List ((c' : Header) ×
                   (c : CertifiedHeader sch) ×
                   (List (Option c.fst.snd) → Option c'.snd)))
     (cn : CertifiedName (Schema.fromCHeaders cs)),
-    (schema $ pivotTable t cs inst aggs).lookup
+    (schema $ pivotTable t cs aggs).lookup
       ⟨cn.1, Schema.hasNameOfAppend cn.2⟩ =
     (schema t).lookup ⟨cn.1, Schema.hasNameOfFromCHeaders cn.2⟩ :=
-λ t cs inst => pivotTable_spec3_aux cs
+λ t cs aggs => pivotTable_spec3_aux cs
 
 -- Spec 4 is enforced by types
 
@@ -1286,10 +1285,7 @@ theorem groupBySubtractive_spec4 [inst : DecidableEq τ] :
   intros t c hc
   simp only [groupBySubtractive, groupBy, getColumn2]
   rw [List.map_map]
-  -- FIXME: trying to unfold `Row.getCell` causes Lean to throw an assertion
-  -- violation (this is a Lean bug)
   simp only [Function.comp, getValue]
-  -- simp only [Function.comp, getValue, Row.getCell]
   conv =>
     rhs
     lhs

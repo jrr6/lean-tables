@@ -39,7 +39,7 @@ def Row.map {schema} (f : ∀ n α, Cell n α → @Cell η dec_η n α)
 
 def Row.mapHet {schema} (F : Type _ → Type _)
     (f : ∀ n α, Cell n α → @Cell η dec_η n (F α))
-    : Row schema → @Row η dec_η (schema.map λ (nm, τ) => (nm, F τ))
+    : Row schema → @Row η dec_η (Schema.map (λ (nm, τ) => (nm, F τ)) schema)
 | Row.nil => Row.nil
 | @Row.cons _ _ n τ _ r₁ rs₁ => Row.cons (f n τ r₁) (mapHet F f rs₁)
 
