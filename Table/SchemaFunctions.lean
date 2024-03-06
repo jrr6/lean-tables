@@ -329,3 +329,105 @@ theorem Schema.lookupTypeFromCHeadersUnique :
   simp only [lookupType]
   simp only [hasNameOfFromCHeaders_eq_2]
   exact lookupTypeFromCHeadersUnique cs ⟨s_nm, hn⟩
+
+/- Functions for `pivotWider` -/
+@[reducible]
+def Schema.somes : List (Option α) → List α
+| [] => []
+| none :: xs => somes xs
+| some x :: xs => x :: somes xs
+
+theorem Schema.somes_eq_List_somes : ∀ xs : List (Option α),
+  Schema.somes xs = List.somes xs
+| [] => rfl
+| none :: xs => somes_eq_List_somes xs
+| some x :: xs => congrArg (x :: ·) (somes_eq_List_somes xs)
+
+@[reducible]
+def Schema.reverseAux : List α → List α → List α
+| [],   r => r
+| a::l, r => reverseAux l (a::r)
+
+theorem Schema.reverseAux_eq_List_reverseAux :
+  ∀ xs as : List α, Schema.reverseAux xs as = List.reverseAux xs as
+| [], as => rfl
+| x :: xs, as => reverseAux_eq_List_reverseAux xs (x :: as)
+
+@[reducible]
+def Schema.reverse (as : List α) : List α := reverseAux as []
+
+theorem Schema.reverse_eq_List_reverse :
+  ∀ xs : List α, Schema.reverse xs = List.reverse xs :=
+λ xs => Schema.reverseAux_eq_List_reverseAux xs []
+
+@[reducible]
+def Schema.elem {α} [DecidableEq α] (a : α) : List α → Bool
+| []    => false
+| b::bs => match a == b with
+           | true  => true
+           | false => elem a bs
+
+theorem Schema.elem_iff_List_mem [DecidableEq α] :
+  ∀ (x : α) xs, Schema.elem x xs = true ↔ List.Mem x xs
+| x, [] => ⟨λ h => nomatch h, λ h => nomatch h⟩
+| x, y :: ys => by
+  apply Iff.intro
+  . intro helem
+    cases Decidable.em (x == y) with
+    | inl heq =>
+      simp at heq
+      rw [heq]
+      apply List.Mem.head
+    | inr hneq =>
+      apply List.Mem.tail
+      simp [elem, hneq] at helem -- TODO: make all nonterminal `simp`s `only`
+      apply Iff.mp
+      apply elem_iff_List_mem x ys
+      apply helem
+  . intro hmem
+    cases hmem with
+    | head => simp [elem]
+    | tail _ h =>
+      simp only [elem]
+      cases Decidable.em (x == y) with
+      | inl heq => simp [heq]
+      | inr hneq =>
+        simp [hneq]
+        apply Iff.mpr
+        apply elem_iff_List_mem
+        exact h
+
+
+-- FIXME: everything in here needs to be reducible (reverse, lookup, etc.)
+@[reducible]
+def Schema.uniqueAux {α} [DecidableEq α] : List α → List α → List α
+| [], acc => Schema.reverse acc
+| x :: xs, acc =>
+  if Schema.elem x acc then uniqueAux xs acc else uniqueAux xs (x :: acc)
+
+theorem Schema.uniqueAux_eq_List_uniqueAux {α} [DecidableEq α] :
+  ∀ xs acc : List α, Schema.uniqueAux xs acc = List.uniqueAux xs acc
+| [], acc => Schema.reverse_eq_List_reverse acc
+| x :: xs, acc =>
+  if h : Schema.elem x acc
+  then by
+    rw [uniqueAux, List.uniqueAux]
+    simp only [Membership.mem]
+    simp only [h, ite_true]
+    have := elem_iff_List_mem x acc |>.mp h
+    simp only [this, ite_true]
+    apply uniqueAux_eq_List_uniqueAux
+  else by
+    simp only [uniqueAux, List.uniqueAux]
+    have := mt (elem_iff_List_mem x acc |>.mpr) h
+    simp only [Bool.not_eq_true] at h
+    simp only [h, ite_false]
+    simp only [Membership.mem, this, ite_false]
+    apply uniqueAux_eq_List_uniqueAux
+
+@[reducible]
+def Schema.unique {α} [inst : DecidableEq α] (xs : List α) := uniqueAux xs []
+
+theorem Schema.unique_eq_List_unique {α} [DecidableEq α] : ∀ xs : List α,
+  Schema.unique xs = List.unique xs :=
+λ xs => Schema.uniqueAux_eq_List_uniqueAux xs []

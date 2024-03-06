@@ -120,6 +120,12 @@ def Row.getCell {schema : @Schema η} {c : η} {τ : Type u}
 | Row.cons cell cells, Schema.HasCol.hd => cell
 | Row.cons cell cells, Schema.HasCol.tl h => getCell cells h
 
+@[reducible]
+def Row.getCell_reducible {schema : @Schema η} {c : η} {τ : Type u}
+    : Row schema → Schema.HasCol (c, τ) schema → Cell c τ
+| Row.cons cell cells, Schema.HasCol.hd => cell
+| Row.cons cell cells, Schema.HasCol.tl h => getCell_reducible cells h
+
 def Row.setCell {schema : @Schema η} {τ : Type u} {c : η}
     : Row schema → Schema.HasCol (c, τ) schema → Cell c τ → Row schema
 | Row.cons cell cells, Schema.HasCol.hd, newCell => Row.cons newCell cells

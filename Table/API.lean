@@ -682,14 +682,42 @@ def Schema.hasColOfMemPivotCol {τ : Type u} {t : Table schema} {lblCol : η} {l
   : (hc : schema.HasCol (lblCol, η)) →
     (hmem : List.MemT (some lblEntry) (getColumn2 t lblCol hc)) →
     Schema.HasCol (lblEntry, τ) $
-    (getColumn2 t lblCol hc).somes.unique.map (λ x => (x, τ)) :=
+    (getColumn2 t lblCol hc)
+    |> Schema.somes |> Schema.unique |> Schema.map (λ x => (x, τ)) :=
   λ hc hmem =>
     let hmemT :=
       hmem |> List.memT_somes_of_memT
            |> List.memT_unique_of_memT
            |> List.memT_map_of_memT (λ x => (x, τ))
-    Schema.hasColOfMemT hmemT
+    Schema.hasColOfMemT (
+      Schema.somes_eq_List_somes _ ▸
+      Schema.unique_eq_List_unique (List.somes (getColumn2 t lblCol hc)) ▸
+      Schema.map_eq_List_map ▸
+      hmemT)
 
+@[reducible]
+def getValue_reducible {τ}
+             (r : Row schema)
+             (c : η)
+             (h : Schema.HasCol (c, τ) schema := by header)
+    : Option τ :=
+  match r.getCell_reducible h with
+  | Cell.emp   => none
+  | Cell.val x => some x
+
+@[reducible]
+def getColumn2_reducible {τ}
+               (t : Table schema)
+               (c : η)
+               (h : Schema.HasCol (c, τ) schema := by header)
+    : List (Option τ) :=
+  Schema.map (λ r => getValue r c h) t.rows
+
+theorem getColumn2_reducible_eq_getColumn2 {τ} :
+  ∀ t c (h : Schema.HasCol (c, τ) schema),
+  getColumn2_reducible t c h = getColumn2 t c h := sorry
+
+-- FIXME: return type depends upon the non-reducible function `getColumn2`
 def pivotWider {τ} (t : Table schema)
                (c1 : η)
                (c2 : η)
@@ -703,7 +731,8 @@ def pivotWider {τ} (t : Table schema)
       Schema.append
         (schema.removeHeaders $ ActionList.cons ⟨(c1, η), hc1⟩
                                   (ActionList.cons ⟨(c2, τ), hc2⟩ ActionList.nil))
-        ((getColumn2 t c1 hc1).somes.unique.map (λ x => (x, τ))) :=
+        ((getColumn2_reducible t c1 hc1)
+          |> Schema.somes |> Schema.unique |> Schema.map (λ x => (x, τ))) :=
 let gather := (λ r pf => ⟨r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩], (
     -- Lean infers the wrong mapping function here if you omit this. No idea why
     List.memT_map_of_memT (λ r' =>
@@ -729,8 +758,8 @@ groupBy_certified t
         -- | acc, Row.cons (Cell.val nm) (Row.cons val Row.nil) =>
         let r := rowWithMem.1
         let hr := rowWithMem.2
-        let nmCell := r.getCell .hd
-        let valCell := r.getCell (.tl .hd)
+        let nmCell := r.getCell_reducible .hd
+        let valCell := r.getCell_reducible (.tl .hd)
         match hnmc : nmCell with
           | .val nm =>
             acc.setCell (c := nm) (Schema.hasColOfPrepend (
@@ -739,11 +768,11 @@ groupBy_certified t
                 simp only [getValue]
                 have hsomenm : some nm = Cell.toOption nmCell := hnmc ▸ rfl
                 rw [hsomenm]
-                have hcelleq : nmCell = r.getCell .hd := rfl
+                have hcelleq : nmCell = r.getCell_reducible .hd := rfl
                 have hreq : r = rowWithMem.fst := rfl
 
-                have hfeq : (λ (r : Row schema) => r.getCell hc1) =
-                            (λ (r : Row schema) => Row.getCell (r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) .hd) := rfl
+                have hfeq : (λ (r : Row schema) => r.getCell_reducible hc1) =
+                            (λ (r : Row schema) => Row.getCell_reducible (r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) .hd) := rfl
 
                 let hcell : List.MemT nmCell $ List.map (λ r => r.getCell hc1) t.rows := by
                   rw [hcelleq]
@@ -751,12 +780,13 @@ groupBy_certified t
                   have hcomp : (λ (r : Row schema) => Row.getCell (r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) .hd) =
                     (λ (r : Row schema) => (λ r' => Row.getCell r' .hd) ∘ (λ r' => r'.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) $ r) := rfl
                   rw [hcomp, List.map_comp]
-                  apply List.memT_map_of_memT (f := (λ (r : Row (Schema.fromCHeaders [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])) =>
-                    Row.getCell r .hd))
-                  rw [hreq]
-                  exact hr
+                  sorry
+                  -- apply List.memT_map_of_memT (f := (λ (r : Row (Schema.fromCHeaders [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])) =>
+                  --   Row.getCell r .hd))
+                  -- rw [hreq]
+                  -- exact hr
 
-                have hcomp : (λ r => Cell.toOption (Row.getCell r hc1)) = (λ r => (Cell.toOption ∘ (λ r' => Row.getCell r' hc1)) r) := rfl
+                have hcomp : (λ r => Cell.toOption (Row.getCell_reducible r hc1)) = (λ r => (Cell.toOption ∘ (λ r' => Row.getCell_reducible r' hc1)) r) := rfl
                 rw [hcomp, List.map_comp]
                 apply List.memT_map_of_memT
                 apply hcell
