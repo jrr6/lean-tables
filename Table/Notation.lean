@@ -189,7 +189,7 @@ elab_rules : term <= expType
             #[←mkFreshTypeMVar, ←mkFreshExprMVar none, ←mkFreshExprMVar none,
               actionListFnMVar, ←mkFreshExprMVar none])
         if ! defeqOK then
-          throwError "Invalid expected type found during unification"
+          throwError "Invalid expected type found during ActionList unification"
 
         let actionListFn ← instantiateMVars actionListFnMVar
         let actionListFnType ← inferType actionListFn

@@ -32,7 +32,9 @@ def EqSubschema {η : Type u_η} (schm : @Schema η) :=
 def RetypedSubschema {η : Type u_η} (schm : @Schema η) :=
   List ((h : Header) × schm.HasName h.fst)
 
+@[reducible]
 def CertifiedName (schema : @Schema η) := ((c : η) × Schema.HasName c schema)
+@[reducible]
 def CertifiedHeader (schema : @Schema η) :=
   ((h : Header) × Schema.HasCol h schema)
 
@@ -221,6 +223,7 @@ def Schema.removeCertifiedName (s : @Schema η) (cn : CertifiedName s) :=
 def Schema.removeCertifiedHeader (s : @Schema η) (ch : CertifiedHeader s) :=
   removeHeader s ch.2
 
+@[reducible]
 def Schema.removeTypedName (τ : Type u)
                            (s : @Schema η)
                            (c : ((c : η) × s.HasCol (c, τ)))
@@ -490,6 +493,7 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
 def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
   | .hd _ _ => .hd
   | .tl _ htl => .tl $ hasColOfMemT htl
+
 
 -- Unique schemata
 -- A *unique* schema is one with distinct header names. Unique schemata are
