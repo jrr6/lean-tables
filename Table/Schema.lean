@@ -160,6 +160,7 @@ def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
 
 -- Schema functions
 -- Note: if written point-free, dot notation fails
+@[reducible]
 def Schema.names {η : Type u_η} (sch : @Schema η) :=
   List.map (@Prod.fst η (Type u)) sch
 
@@ -498,7 +499,7 @@ def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
 -- Unique schemata
 -- A *unique* schema is one with distinct header names. Unique schemata are
 -- required by the B2T2 spec.
-def Schema.Unique {η : Type u_η} (ss : @Schema η) := List.Unique ss.names
+abbrev Schema.Unique {η : Type u_η} (ss : @Schema η) := List.Unique ss.names
 
 -- -- TODO: prove agrees with `lookup` when uniqueness criterion above holds
 -- def Schema.lookup? {η : Type u_η} [DecidableEq η] :

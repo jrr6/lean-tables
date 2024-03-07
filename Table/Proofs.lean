@@ -411,10 +411,36 @@ def Schema.hasColOfNthsHasCol :
 
 #check Schema.schemaHasLookup
 
-def Schema.hasNameOfNthsHasName
+def Schema.hasNameOfNthsHasName_old
   {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η}
   (h : Schema.HasName nm (Schema.nths schema ns)) : schema.HasName nm :=
   colImpliesName (hasColOfNthsHasCol (schemaHasLookupType _ nm h))
+
+def Schema.hasNthName :
+  ∀ {schema : @Schema η} (n : Fin $ Schema.length schema),
+  schema.HasName (Schema.nth schema n.val n.isLt).1
+| h :: hs, ⟨0, hlt⟩ => .hd
+| h :: hs, ⟨.succ n, hlt⟩ => .tl (hasNthName ⟨n, Nat.lt_of_succ_lt_succ hlt⟩)
+
+def Schema.hasNameEqHeadOrTail :
+  ∀ {nm : η} {hs : Schema},
+  Schema.HasName nm ((nm', τ) :: hs) → nm' ≡ nm ⊕ HasName nm hs
+| _, _, .hd => .inl (.refl _)
+| _, _, .tl htl => .inr htl
+
+def Schema.hasNameOfNthsHasName :
+  ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η},
+    Schema.HasName nm (Schema.nths schema ns) →
+    schema.HasName nm
+| [], ⟨_, hlt⟩ :: ns, hdr, h => nomatch hlt
+-- TODO: the better approach would be to directly pattern-match on `h`, but this
+-- doesn't currently work:
+| hs, n :: ns, hdr, h =>
+  match hasNameEqHeadOrTail h with
+    | .inl (.refl _) => hasNthName n
+    | .inr hhnm => hasNameOfNthsHasName hhnm
+
+
 /-
 Schema.HasName _ (Schema.nths (h :: hs) (⟨.succ n', hlt⟩ :: ns))
 = Schema.HasName _ (Schema.nths )
@@ -486,85 +512,107 @@ Schema.nths sch (n :: ns)
 = (Schema.nth sch n.1 n.2) :: map _ ns
 =
 -/
-#print Schema.nth
-#check Schema.hasNameOfNthsHasName
 
-theorem underlying_sc2_s3 :
+/-
+
+lookupType (nths sch ns) ⟨nm, pf⟩
+=
+lookupType sch ⟨nm, colImpliesName (hasColOfNthsHasCol (schemaHasLookupType _ nm h))⟩
+
+
+-/
+
+/-
+(Schema.nth sch n (_ : Nat.succ n ≤ Schema.length sch)).snd =
+  Schema.lookupType sch
+    { fst := (Schema.nth sch n (_ : Nat.succ n ≤ Schema.length sch)).fst,
+      snd := Schema.hasNthName { val := n, isLt := (_ : n < Schema.length sch) } }
+
+-/
+
+def EqT.ofEq : a = b → a ≡ b := λ | .refl _ => .refl _
+
+theorem Schema.lookup_nth :
+  ∀ {schema : @Schema η} (n : Nat) (hn : n < Schema.length schema),
+    (Schema.nth schema n hn).snd =
+    Schema.lookupType schema ⟨(Schema.nth schema n hn).fst,
+                               Schema.hasNthName ⟨n, hn⟩⟩
+| h :: hs, 0, hn => rfl
+| h :: hs, .succ n, hn =>
+  lookup_nth n (Nat.lt_of_succ_lt_succ hn)
+
+theorem Schema.hasNameEqHeadOrTail_inl (h : Schema.HasName nm ((nm, τ) :: hs)) :
+  (Schema.hasNameEqHeadOrTail h ≡ .inl (.refl _)) → h = .hd := by
+  intro eqt
+  simp only [hasNameEqHeadOrTail] at eqt
+  cases h
+  . rfl
+  . contradiction
+
+theorem Schema.hasNameEqHeadOrTail_inr
+  (h : Schema.HasName nm (h :: hs))
+  (htl) :
+  (Schema.hasNameEqHeadOrTail h ≡ .inr htl) → h = .tl htl := by
+  intro eqt
+  simp only [hasNameEqHeadOrTail] at eqt
+  cases h
+  . contradiction
+  . simp only at eqt
+    cases eqt
+    rfl
+
+theorem Schema.lookupType_nths_eq_lookupType :
   ∀ {sch : @Schema η}
-    --(hsch : Schema.Unique sch)
     (ns : List (Fin (Schema.length sch)))
-    --(hns : List.Unique ns)
     (nm : η)
     (pf : Schema.HasName nm (Schema.nths sch ns)),
   Schema.lookupType (Schema.nths sch ns) ⟨nm, pf⟩ =
   Schema.lookupType sch ⟨nm, Schema.hasNameOfNthsHasName pf⟩
 | sch, [], nm, pf => nomatch pf
--- | [], hsch, ⟨n, hlt⟩ :: ns, hns, nm, pf => nomatch hlt
 | (snm, sτ) :: sch, ⟨0, hlt⟩ :: ns, .(snm), .hd => by
-  simp only [Schema.lookupType, Schema.nths]
-  simp only [Schema.hasNameOfNthsHasName, Schema.schemaHasLookupType]
-  unfold Schema.hasColOfNthsHasCol
-  sorry
-| (snm, sτ) :: sch, ⟨0, hlt⟩ :: ns, _, .tl h => by
-  simp only [Schema.nths]
   simp only [Schema.lookupType]
-  have h : Schema.nths ((snm, sτ) :: sch) ns = Schema.map (λ n => Schema.nth ((snm, sτ) :: sch) n.val _) ns := rfl
-  -- TODO: if we rewrite, motive is not type correct...for a change
-  sorry
-| (snm, sτ) :: sch, ⟨.succ n, pf⟩ :: ns, _, hnths => sorry
-
+  unfold Schema.hasNameOfNthsHasName
+  simp only [Schema.hasNameEqHeadOrTail, Schema.hasNthName, Schema.lookupType]
+| (snm, sτ) :: sch, ⟨0, hlt⟩ :: ns, nm, .tl h => by
+  conv =>
+    lhs
+    simp only [Schema.nths, Schema.map, Schema.lookupType]
+  conv =>
+    rhs
+    unfold Schema.hasNameOfNthsHasName
+    simp only [Schema.hasNameEqHeadOrTail]
+  apply lookupType_nths_eq_lookupType
+| (snm, sτ) :: sch, ⟨.succ n, pf⟩ :: ns, nm, hnths =>
+  match h : Schema.hasNameEqHeadOrTail hnths with
+  | .inr hhnm => by
+    conv =>
+      rhs
+      unfold Schema.hasNameOfNthsHasName
+      simp only [h]
+    have htoprove : hnths = .tl hhnm :=
+      Schema.hasNameEqHeadOrTail_inr _ _ (EqT.ofEq h)
+    conv =>
+      lhs
+      simp only [Schema.nths, Schema.map, htoprove, Schema.lookupType]
+    apply lookupType_nths_eq_lookupType
+  | .inl heqt => by
+    cases heqt
+    have htoprove : hnths = .hd :=
+      Schema.hasNameEqHeadOrTail_inl hnths (EqT.ofEq h)
+    simp only [Schema.nths, Schema.map, Schema.lookupType, htoprove]
+    unfold Schema.hasNameOfNthsHasName
+    simp only [Schema.hasNameEqHeadOrTail, Schema.hasNthName, Schema.lookupType]
+    apply Schema.lookup_nth
 
 theorem selectColumns2_spec3 :
-  ∀ {sch : @Schema η} (hsch : Schema.Unique sch) (t : Table sch)
-    (ns : List (Fin (ncols t))) (hns : List.Unique ns),
+  ∀ {sch : @Schema η} (t : Table sch)
+    (ns : List (Fin (ncols t))),
   ∀ (c : CertifiedName (schema (selectColumns2 t ns))),
     (schema (selectColumns2 t ns)).lookupType c
     = (schema t).lookupType ⟨c.1, Schema.hasNameOfNthsHasName c.2⟩ := by
-  intro sch hsch t ns hns c
+  intro sch t ns c
   unfold schema at *
-  simp only [ncols] at ns
-  simp only [Schema.nths] at c
-  cases c with | mk nm pf =>
-  simp only
-  unfold Schema.nths
-  induction sch with
-  | nil =>
-    cases ns with
-    | nil =>
-      cases c with | mk _ hnm =>
-      cases hnm
-    | cons n _ =>
-      cases n with | mk _ hlt =>
-      cases hlt
-  | cons h hs ih =>
-    simp only [Schema.nths, Schema.map_eq_List_map]
-    cases ns with
-    | nil =>
-      cases c with | mk _ hnm =>
-      cases hnm
-    | cons n ns =>
-      cases n with | mk n hn =>
-      unfold Schema.lookupType
-      simp only [Schema.nths, Schema.map_eq_List_map, List.map]
-      cases n with
-      | zero =>
-        sorry
-
-  done
-    -- have : List.map (fun n => List.nth (h :: hs) n.val (_ : n.val < List.length (h :: hs))) ns
-    --         = List
-  /-
-  Schema.lookupType (List.nths sch ns) c =
-  Schema.lookupType sch ⟨c.1, _⟩
-  -/
--- | _ :: _, t, [], ⟨c, hc⟩ => nomatch hc
--- | s :: ss, t, ⟨0, h0⟩ :: ns, ⟨c, .tl h⟩ => by
---   simp only [schema, List.nths, Schema.lookupType]
-  /-
-    Schema.lookupType (List.map (fun n => List.nth (s :: ss) n.val _) ns) ⟨c, h⟩ =
-    Schema.lookupType (s :: ss) ⟨c, _⟩
-  -/
-  -- TODO:
+  apply Schema.lookupType_nths_eq_lookupType
 
 theorem selectColumns2_spec4 :
   ∀ (t : Table sch) (ns : List (Fin (ncols t))),
@@ -615,7 +663,7 @@ by intros t z h
    cases z with | mk z prop =>
    simp only [head]
    have h_not_neg : ¬ (z < 0) := by
-     intro contra
+     intro hcontra
      cases z with
      | ofNat n => contradiction
      | negSucc n => contradiction
