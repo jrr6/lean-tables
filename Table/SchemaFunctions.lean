@@ -329,3 +329,105 @@ theorem Schema.lookupTypeFromCHeadersUnique :
   simp only [lookupType]
   simp only [hasNameOfFromCHeaders_eq_2]
   exact lookupTypeFromCHeadersUnique cs ⟨s_nm, hn⟩
+
+def Schema.hasNthCol :
+  ∀ {schema : @Schema η} (n : Fin $ Schema.length schema),
+  schema.HasCol (Schema.nth schema n.val n.isLt)
+| h :: hs, ⟨0, hlt⟩ => .hd
+| h :: hs, ⟨.succ n, hlt⟩ => .tl (hasNthCol ⟨n, Nat.lt_of_succ_lt_succ hlt⟩)
+
+def Schema.hasNthName :
+  ∀ {schema : @Schema η} (n : Fin $ Schema.length schema),
+  schema.HasName (Schema.nth schema n.val n.isLt).1
+| h :: hs, ⟨0, hlt⟩ => .hd
+| h :: hs, ⟨.succ n, hlt⟩ => .tl (hasNthName ⟨n, Nat.lt_of_succ_lt_succ hlt⟩)
+
+def Schema.hasNameEqHeadOrTail :
+  ∀ {nm : η} {hs : Schema},
+  Schema.HasName nm ((nm', τ) :: hs) → nm' ≡ nm ⊕ HasName nm hs
+| _, _, .hd => .inl (.refl _)
+| _, _, .tl htl => .inr htl
+
+def Schema.hasNameOfNthsHasName :
+  ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η},
+    Schema.HasName nm (Schema.nths schema ns) →
+    schema.HasName nm
+| [], ⟨_, hlt⟩ :: ns, hdr, h => nomatch hlt
+-- TODO: the better approach would be to directly pattern-match on `h`, but this
+-- doesn't currently work:
+| hs, n :: ns, hdr, h =>
+  match hasNameEqHeadOrTail h with
+    | .inl (.refl _) => hasNthName n
+    | .inr hhnm => hasNameOfNthsHasName hhnm
+
+theorem Schema.lookup_nth :
+  ∀ {schema : @Schema η} (n : Nat) (hn : n < Schema.length schema),
+    (Schema.nth schema n hn).snd =
+    Schema.lookupType schema ⟨(Schema.nth schema n hn).fst,
+                               Schema.hasNthName ⟨n, hn⟩⟩
+| h :: hs, 0, hn => rfl
+| h :: hs, .succ n, hn =>
+  lookup_nth n (Nat.lt_of_succ_lt_succ hn)
+
+theorem Schema.hasNameEqHeadOrTail_inl (h : Schema.HasName nm ((nm, τ) :: hs)) :
+  (Schema.hasNameEqHeadOrTail h ≡ .inl (.refl _)) → h = .hd := by
+  intro eqt
+  simp only [hasNameEqHeadOrTail] at eqt
+  cases h
+  . rfl
+  . contradiction
+
+theorem Schema.hasNameEqHeadOrTail_inr
+  (h : Schema.HasName nm (h :: hs))
+  (htl) :
+  (Schema.hasNameEqHeadOrTail h ≡ .inr htl) → h = .tl htl := by
+  intro eqt
+  simp only [hasNameEqHeadOrTail] at eqt
+  cases h
+  . contradiction
+  . simp only at eqt
+    cases eqt
+    rfl
+
+theorem Schema.lookupType_nths_eq_lookupType :
+  ∀ {sch : @Schema η}
+    (ns : List (Fin (Schema.length sch)))
+    (nm : η)
+    (pf : Schema.HasName nm (Schema.nths sch ns)),
+  Schema.lookupType (Schema.nths sch ns) ⟨nm, pf⟩ =
+  Schema.lookupType sch ⟨nm, Schema.hasNameOfNthsHasName pf⟩
+| sch, [], nm, pf => nomatch pf
+| (snm, sτ) :: sch, ⟨0, hlt⟩ :: ns, .(snm), .hd => by
+  simp only [Schema.lookupType]
+  unfold Schema.hasNameOfNthsHasName
+  simp only [Schema.hasNameEqHeadOrTail, Schema.hasNthName, Schema.lookupType]
+| (snm, sτ) :: sch, ⟨0, hlt⟩ :: ns, nm, .tl h => by
+  conv =>
+    lhs
+    simp only [Schema.nths, Schema.map, Schema.lookupType]
+  conv =>
+    rhs
+    unfold Schema.hasNameOfNthsHasName
+    simp only [Schema.hasNameEqHeadOrTail]
+  apply lookupType_nths_eq_lookupType
+| (snm, sτ) :: sch, ⟨.succ n, pf⟩ :: ns, nm, hnths =>
+  match h : Schema.hasNameEqHeadOrTail hnths with
+  | .inr hhnm => by
+    conv =>
+      rhs
+      unfold Schema.hasNameOfNthsHasName
+      simp only [h]
+    have htoprove : hnths = .tl hhnm :=
+      Schema.hasNameEqHeadOrTail_inr _ _ (EqT.ofEq h)
+    conv =>
+      lhs
+      simp only [Schema.nths, Schema.map, htoprove, Schema.lookupType]
+    apply lookupType_nths_eq_lookupType
+  | .inl heqt => by
+    cases heqt
+    have htoprove : hnths = .hd :=
+      Schema.hasNameEqHeadOrTail_inl hnths (EqT.ofEq h)
+    simp only [Schema.nths, Schema.map, Schema.lookupType, htoprove]
+    unfold Schema.hasNameOfNthsHasName
+    simp only [Schema.hasNameEqHeadOrTail, Schema.hasNthName, Schema.lookupType]
+    apply Schema.lookup_nth

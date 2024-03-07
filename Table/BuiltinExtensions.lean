@@ -2086,3 +2086,12 @@ theorem List.sieve_map_mem_iff_true_unique :
         . apply Nat.lt_of_succ_lt_succ pf1
         . exact hu
         . exact hget
+
+/- Equality type for pattern-matching workaround in proof of
+  `selectColumns2_spec3` -/
+
+inductive EqT : α → α → Type where
+  | refl (a : α) : EqT a a
+infix:50 " ≡ " => EqT
+
+def EqT.ofEq {a b : α} : a = b → a ≡ b := λ | .refl _ => .refl _
