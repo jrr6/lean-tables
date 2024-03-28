@@ -29,6 +29,7 @@ def Subschema {η : Type u_η} (schm : @Schema η) :=
 def EqSubschema {η : Type u_η} (schm : @Schema η) :=
   List ((h : Header) × schm.HasCol (h.fst, h.snd) × DecidableEq h.2)
 
+@[reducible]
 def RetypedSubschema {η : Type u_η} (schm : @Schema η) :=
   List ((h : Header) × schm.HasName h.fst)
 
@@ -218,6 +219,7 @@ def Schema.removeHeader {c : η} {τ : Type u}
 --   removeHeader (hdr :: ss) (Schema.HasCol.tl h) = hdr :: removeHeader ss h :=
 -- rfl
 
+@[reducible]
 def Schema.removeCertifiedName (s : @Schema η) (cn : CertifiedName s) :=
   removeName s cn.2
 
@@ -258,6 +260,15 @@ def Schema.removeHeaderPres :
 | _, _ :: _, HasCol.hd, hdr', pf => HasCol.tl pf
 | hdr, .(hdr') :: ss, HasCol.tl h, hdr', HasCol.hd => HasCol.hd
 | hdr, s :: ss, HasCol.tl h, _, HasCol.tl h' => HasCol.tl (removeHeaderPres h')
+
+def Schema.hasColOfRemoveName :
+  ∀ {sch : @Schema η} {nm} (c : η) (hneq : c ≠ nm),
+  (hnm : sch.HasName nm) → sch.HasCol (c, τ) →
+  Schema.HasCol (c, τ) (Schema.removeName sch hnm)
+| _ :: sch', nm, c, hneq, .hd, .tl h => h
+| _ :: sch', nm, c, hneq, .tl h, .hd => .hd
+| _ :: sch', nm, c, hneq, .tl h, .tl h' =>
+  .tl $ hasColOfRemoveName c hneq h h'
 
 def Schema.removeTNPres
   (s : Schema)

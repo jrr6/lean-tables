@@ -787,8 +787,21 @@ theorem fillna_spec2 {τ : Type u} :
   simp only [nrows, fillna, Schema.length_eq_List_length]
   apply List.length_map
 
--- TODO: `pivotLonger`
--- Spec 1 may not hold because of uniqueness issues?
+-- Closest approximation given uniqueness limitations
+theorem pivotLonger_spec1 :
+  ∀ (t : Table sch) (cs : ActionList (Schema.removeTypedName τ) sch)
+    (c1 : η) (c2 : η),
+  header (pivotLonger t cs c1 c2) =
+  (sch.removeTypedNames cs).names ++ [c1, c2] :=
+λ t cs c1 c2 => by
+  simp only [header, Schema.names]
+  rw [Schema.append_eq_List_append]
+  have := List.map_append Prod.fst (sch.removeTypedNames cs) [(c1, η), (c2, τ)]
+  simp only [HAppend.hAppend, Append.append] at this
+  rw [this]
+  rfl
+
+-- TODO: pivotLonger spec 2
 
 -- Approximation without using `lookupType`
 def pivotLonger_spec3 {τ : Type u_η} :
@@ -810,8 +823,76 @@ def pivotLonger_spec4 {τ : Type u_η} :
   rw [this]
   apply Schema.hasAppendedHead
 
--- TODO: `pivotWider`
--- Spec 1 may not hold because of uniqueness issues?
+-- pivotWider specs are approximated given uniqueness limitations
+theorem pivotWider_spec1 :
+  ∀ (t : Table sch) (c1 c2 : η) (hc1 : sch.HasCol (c1, η))
+    (hc2 : (sch.removeHeader hc1).HasCol (c2, τ))
+    [inst : DecidableEq $ Row (sch.removeNames
+      (ActionList.cons (Schema.cNameOfCHead ⟨(c1, η), hc1⟩)
+      (ActionList.cons (Schema.cNameOfCHead ⟨(c2, τ), hc2⟩) ActionList.nil)))],
+  header (pivotWider t c1 c2 hc1 hc2) =
+    Schema.names (
+      sch.removeNames (.cons (Schema.cNameOfCHead ⟨(c1, η), hc1⟩)
+                      (.cons (Schema.cNameOfCHead ⟨(c2, τ), hc2⟩) .nil)))
+    ++ List.unique (List.somes (getColumn2 t c1 hc1)) := by
+  intro t c1 c2 hc1 hc2 inst
+  simp only [header, Schema.names]
+  rw [Schema.append_eq_List_append]
+  have := List.map_append Prod.fst
+    (Schema.removeHeaders sch
+      (ActionList.cons { fst := (c1, η), snd := hc1 }
+        (ActionList.cons { fst := (c2, τ), snd := hc2 } ActionList.nil)))
+    (List.map (fun x => (x, τ)) (List.unique (List.somes (getColumn2 t c1 hc1))))
+  simp only [HAppend.hAppend, Append.append] at this
+  rw [this]
+  rw [List.map_map]
+  have hf : (Prod.fst ∘ fun x => (x, τ)) = @id η := funext (λ _ => rfl)
+  rw [hf]
+  rw [List.map_id]
+  rfl
+
+def pivotWider_spec2 {τ τ'} :
+  ∀ (t : Table sch) (c1 c2 : η) (hc1 : sch.HasCol (c1, η))
+    (hc2 : (sch.removeHeader hc1).HasCol (c2, τ))
+    [inst : DecidableEq $ Row (sch.removeNames
+      (ActionList.cons (Schema.cNameOfCHead ⟨(c1, η), hc1⟩)
+      (ActionList.cons (Schema.cNameOfCHead ⟨(c2, τ), hc2⟩) ActionList.nil)))],
+  ∀ (c : η) (hc : sch.HasCol (c, τ')),
+  -- TODO: this is an unfortunate workaround for Prop/Type issues
+    (List.MemT c [c1, c2] → Empty) →
+    Schema.HasCol (c, τ') (schema (pivotWider t c1 c2 hc1 hc2)) := by
+  intro t c1 c2 hc1 hc2 inst c hc hnmem
+  apply Schema.hasColOfAppend
+  apply Schema.hasColOfRemoveName
+  . intro hneg
+    rw [hneg] at hnmem
+    apply Empty.rec (motive := λ _ => False)
+    apply hnmem
+    exact List.MemT.tl _ (List.MemT.hd _ _)
+  apply Schema.hasColOfRemoveName
+  . intro hneg
+    rw [hneg] at hnmem
+    apply Empty.rec (motive := λ _ => False)
+    apply hnmem
+    exact .hd _ _
+  exact hc
+
+def pivotWider_spec3 {τ} :
+  ∀ (t : Table sch) (c1 c2 : η) (hc1 : sch.HasCol (c1, η))
+    (hc2 : (sch.removeHeader hc1).HasCol (c2, τ))
+    [inst : DecidableEq $ Row (sch.removeNames
+      (ActionList.cons (Schema.cNameOfCHead ⟨(c1, η), hc1⟩)
+      (ActionList.cons (Schema.cNameOfCHead ⟨(c2, τ), hc2⟩) ActionList.nil)))],
+  List.MemT (some c) (getColumn2 t c1 hc1) →
+  Schema.HasCol (c, τ) (schema (pivotWider t c1 c2 hc1 hc2)) := by
+  intro t c1 c2 hc1 hc2 inst hmem
+  simp only [schema]
+  apply Schema.hasColOfPrepend
+  apply Schema.hasColOfMemT
+  apply List.memT_map_of_memT (λ x => (x, τ))
+  apply List.memT_unique_of_memT
+  apply List.memT_somes_of_memT
+  assumption
 
 theorem flatten_spec1 :
   ∀ (t : Table sch) (cs : ActionList Schema.flattenList sch),

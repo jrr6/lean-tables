@@ -29,6 +29,12 @@ def List.mem_of_memT {x : α} {xs : List α} : List.MemT x xs → List.Mem x xs
 | .hd _ _ => .head _
 | .tl _ h => .tail _ $ mem_of_memT h
 
+def List.certifiedMap {α β} :
+  (xs : List α) → ((x : α) → List.MemT x xs → β) → List β
+| [], f => []
+| x :: xs, f =>
+  f x (MemT.hd x xs) :: certifiedMap xs (λ x' pf => f x' $ MemT.tl _ pf)
+
 infix:65 " <+ " => List.Sublist
 
 instance (k : Nat) : OfNat (Fin k.succ) n :=
@@ -414,6 +420,13 @@ theorem List.map_map {α β γ : Type _} :
 | _, _, [] => rfl
 | g, f, x :: xs => congrArg (g (f x) :: ·) (map_map g f xs)
 
+theorem List.map_append (f : α → β) : ∀ (xs ys : List α),
+  List.map f (xs ++ ys) = List.map f xs ++ List.map f ys
+| [], ys => rfl
+| x :: xs, ys =>
+  have ih := map_append f xs ys
+  congrArg (f x :: ·) ih
+
 theorem List.map_map_append {α β γ δ : Type _} :
   ∀ (xs : List α) (ys : List β) (f : γ → δ) (g : α → γ) (h : β → γ),
   map f (map g xs ++ map h ys) = map (f ∘ g) xs ++ map (f ∘ h) ys
@@ -424,6 +437,10 @@ theorem List.map_comp (f : β → γ) (g : α → β) :
   ∀ (xs : List α), List.map (f ∘ g) xs = List.map f (List.map g xs)
 | [] => rfl
 | x :: xs => congrArg _ $ List.map_comp f g xs
+
+theorem List.map_id : ∀ (xs : List α), List.map id xs = xs
+| [] => rfl
+| x :: xs => congrArg (x :: ·) (map_id xs)
 
 theorem List.not_mem_nil {α} (x : α) : ¬ (x ∈ []) :=
 λ h => nomatch h
