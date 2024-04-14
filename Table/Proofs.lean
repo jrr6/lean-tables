@@ -4,9 +4,13 @@ universe u u_η
 
 variable {η : Type u_η} [dec_η : DecidableEq η] {sch : @Schema η}
 
+-- `emptyTable`
+
 theorem emptyTable_spec1 : @schema η dec_η _ emptyTable = [] := rfl
 
 theorem emptyTable_spec2 : @nrows η dec_η _ emptyTable = 0 := rfl
+
+-- `addRows`
 
 -- We omit the precondition because it is enforced by the type system
 theorem addRows_spec1 :
@@ -19,6 +23,8 @@ theorem addRows_spec2 :
   intro t rs
   simp only [nrows, Schema.length_eq_List_length]
   exact List.length_append t.rows rs
+
+-- `addColumn`
 
 -- We must enforce decidable equality of τ to state this theorem
 -- We omit the precondition because it is not required for this portion of the
@@ -34,29 +40,12 @@ theorem addColumn_spec1 :
   | nil => simp [List.map, List.append]
   | cons s ss ih =>
     simp only [List.map]
-    -- TODO: after updating to Lean 4 m4, these unfolds become necessary...
-    unfold HAppend.hAppend at ih
-    unfold instHAppend at ih
-    unfold Append.append at ih
-    unfold List.instAppendList at ih
-    simp only at ih
     rw [ih]
     simp [List.append]
-    -- TODO: Can we avoid this somehow? (Arises because of induction on schema
-    -- used as index in Table type. Could use empty table instead, but this
-    -- seems more suggestive.)
+    -- We could avoid this by proving a separate lemma about schemata that
+    -- doesn't take the (unused) table argument
     exact dropColumn t _
 
--- ⟨cc.val,
--- by cases cc with | mk val prop =>
---    induction prop with
---    | hd => apply Schema.HasName.hd
---    | @tl r c' rs h ih =>
---     apply Schema.HasName.tl
---     simp only [schema, addColumn] at ih
--- ⟩
-
--- TODO: maybe use `lookupType` for this and `buildColumn_spec3`?
 theorem addColumn_spec2 :
   ∀ {τ : Type u}
     (t : Table sch)
@@ -64,7 +53,7 @@ theorem addColumn_spec2 :
     (vs : List $ Option τ)
     (c' : η)
     -- This is equivalent to `c ∈ header t`. (Unfortunately, we can't take the
-    -- hypothesis in that form beecause creating a `HasName` therefrom would
+    -- hypothesis in that form because creating a `HasName` therefrom would
     -- require large elimination from `Prop`)
     (h' : sch.HasName c'),
       (schema t).lookup ⟨c', h'⟩ =
@@ -81,7 +70,8 @@ theorem addColumn_spec3 {τ : Type u} [DecidableEq τ] :
     simp only [Schema.lookupType]
   | cons s ss ih =>
     simp only [Schema.lookupType]
-    -- TODO: again, could use `Table.mk []`, but this is more suggestive?
+    -- Again, this could be avoided by isolating the relevant proof into a
+    -- separate lemma
     apply ih (dropColumn t _)
 
 theorem addColumn_spec4 :
@@ -94,16 +84,7 @@ theorem addColumn_spec4 :
   rw [List.zip_length_eq_of_length_eq]
   exact Eq.symm h
 
--- theorem addColumn_spec1' :
---   ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List τ),
---     header (addColumn t c vs) = List.append (header t) [c] :=
--- λ t c vs =>
---   match sch with
---   | [] => by cases t with | mk rows => cases rows with | nil => simp [header, addColumn, Schema.names, List.map, List.append]
---                                                        | cons s ss => simp [header, addColumn, Schema.names, List.map, List.append]
---   | s :: ss =>
---     have h := @addColumn_spec1' _ _ ss _ _ t c vs
---     sorry
+-- `buildColumn`
 
 -- Spec 1 is enforced by the type system
 theorem buildColumn_spec2 :
@@ -115,12 +96,6 @@ by intros τ t c f
   | nil => simp [List.map, List.append]
   | cons s ss ih =>
     simp only [List.map]
-    -- TODO: same issue with the ih
-    unfold HAppend.hAppend at ih
-    unfold instHAppend at ih
-    unfold Append.append at ih
-    unfold List.instAppendList at ih
-    simp only at ih
     rw [ih]
     simp [List.append]
     exact Table.mk []
@@ -160,6 +135,8 @@ by intros τ t c f
    apply Eq.symm
    apply List.length_map
 
+-- `vcat`
+
 theorem vcat_spec1 :
   ∀ (t1 : Table sch) (t2 : Table sch),
     schema (vcat t1 t2) = schema t1 :=
@@ -171,6 +148,8 @@ theorem vcat_spec2 :
   intro t1 t2
   simp only [nrows, Schema.length_eq_List_length]
   exact List.length_append t1.rows t2.rows
+
+-- `hcat`
 
 -- This is precisely the type signature, but we can state it anyway
 theorem hcat_spec1 :
@@ -186,6 +165,8 @@ by intros sch₁ sch₂ t₁ t₂ h
    rw [List.length_map]
    apply List.zip_length_eq_of_length_eq _ _ h
 
+-- `values`
+
 theorem values_spec1 :
   ∀ (rs : List (Row sch)),
     (h : rs ≠ []) → schema (values rs) = Row.schema (rs.head h) :=
@@ -194,6 +175,8 @@ theorem values_spec1 :
 theorem values_spec2 :
   ∀ (rs : List (Row sch)), nrows (values rs) = rs.length :=
 λ rs => Schema.length_eq_List_length ▸ rfl
+
+-- `crossJoin`
 
 theorem crossJoin_spec1 :
   ∀ {sch₁ : @Schema η} {sch₂ : @Schema η} (t₁ : Table sch₁) (t₂ : Table sch₂),
@@ -207,6 +190,8 @@ by intros sch₁ sch₂ t₁ t₂
    simp only [nrows, crossJoin, List.length_map, Schema.length_eq_List_length]
    apply List.length_prod
 
+-- `leftJoin`
+
 -- This is the closest we can approximate the spec given uniqueness issues
 theorem leftJoin_spec1 {s₁ s₂ : @Schema η} :
   ∀ (t₁ : Table s₁) (t₂ : Table s₂)
@@ -216,7 +201,6 @@ theorem leftJoin_spec1 {s₁ s₂ : @Schema η} :
               (Schema.removeOtherDecCHs (schema t₁) (schema t₂) cs) :=
 λ _ _ _ => Schema.append_eq_List_append _ _ ▸ rfl
 
--- TODO: again, should we use `lookupType`?
 theorem leftJoin_spec2 {s₁ s₂ : @Schema η} :
   ∀ (t₁ : Table s₁) (t₂ : Table s₂)
     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
@@ -234,7 +218,8 @@ theorem leftJoin_spec2 {s₁ s₂ : @Schema η} :
 --     (h : sorry) → --require that it not be in cs
 --     Schema.lookupType (schema (leftJoin t₁ t₂ cs)) cn = s₂.lookupType cn := sorry
 
--- TODO: Spec 4 appears to be wrong. Consider the following SQLite queries:
+-- Spec 4 as stated in the B2T2 spec is wrong. Consider the following SQLite
+-- queries:
 /-
 CREATE TABLE demo (
   id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -257,15 +242,11 @@ FROM demo
 LEFT JOIN demo2
 ON demo.name=demo2.name;
 -/
--- theorem leftJoin_spec4 {s₁ s₂ : @Schema η} :
---   ∀ (t₁ : Table s₁) (t₂ : Table s₂)
---     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂),
---   nrows (leftJoin t₁ t₂ cs) = nrows t₁ := by
---   intros t₁ t₂ cs
---   simp only [leftJoin, nrows]
 
 -- The spec for `getValue` (as nearly as it can be approximated up to uniqueness
 -- issues) is enforced by types
+
+-- `getColumn1`
 
 theorem getColumn1_spec1 :
   ∀ (t : Table sch) (n : Nat) (h : n < ncols t),
@@ -276,6 +257,8 @@ theorem getColumn1_spec1 :
 
 -- Spec 2 is encoded in the return type of `getColumn1`
 
+-- `getColumn2`
+
 -- Spec 1 is encoded in the return type of `getColumn2`
 
 theorem getColumn2_spec2 :
@@ -284,6 +267,8 @@ theorem getColumn2_spec2 :
   intro τ t c h
   simp only [getColumn2, nrows, Schema.length_eq_List_length]
   apply List.length_map
+
+-- `selectRows1`
 
 -- Precondition is enforced by subtype
 theorem selectRows1_spec1 :
@@ -298,7 +283,8 @@ theorem selectRows1_spec2 :
   rw [selectRows1, nrows, Schema.length_eq_List_length]
   apply List.length_map
 
--- Precondition is enforced by `h`
+-- `selectRows2`
+
 theorem selectRows2_spec1 :
   ∀ (t : Table sch) (bs : List Bool),
     schema (selectRows2 t bs) = schema t :=
@@ -313,6 +299,8 @@ theorem selectRows2_spec2 :
   apply List.sieve_removeAllEq
   rw [nrows, Schema.length_eq_List_length] at h
   exact h
+
+-- `selectColumns1`
 
 theorem selectColumns1_spec1 :
   ∀ (t : Table sch) (bs : List Bool),
@@ -354,6 +342,8 @@ theorem selectColumns1_spec4 :
   simp only [nrows, selectColumns1, Schema.length_eq_List_length]
   apply List.length_map
 
+-- `selectColumns2`
+
 theorem selectColumns2_spec1 :
   ∀ (t : Table sch) (ns : List (Fin (ncols t))),
     ncols (selectColumns2 t ns) = ns.length := by
@@ -367,7 +357,6 @@ def finHeaderLengthOfFinNcols (t : Table sch) : Fin (ncols t) →
   Fin ((header t).length)
 | ⟨i, hi⟩ => ⟨i, ncols_eq_header_length t ▸ hi⟩
 
--- TODO: Why does this depend on `Classical.choice`?
 theorem selectColumns2_spec2 :
   ∀ (t : Table sch) (ns : List (Fin (ncols t))) (i : Nat) (hi : i < ns.length),
     (header (selectColumns2 t ns)).get
@@ -396,6 +385,8 @@ theorem selectColumns2_spec4 :
   intro t ns
   simp only [nrows, selectColumns2, Schema.length_eq_List_length]
   apply List.length_map
+
+-- `selectColumns3`
 
 theorem selectColumns3_spec1 :
   ∀ (t : Table sch) (cs : List (CertifiedHeader sch)),
@@ -429,6 +420,9 @@ theorem selectColumns3_spec3 :
   simp only [nrows, selectColumns3, Schema.length_eq_List_length]
   apply List.length_map
 
+
+-- `head`
+
 theorem head_spec1 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
   schema (head t z) = schema t :=
 λ _ _ => rfl
@@ -452,8 +446,9 @@ by intros t z h
      . exact Schema.length_eq_List_length ▸ prop
      . exact h
 
--- TODO: changed slightly from B2T2 b/c casting is a pain (should this be redone
--- to match the spec exactly?)
+-- This is changed slightly from B2T2 to avoid casting. The exact statement
+-- would be:
+-- z.val < 0 → nrows (head t z) = nrows t + z.val
 theorem head_spec3 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
   z.val < 0 → nrows (head t z) = nrows t - z.val.abs := by
   intros t z h
@@ -467,19 +462,13 @@ theorem head_spec3 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
   rw [List.length_reverse]
   exact prop
 
--- theorem head_spec3' : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
---   z.val < 0 → nrows (head t z) = nrows t + z.val :=
--- by intros t z h
---    rw [Int.add_neg_eq_sub]
---    cases z with | mk z prop =>
---    cases z with
---    | ofNat n => contradiction
---    | negSucc n =>
---      simp only [Int.abs]
+-- `distinct`
 
 theorem distinct_spec : ∀ (t : Table sch) [DecidableEq $ Row sch],
   schema (distinct t) = schema t :=
 λ t => rfl
+
+-- `dropColumn`
 
 theorem dropColumn_spec1 : ∀ (t : Table sch) (c : η) (hc : sch.HasName c),
   nrows (dropColumn t c hc) = nrows t := by
@@ -487,12 +476,12 @@ theorem dropColumn_spec1 : ∀ (t : Table sch) (c : η) (hc : sch.HasName c),
   simp only [nrows, dropColumn, Schema.length_eq_List_length]
   apply List.length_map
 
--- dC spec 2 is not currently true because of duplicate issues. This is the best
--- approximation we can get instead:
+-- In the case that our schema is not unique, this is the best we can do:
 theorem dropColumn_spec2 : ∀ (t : Table sch) (c : η) (hc : sch.HasName c),
   header (dropColumn t c hc) = Schema.names (sch.removeName hc) :=
 λ _ _ _ => rfl
 
+-- If our schema is unique, we can meet the full B2T2 spec:
 theorem dropColumn_spec2_unique :
   ∀ (hsch : sch.Unique) (t : Table sch) (c : η) (hc : sch.HasName c),
   header (dropColumn t c hc) = List.removeAllEq (header t) [c] := by
@@ -539,6 +528,8 @@ theorem dropColumn_spec3 : ∀ (t : Table sch) (c : η) (hc : sch.HasName c),
   List.Sublist (schema (dropColumn t c hc)) (schema t) :=
 λ _ c hc => Schema.removeName_sublist sch c hc
 
+-- `dropColumns`
+
 theorem dropColumns_spec1 :
   ∀ (t : Table sch) (cs : ActionList Schema.removeCertifiedName sch),
   nrows (dropColumns t cs) = nrows t := by
@@ -557,10 +548,14 @@ theorem dropColumns_spec3 :
   List.Sublist (schema $ dropColumns t cs) (schema t) :=
 λ _ cs => Schema.removeNames_sublist sch cs
 
+-- `tfilter`
+
 -- Spec 1 is enforced by types
 theorem tfilter_spec2 : ∀ (t : Table sch) (f : Row sch → Bool),
   schema (tfilter t f) = schema t :=
 λ t f => rfl
+
+-- `tsort`
 
 theorem tsort_spec1 : ∀ {τ : Type u} [inst : Ord τ]
                         (t : Table sch)
@@ -580,6 +575,8 @@ theorem tsort_spec2 : ∀ {τ : Type u} [inst : Ord τ]
   schema (tsort t c b hc) = schema t :=
 λ t c b hc => rfl
 
+-- `sortByColumns`
+
 theorem sortByColumns_spec1 :
   ∀ (t : Table sch) (hs : List ((h : Header) × sch.HasCol h × Ord h.snd)),
     nrows (sortByColumns t hs) = nrows t :=
@@ -598,6 +595,8 @@ theorem sortByColumns_spec2 :
     schema (sortByColumns t hs) = schema t :=
 λ t hs => rfl
 
+-- `orderBy`
+
 -- Spec 1 is enforced by types
 theorem orderBy_spec2 :
   ∀ (t : Table sch)
@@ -612,6 +611,8 @@ theorem orderBy_spec3 :
   intro t _
   simp only [nrows, orderBy, Schema.length_eq_List_length]
   exact List.length_mergeSortWith _ t.rows
+
+-- `count`
 
 theorem count_spec1 :
   ∀ {τ} [DecidableEq τ]
@@ -648,6 +649,8 @@ theorem count_spec4 {τ} [DecidableEq τ] :
   simp only [nrows, count, Schema.length_eq_List_length]
   exact Eq.trans (length_count_pairsToRow _) (List.length_counts _)
 
+-- `bin`
+
 theorem bin_spec1 [ToString η] :
   ∀ (t : Table sch)
     (c : η)
@@ -677,6 +680,8 @@ theorem bin_spec3 [ToString η] :
       ⟨"count", Schema.HasName.tl Schema.HasName.hd⟩ = Nat :=
 λ _ _ _ _ _ => rfl
 
+-- `pivotTable`
+
 -- Spec 1 is enforced by types
 theorem pivotTable_spec2 :
   ∀ (t : Table sch)
@@ -692,7 +697,6 @@ theorem pivotTable_spec2 :
              Schema.append_eq_List_append, Schema.map_eq_List_map]
   exact List.map_map_append cs aggs Prod.fst Sigma.fst Sigma.fst
 
--- TODO: get rid of `Classical.choice` (termination proof)
 theorem pivotTable_spec3_aux :
   ∀ (cs : List $ CertifiedHeader sch)
     (aggs : List ((c' : Header) × (c : CertifiedHeader sch) ×
@@ -728,6 +732,8 @@ theorem pivotTable_spec3 :
 
 -- Spec 4 is enforced by types
 
+-- `groupBy`
+
 -- Specs 1 and 2 are enforced by types
 -- Spec 3 is also enforced by types, but since it is actually expressible as an
 -- (albeit trivial) proof, we state it here for completeness
@@ -759,6 +765,8 @@ by intros t key proj agg
    unfold Function.comp
    simp only
 
+-- `completeCases`
+
 theorem completeCases_spec {τ : Type u} :
   ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
   (completeCases t c hc).length = nrows t :=
@@ -766,8 +774,12 @@ theorem completeCases_spec {τ : Type u} :
   simp only [nrows, Schema.length_eq_List_length]
   exact Eq.trans (List.length_map _ _) (List.length_map _ _)
 
+-- `dropna`
+
 theorem dropna_spec : ∀ (t : Table sch), schema (dropna t) = schema t :=
 λ t => rfl
+
+-- `fillna`
 
 theorem fillna_spec1 {τ : Type u} :
   ∀ (t : Table sch)
@@ -786,6 +798,8 @@ theorem fillna_spec2 {τ : Type u} :
   intros
   simp only [nrows, fillna, Schema.length_eq_List_length]
   apply List.length_map
+
+-- `pivotLonger`
 
 -- Closest approximation given uniqueness limitations
 theorem pivotLonger_spec1 :
@@ -823,6 +837,8 @@ def pivotLonger_spec4 {τ : Type u_η} :
   rw [this]
   apply Schema.hasAppendedHead
 
+-- `pivotWider`
+
 -- pivotWider specs are approximated given uniqueness limitations
 theorem pivotWider_spec1 :
   ∀ (t : Table sch) (c1 c2 : η) (hc1 : sch.HasCol (c1, η))
@@ -858,7 +874,7 @@ def pivotWider_spec2 {τ τ'} :
       (ActionList.cons (Schema.cNameOfCHead ⟨(c1, η), hc1⟩)
       (ActionList.cons (Schema.cNameOfCHead ⟨(c2, τ), hc2⟩) ActionList.nil)))],
   ∀ (c : η) (hc : sch.HasCol (c, τ')),
-  -- TODO: this is an unfortunate workaround for Prop/Type issues
+  -- This is an unfortunate workaround for Prop/Type issues
     (List.MemT c [c1, c2] → Empty) →
     Schema.HasCol (c, τ') (schema (pivotWider t c1 c2 hc1 hc2)) := by
   intro t c1 c2 hc1 hc2 inst c hc hnmem
@@ -894,6 +910,8 @@ def pivotWider_spec3 {τ} :
   apply List.memT_somes_of_memT
   assumption
 
+-- `flatten`
+
 theorem flatten_spec1 :
   ∀ (t : Table sch) (cs : ActionList Schema.flattenList sch),
   header (flatten t cs) = header t := by
@@ -905,10 +923,7 @@ theorem flatten_spec1 :
     rw [ih]
     simp only [Schema.flattenList]
     apply Schema.retypeColumn_preserves_names
-    -- TODO: this shouldn't be necessary with more careful induction
-    -- exact []
     exact Table.mk []
-
 
 syntax "A[" term,* "]" : term
 macro_rules
@@ -922,67 +937,23 @@ macro_rules
                         $(⟨elems.elemsAndSeps.get! i⟩) $result))
     expandListLit elems.elemsAndSeps.size false (← ``(ActionList.nil))
 
-def testSchema : @Schema String := [("a", Nat), ("b", String), ("c", String)]
-#check (A[⟨"a", .hd⟩, ⟨"c", .tl .hd⟩] : ActionList Schema.removeCertifiedName testSchema)
+/-
+Spec 2 of `flatten` does not hold because we may flatten the same column
+multiple times: if `List (List τ)` is the initial type of a column, the spec
+would require that `List τ` be its type in the output, but double-flattening
+would instead yield `τ`.
 
+Were spec 2 true, we could state it thus:
 
--- FIXME: need to account for changing proofs:
--- If we have .hd at position 2, then it'll be .tl .tl .hd when written as a
--- top-level
--- If we use the proof at the f^n iteration (which I think we have to), that
--- proof may end up being useless for actually doing stuff with the original
--- schema...
-inductive ActionList.MemT {η : Type u_η} [DecidableEq η]
-  {κ : @Schema η → Type u}
-  {f : ∀ (s : @Schema η), κ s → @Schema η}
-  : ∀ {s s' : @Schema η}, κ s' → ActionList f s → Type _
-| head {x : κ s} (xs : ActionList f (f s x)) : MemT x (ActionList.cons x xs)
-| tail {x : κ s'} (y : κ s) (xs : ActionList f (f s y)) :
-  MemT x xs → MemT x (ActionList.cons y xs)
-
-theorem test :
-  ActionList.MemT
-    (⟨"a", Schema.HasName.hd⟩ : ((s : String) × testSchema.HasName s))
-    (A[⟨"a", Schema.HasName.hd⟩] : ActionList Schema.removeCertifiedName testSchema) :=
-  by repeat constructor
-theorem test2 :
-  ActionList.MemT
-    (⟨"c", .tl .hd⟩ : ((s : String) × (testSchema.removeName .hd).HasName s))
-    (A[⟨"a", .hd⟩, ⟨"c", .tl .hd⟩, ⟨"b", .hd⟩] : ActionList Schema.removeCertifiedName testSchema) := by
-  repeat constructor
-
-#print test
-
--- FIXME: this is false because we might flatten the same list multiple times
--- And defining uniqueness for an action list seems absurdly difficult
-def Schema.flattenListsHasCol {sch' : @Schema η} {nm τ pf} :
-  (cs : ActionList Schema.flattenList sch) →
-  ActionList.MemT (⟨nm, τ, pf⟩ : ((c : η) × (τ : Type u) × (sch'.HasCol (c, List τ)))) cs →
-  Schema.HasCol (nm, τ) (sch.flattenLists cs)
-| .cons ⟨nm, τ, h⟩ cs, .head .(cs) => by
-  unfold flattenLists
-  unfold flattenList
-  cases h with
-  | hd =>
-    simp only [retypeColumn]
-| _, _ => sorry
-
--- TODO: `flatten` spec 2
--- Approximation without uniqueness - the `List τ` in the original schema comes
--- from the type required by the `ActionList`
-theorem flatten_spec2 {sch' : @Schema η} {nm τ pf} :
+def flatten_spec2 {sch' : @Schema η} {nm τ pf} :
   ∀ (t : Table sch) (cs : ActionList Schema.flattenList sch),
-  ActionList.MemT (⟨nm, τ, pf⟩ : ((c : η) × (τ : Type u) × (sch'.HasCol (c, List τ)))) cs →
-  Schema.HasCol (nm, τ) (schema (flatten t cs)) :=
-λ _ => Schema.flattenListsHasCol
+  ActionList.MemT (⟨nm, τ, pf⟩ :
+                    ((c : η) × (τ : Type u) × (sch'.HasCol (c, List τ))))
+                  cs →
+  Schema.HasCol (nm, τ) (schema (flatten t cs))
+-/
 
-theorem flatten_spec2_part2 :
-  ∀ (t : Table sch) (cs : ActionList Schema.flattenList sch),
-  sch.HasCol (nm, τ) →
-  nm ∉ (ActionList.toList (λ _ h _ => h) cs |>.map Sigma.fst) →
-  Schema.HasCol (nm, τ) (schema (flatten t cs)) := by
-  intro t cs hc hnmem
-  sorry
+-- `transformColumn`
 
 theorem transformColumn_spec1 {τ₁ τ₂} :
   ∀ (t : Table sch)
@@ -1017,17 +988,6 @@ theorem transformColumn_spec3 : ∀ {sch} {τ₁ τ₂}
 | _, _, _, t, nm, f, .tl htl =>
   have ih := transformColumn_spec3 (Table.mk []) nm f htl
   congrArg _ ih
-  /- Tactic mode:
-  rename_i τ₁ τ₂ hdr hs
-  simp only [schema]
-  simp only [Schema.removeHeader]
-  simp only [Schema.retypeColumn]
-  have h := @Schema.colImpliesName_eq_2 η hs hdr (nm, τ₁) htl
-  simp only [h]
-  simp only [Schema.removeName]
-  apply congrArg
-  apply ih
-  -/
 
 theorem transformColumn_spec4 :
   ∀ (t : Table sch)
@@ -1039,32 +999,20 @@ theorem transformColumn_spec4 :
   simp only [nrows, transformColumn, Schema.length_eq_List_length]
   apply List.length_map
 
--- TODO: `renameColumns` specs 1 and 2
+-- `renameColumns`
 
-def Schema.hasRenamedColumn {η : Type u_η} [DecidableEq η]
-    : {nm : η} → (s : @Schema η) → (hnm : s.HasName nm) → (nm' : η) →
-      Schema.HasName nm' (s.renameColumn hnm nm') := sorry
+/-
+`renameColumns` specs 1 and 2 don't hold because we may rename the same column
+multiple times. If spec 1 held, we could state it thus:
 
-def Schema.hasRenamedColumnOfColumns {η : Type u_η} [DecidableEq η]
-  {sch sch' : @Schema η} {nm : η} {hnm : sch'.HasName nm} :
-    (ccs : ActionList renameColumnCN s) →
-    ActionList.MemT (⟨nm, hnm⟩, nm') ccs →
-    Schema.HasName nm' (s.renameColumn hnm nm') := sorry
-
--- FIXME: this is false -- we might rename the same column multiple times
 def renameColumns_spec1 {c c'} {hc : sch.HasName c} :
   ∀ (t : Table sch) (ccs : ActionList Schema.renameColumnCN sch),
   sch.HasName c →
   ccs.MemT ⟨(c, c'), hc⟩ →
-  (schema (renameColumns t ccs)).HasName c' := by
-  intro t ccs hsch hccs
-  simp only [schema]
-  cases hccs with
-  | head h =>
-    simp
+  (schema (renameColumns t ccs)).HasName c'
 
-
-
+We don't attempt to state spec 2.
+-/
 
 theorem renameColumns_spec3 :
   ∀ (t : Table sch)
@@ -1074,8 +1022,12 @@ theorem renameColumns_spec3 :
   simp only [nrows, renameColumns, Schema.length_eq_List_length]
   apply List.length_map
 
+-- `find`
+
 -- The specification for `find` is contained in its type (`Option` corresponds
 -- to "Error," and `Fin` restricts the range of the output)
+
+-- `groupByRetentive`
 
 theorem groupByRetentive_spec1 [DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
@@ -1108,10 +1060,7 @@ theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
   intros t c hc
   simp only [groupByRetentive, groupBy, getColumn2]
   rw [List.map_map]
-  -- FIXME: trying to unfold `Row.getCell` causes Lean to throw an assertion
-  -- violation (this is a Lean bug)
   simp only [Function.comp, getValue]
-  -- simp only [Function.comp, getValue, Row.getCell]
   conv =>
     rhs
     lhs
@@ -1160,6 +1109,8 @@ theorem groupByRetentive_spec6
     (λ k vs => Row.cons (Cell.fromOption (Option.map ULift.up k))
                         (Row.cons (Cell.val (Table.mk vs)) Row.nil))
 
+-- `groupBySubtractive`
+
 theorem groupBySubtractive_spec1 [DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
   header (groupBySubtractive t c hc) = ["key", "groups"] :=
@@ -1181,8 +1132,7 @@ theorem groupBySubtractive_spec3
   Table (sch.removeName (Schema.colImpliesName hc)) :=
 λ _ _ _ => rfl
 
--- TODO: See if there's a way to unify this with `groupByRetentive_spec4` rather
--- than copy/pasting
+-- There may be a way to consolidate this with `groupByRetentive_spec4`
 theorem groupBySubtractive_spec4 [inst : DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
   (getColumn2 (groupBySubtractive t c hc) "key" Schema.HasCol.hd).NoDuplicates
@@ -1249,6 +1199,8 @@ theorem groupBySubtractive_spec7
                           Row.removeColumn (Schema.colImpliesName hc) r))))
                         Row.nil))
 
+-- `update`
+
 -- `update` spec 1 is enforced by types
 theorem update_spec2 :
   ∀ (subsch : RetypedSubschema sch) (t : Table sch)
@@ -1277,6 +1229,8 @@ theorem update_spec4 :
   simp only [nrows, update, Schema.length_eq_List_length]
   apply List.length_map
 
+-- `select`
+
 -- Specs 1, 2, and 3 are enforced by types
 theorem select_spec4 {sch' : @Schema η} :
   ∀ (t : Table sch) (f : Row sch → Fin (nrows t) → Row sch'),
@@ -1285,7 +1239,11 @@ theorem select_spec4 {sch' : @Schema η} :
   simp only [nrows, select, Schema.length_eq_List_length]
   exact Eq.trans (List.length_map _ _) (List.length_verifiedEnum _)
 
+-- `selectMany`
+
 -- All `selectMany` specifications are enforced by types
+
+-- `groupJoin`
 
 -- Specs 1 through 5 are enforced by types
 theorem groupJoin_spec6
@@ -1296,5 +1254,7 @@ theorem groupJoin_spec6
   nrows (groupJoin t₁ t₂ getKey₁ getKey₂ aggregate) =
   nrows t₁ :=
 λ _ _ _ _ _ => select_spec4 _ _
+
+-- `join`
 
 -- All `join` specifications are enforced by types

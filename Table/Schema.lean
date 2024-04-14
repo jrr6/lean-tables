@@ -522,6 +522,17 @@ abbrev Schema.Unique {η : Type u_η} (ss : @Schema η) := List.Unique ss.names
 --   ∀ s : @Schema η, s.Unique → ∀ (nm : η), s.lookup? nm =
 -- TODO: prove equivalence with non-unique schema functions like lookup
 
+/- ActionList helpers -/
+
+-- Membership predicate for action lists
+inductive ActionList.MemT {η : Type u_η} [DecidableEq η]
+  {κ : @Schema η → Type u}
+  {f : ∀ (s : @Schema η), κ s → @Schema η}
+  : ∀ {s s' : @Schema η}, κ s' → ActionList f s → Type _
+| head {x : κ s} (xs : ActionList f (f s x)) : MemT x (ActionList.cons x xs)
+| tail {x : κ s'} (y : κ s) (xs : ActionList f (f s y)) :
+  MemT x xs → MemT x (ActionList.cons y xs)
+
 /--
 Takes an ActionList along with a "preservation" function that maps action list
 entries "in reverse" (i.e., enables them to be "lifted" to a schema prior to
