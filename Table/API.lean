@@ -504,7 +504,6 @@ def flattenOne {schema : @Schema η} :
   (setVals vals (r :: rs), r.retypeCell c.2.2 Cell.emp) :: flattenOne rss c isFirst
 termination_by setVals vs rs => vs.length + rs.length
 
--- TODO: could probably rewrite this to use the `selectMany` combinator
 -- Note: the number of flattened copies of a given row is equal to the min
 -- length of any sequence in a column specified in cs in that row
 def flatten (t : Table schema) (cs : ActionList Schema.flattenList schema)
@@ -519,50 +518,6 @@ def flatten (t : Table schema) (cs : ActionList Schema.flattenList schema)
   | ActionList.cons c cs, rss, isFirst =>
     doFlatten cs (flattenOne rss c isFirst) false
   {rows := List.flatten (doFlatten cs rss true)}
-
-/- Abandoned `selectMany` approach
-#check @Row.retypeCell
-def flatten' {n : Nat}
-  (t : Table schema)
-  (cs : ActionList Schema.flattenList schema) :
-  Table (schema.flattenLists cs) :=
-selectMany t
-(λ r n =>
-  -- let ccols := selectColumns3 (Table.mk [r]) (cs.mapToList (λ {_} x => x))
-  let doIter r :=
-    if allEmpty r then [] else
-    -- TODO: how do we say that the type of `r'` is `Row sch` where `sch` is the
-    -- same as `schema` modulo some flattening?
-    -- FIXME: α cannot depend on `s`; only `κ` can (so `r'` can't have the right
-    -- type! -- `c` is a proof for that dependent type variable...)
-    let rec κ_sch1 : List ((c : η) × (τ : Type _) × Schema.HasCol (c, List τ) schema) → @Schema η
-    | [] => schema
-    | c :: cs => (Schema.retypeColumn (κ_sch1 cs) (Schema.colImpliesName c.2.2) c.2.1)
-
-    -- FIXME: pretty sure `toList` won't work because we need to leverage the
-    -- consecutive flattening proofs of the `ActionList`
-    let (oneFlat, rest) := (cs.toList _).depFoldr
-      (κ := λ xs => Row (match xs with
-                    | [] => schema
-                    | c :: cs => (Schema.retypeColumn schema (Schema.colImpliesName c.2.2) c.2.1)) × Row schema)
-      (λ c (r', acc) =>
-        let pf := c.2.2
-        match r'.getCell c.2.2 with
-        -- TODO: see algorithm on iPad
-        -- *Potential issue*: the proofs may become invalid as soon as we start
-        -- retyping cells -- need to make sure the ActionList is correct (I feel
-        -- like it might be, since the retyping is a flattening, but should make
-        -- sure...)
-        | Cell.emp | Cell.val [] => (r'.retypeCell pf Cell.emp, acc)
-        | Cell.val [x] => (r'.retypeCell pf (Cell.val x), acc.setCell pf Cell.emp)
-        | Cell.val (x :: y :: xs) =>
-          (r'.retypeCell pf (Cell.val x), acc.setCell pf (Cell.val (y :: xs)))
-      ) (r, r)
-    oneFlat :: doIter rest
-  {rows := doIter r}
-)
-(λ r₁ r₂ => _)
-END: ongoing flatten work -/
 
 def transformColumn {τ₁ τ₂}
                     (t : Table schema)
