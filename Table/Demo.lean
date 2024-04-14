@@ -133,7 +133,7 @@ Table.mk [
 -- Match up the roster with anonymous IDs
 
 def studentsWithIDs :=
-  leftJoin roster disambiguationTable A[⟨("Name", _), inferInstance, by header, by header⟩]
+  leftJoin roster disambiguationTable A["Name"]
 
 #table studentsWithIDs
 
@@ -142,7 +142,7 @@ def studentsWithIDs :=
 def studentsWithIdsAndGrades :=
   leftJoin studentsWithIDs
            grades
-           A[⟨("Anonymous ID", _), inferInstance, by header, by header⟩]
+           A["Anonymous ID"]
 
 #table studentsWithIdsAndGrades
 
@@ -150,18 +150,18 @@ def studentsWithIdsAndGrades :=
 
 def computeGrade (r : Row (schema studentsWithIdsAndGrades))
                  (_ : Fin (nrows studentsWithIdsAndGrades)) :=
-  let hw1 := (getValue r "hw1" (by header)).getD 0
-  let hw2 := (getValue r "hw2" (by header)).getD 0
-  let hw3 := (getValue r "hw3" (by header)).getD 0
-  let midterm := (getValue r "midterm" (by header)).getD 0
-  let final := (getValue r "final" (by header)).getD 0
+  let hw1 := (getValue r "hw1").getD 0
+  let hw2 := (getValue r "hw2").getD 0
+  let hw3 := (getValue r "hw3").getD 0
+  let midterm := (getValue r "midterm").getD 0
+  let final := (getValue r "final").getD 0
   let project :=
-    match getValue r "project" (by header) with
+    match getValue r "project" with
     | some LetterGrade.A => 95
     | some LetterGrade.B => 85
     | some LetterGrade.C => 75
     | _ => 0
-  let gradeMode := getValue r "Grade Mode" (by header)
+  let gradeMode := getValue r "Grade Mode"
   let numericGrade :=
     ((hw1 + hw2 + hw3) + 2 * midterm + 2 * final + 3 * project) / 10
   let finalGrade :=
@@ -175,7 +175,7 @@ def computeGrade (r : Row (schema studentsWithIdsAndGrades))
       then LetterGrade.C
       else LetterGrade.NC
     | _ => if numericGrade ≥ 70 then LetterGrade.S else LetterGrade.NC
-  match getValue (τ := String) r "Banner ID" (by header) with
+  match getValue (τ := String) r "Banner ID" with
   | some bid => /["Banner ID" := bid, "Grade" := finalGrade]
   | _        => /["Banner ID" := EMP, "Grade" := finalGrade]
 
@@ -185,7 +185,7 @@ def finalGrades := select studentsWithIdsAndGrades computeGrade
 
 -- Group student grades by project grades:
 
-def groupedByProject := groupBySubtractive grades ⟨"project", by header⟩
+def groupedByProject := groupBySubtractive grades "project"
 
 #table groupedByProject
 
@@ -197,9 +197,9 @@ def groupedByProject := groupBySubtractive grades ⟨"project", by header⟩
 #check List.length_unique_le
 
 theorem nrows_groupBySubtractive {η τ} [DecidableEq η] [DecidableEq τ]
-  {schema : @Schema η} (t : Table schema) (c : (c : η) × schema.HasCol (c, τ)) :
-    nrows (groupBySubtractive t c) ≤ nrows t := by
-  have h_gbs := groupBySubtractive_spec7 t c
+  {schema : @Schema η} (t : Table schema) (c : η) (hc : schema.HasCol (c, τ)) :
+    nrows (groupBySubtractive t c hc) ≤ nrows t := by
+  have h_gbs := groupBySubtractive_spec7 t c hc
   rw [h_gbs]
-  rw [←getColumn2_spec2 t c.fst c.snd]
+  rw [←getColumn2_spec2 t c hc]
   apply List.length_unique_le
