@@ -43,7 +43,6 @@ elab_rules : term
 
 syntax (name := rowLiteralParser) "/[" cell,* "]" : term
 
--- TODO: avoid use of `!`? (figure out what the new convention/standard is)
 macro_rules
   | `(/[ $elems,* ]) => do
     let rec expandRowLit (i : Nat) (skip : Bool) (result : Lean.TSyntax `term)

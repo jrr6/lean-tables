@@ -85,7 +85,7 @@ inductive BiActionList {η : Type u_η} [DecidableEq η]
 
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
--- For ease of refactoring, makes these products act like subtypes
+-- For ease of refactoring, make these products act like subtypes
 @[reducible] def CertifiedName.val (n : CertifiedName schema) :=
   Sigma.fst n
 @[reducible] def CertifiedName.property (n : CertifiedName schema) :=
@@ -294,10 +294,10 @@ def Schema.removeHeaders {η : Type u_η} [DecidableEq η] :
 | s, ActionList.nil => s
 | s, ActionList.cons ch rest => removeTypedNames (removeTypedName τ s ch) rest
 
--- TODO: this is a very inelegant way of hijacking `ActionList` (the
+-- Note: this is a very inelegant way of hijacking `ActionList` (the
 -- alternative, though, would be to make `ActionList` even *more* abstract by
 -- decoupling `κ` and the type of the argument to `f`, which would be a function
--- of `κ` or something like that...)
+-- of `κ` or something like that)
 @[reducible]
 def Schema.removeOtherDecCH
   (schema' schema : @Schema η)
@@ -329,8 +329,8 @@ def Schema.lookup {η : Type u_η} [DecidableEq η]
 | hdr :: _, ⟨_, Schema.HasName.hd⟩ => hdr
 | _ :: hs, ⟨c, Schema.HasName.tl h'⟩ => lookup hs ⟨c, h'⟩
 
--- TODO: figure out what's going on here -- these should be auto-generated
--- (also the field syntax isn't working, so using underscores instead)
+-- TODO: figure out what's going on here -- these should be auto-generated, but
+-- we need to manually declare them to get proofs to go through
 theorem Schema.lookup_eq_1 {η : Type u_η} [DecidableEq η]
   (hdr : @Header η) (hs : @Schema η) :
   lookup (hdr :: hs) ⟨hdr.1, HasName.hd⟩ = hdr := rfl

@@ -5,6 +5,11 @@ section
 
 open Lean Lean.Elab Lean.Elab.Command Lean.Meta
 
+/-
+This file contains a modified version of `#eval` (pulled from
+`Lean.Elab.BuiltinCommand`) to facilitate our `#test` command.
+-/
+
 private def mkEvalInstCore (evalClassName : Name) (e : Expr) : MetaM Expr := do
   let α    ← inferType e
   let u    ← getDecLevel α
@@ -33,7 +38,6 @@ private def mkRunMetaEval (e : Expr) : Lean.MetaM Expr :=
     let e := mkAppN (mkConst ``Lean.runMetaEval [u]) #[α, instVal, env, opts, e]
     instantiateMVars (← mkLambdaFVars #[env, opts] e)
 
--- TODO: come up with a better testing system
 -- Modified version of `elabEvalUnsafe` (src/lean/lean/elab/builtincommand.lean)
 syntax (name := test) "#test" term : command
 @[command_elab test]

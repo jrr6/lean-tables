@@ -5,10 +5,15 @@ universe u
 
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
-/- # Reducible Reimplementations of List Functions -/
--- This is just `List.append`, but we need it to be reducible, and Lean 4
--- doesn't allow us to modify the reducibility attribute of that function from
--- outside the `List` module
+/- # Reducible Reimplementations of List Functions
+
+A number of non-reducible list functions are reimplemented here as reducible
+`Schema` functions, as Lean 4 doesn't allow us to modify the reducibility
+attribute of functions from outside the modules in which they are declared.
+
+This file also contains schema functions and proofs that depend upon such
+functions. -/
+
 @[reducible]
 def Schema.append {α} : List α → List α → List α
   | [], ys => ys
@@ -52,15 +57,12 @@ def Schema.nth {α} : (xs : List α) → (n : Nat) →
 | x :: xs, 0, h => x
 | x :: xs, Nat.succ n, h => nth xs n (Nat.le_of_succ_le_succ h)
 
--- TODO: eventually, we need to reconcile `nth` and `get`, but for now...
 theorem Schema.nth_eq_get :
   ∀ (xs : List α) (n : Nat) (hn : n < Schema.length xs),
   Schema.nth xs n hn = xs.get ⟨n, Schema.length_eq_List_length ▸ hn⟩
 | x :: xs, 0, h => rfl
 | x :: xs, Nat.succ n, h => nth_eq_get xs n (Nat.le_of_succ_le_succ h)
 
--- TODO: need `map` to be reducible as well -- don't really want to reimplement
--- everything from scratch
 @[reducible]
 def Schema.nths {α} (xs : List α) (ns : List (Fin $ Schema.length xs))
   : List α :=
@@ -122,7 +124,6 @@ theorem Schema.get_map_nths_eq_get_get :
   have ih := get_map_nths_eq_get_get xs ns i (Nat.lt_of_succ_lt_succ hi)
   simp only [List.get]
   rw [←ih]
-
 
 @[reducible]
 def Schema.hasAppendedHead :
@@ -189,6 +190,8 @@ theorem Schema.mem_map_of_HasName : ∀ (sch : @Schema η) (nm : η),
   | f, x :: xs => congrArg (·+1) $ length_map f xs
 
 /- Retype from subschema: `update` -/
+-- FIXME: despite it being marked reducible, type-class resolution can't see
+-- through this function
 @[reducible]
 def Schema.retypedFromSubschema :
   ∀ {sch : @Schema η}, RetypedSubschema sch → @Schema η
@@ -293,8 +296,6 @@ theorem Schema.lookupTypeFromCHeadersUnique :
 | (nm, τ) :: hs, ⟨_, .hd⟩ :: cs, ⟨_, .hd⟩ => by
   simp only [lookupType]
   simp only [hasNameOfFromCHeaders_eq_1]
-  -- TODO: Lean bug - this silently raises internal exception #7:
-  -- have := colImpliesName_eq_1 (hdr := (nm, τ))
   rw [@colImpliesName_eq_1 η hs (nm, τ)]
   simp only [lookupType]
 | (nm, τ) :: hs, ⟨(ch_nm, ch_τ), .tl h⟩ :: cs, ⟨.(ch_nm), .hd⟩ =>
