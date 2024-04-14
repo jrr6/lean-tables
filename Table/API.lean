@@ -125,7 +125,6 @@ def getColumn2 {τ}
   List.map (λ r => getValue r c h) t.rows
 
 -- # Subtable
--- TODO: can we get `autoParam`s in a list?
 def selectRows1 (t : Table schema)
                 (ns : List (Fin (nrows t))) : Table schema :=
   {rows := List.map (λ n => getRow t n.val n.isLt) ns}
@@ -143,21 +142,13 @@ def selectColumns2 (t : Table schema)
     : Table (Schema.nths schema ns) :=
   {rows := t.rows.map (Row.nths ns)}
 
--- FIXME: need to figure out a better way to handle the type -- this breaks
--- (see `ExampleTests.lean`)
--- def selectColumns3 (t : Table schema)
---     -- It would be simpler to use a `List CertifiedHeader`, but this makes the
---     -- notation nicer
---     (cs : List ((c : η) × (τ : Type u) × (schema.HasCol (c, τ))))
---     : Table (Schema.fromCHeaders $ Schema.map (λ c => ⟨(c.1, c.2.1), c.2.2⟩) cs) :=
---   {rows := t.rows.map (λ r => r.pick (Schema.map (λ c => ⟨(c.1, c.2.1), c.2.2⟩) cs))}
 def selectColumns3 (t : Table schema) (cs : List (CertifiedHeader schema))
     : Table (Schema.fromCHeaders cs) :=
   {rows := t.rows.map (λ r => r.pick cs)}
 
--- TODO: subtype or proof? (should standardize this for other functions, too)
--- Once again, since drop/take doesn't require it, we don't strictly *need* the
--- proof...
+-- While we could enforce a bound on |z|, since drop/take doesn't require it,
+-- we opt not to (and instead just add the constraint as a hypothesis in our
+-- verification)
 def head (t : Table schema) (z : Int) : Table schema :=
   {rows :=
     if z < 0
@@ -181,7 +172,6 @@ def distinct [DecidableEq (Row schema)] : Table schema → Table schema
   )}
 termination_by distinct t => t.rows.length
 
--- FIXME: same issue as `selectColumn3`
 def dropColumn (t : Table schema) (c : η) (hc : schema.HasName c := by name)
     : Table (schema.removeName hc) :=
 {rows := t.rows.map (Row.removeColumn hc)}
@@ -195,7 +185,6 @@ def tfilter (t : Table schema) (f : Row schema → Bool) : Table schema :=
 {rows := t.rows.filter f}
 
 -- # Ordering
--- TODO: is it worth making an Option Ord typeclass instance?
 def tsort {τ} [Ord τ]
           (t : Table schema)
           (c : η)
@@ -239,10 +228,12 @@ def orderBy (t : Table schema)
 }
 
 -- # Aggregate
--- TODO: this "dictionary" implementation could use some improvement
--- Should we enforce Ord instance so that we can get the speed-up of an RBT?
--- TODO: why does Lean freeze if we specify `τ : Type u`?
-def count {τ} [DecidableEq τ]
+-- Note that this could be made more efficient by enforcing an `Ord` instance
+-- and using a data structure like an RBT.
+-- Note that `τ` is restricted to `Type` because it must match the universe of
+-- `Nat` (though we could make this universe-polymorphic by `ULift`ing `Nat` to
+-- the appropriate universe).
+def count {τ : Type} [DecidableEq τ]
           (t : Table schema)
           (c : η)
           (hc : schema.HasCol (c, τ) := by header)
@@ -259,10 +250,10 @@ def count {τ} [DecidableEq τ]
   let col := getColumn2 t c hc
   {rows := pairsToRow $ col.counts}
 
--- Once mathlib has been ported, we can find some suitable algebraic structure
--- (or, at the very least, use `Int`s once the tooling for those has been
--- fleshed out). In the meantime, we'll use this replacement to indicate which
--- variables can be swapped out for a more general type.
+-- Using mathlib, we could probably generalize this to some suitable algebraic
+-- structure (or, at the very least, use `Int`s once the tooling for those has
+-- been fleshed out). In the meantime, we'll use this replacement to indicate
+-- which variables can be swapped out for a more general type.
 section BinTypeScope
 local notation "BinType" => Nat
 def bin [ToString η]
@@ -320,14 +311,9 @@ def completeCases {τ} (t : Table schema)
 def dropna (t : Table schema) : Table schema :=
   {rows := t.rows.filter (λ r => !r.hasEmpty)}
 
--- TODO: this should work, but type class resolution is failing for some reason
--- def dropna' (t : Table schema) : Table schema :=
---   {rows := (schema.certify.map (λ ⟨(c, τ), h⟩ =>
---     @completeCases _ _ _ τ t ⟨c, h⟩ _)).foldl (λ l acc => sorry)
---   }
-
--- TODO: move `fillna` to the "Missing Values" section -- need to make sure
--- utilities (specifically `update`) are previously declared
+-- `fillna` is in the "Missing Values" section in B2T2, but it depends on
+-- `update`, which is in "Utilties," so we `fillna` instead appears in that
+-- section of this file
 
 -- # Utilities
 
@@ -386,7 +372,7 @@ def fillna {τ}
                 | Cell.emp => Row.singleValue v
                 | Cell.val vOld => Row.singleValue vOld)
 
-def select {schema' : @Schema η}
+def select {η'} [DecidableEq η'] {schema' : @Schema η'}
            (t : Table schema)
            (f : Row schema → Fin (nrows t) → Row schema')
     : Table schema' :=
@@ -402,16 +388,15 @@ def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
 {rows :=
   t.rows.verifiedEnum.flatMap (λ (n, r) =>
     let projection := project r (nrows_eq_List_length t ▸ n)
-      -- (by
-      -- unfold nrows
-      -- rw [Schema.length_eq_List_length]
-      -- exact n)
     projection.rows.map (λ r' => result r r')
   )
 }
 
-def groupJoin {κ : Type u_η} [DecidableEq κ]
-              {schema₁ schema₂ schema₃ : @Schema η}
+def groupJoin {ζ θ} [DecidableEq ζ] [DecidableEq θ]
+              {κ : Type u_η} [DecidableEq κ]
+              {schema₁ : @Schema η}
+              {schema₂ : @Schema ζ}
+              {schema₃ : @Schema θ}
               (t₁ : Table schema₁)
               (t₂ : Table schema₂)
               (getKey₁ : Row schema₁ → κ)
@@ -419,7 +404,7 @@ def groupJoin {κ : Type u_η} [DecidableEq κ]
               (aggregate : Row schema₁ → Table schema₂ → Row schema₃)
     : Table schema₃ :=
   select t₁ (λ r₁ _ =>
-    let k := getKey₁ r₁;
+    let k := getKey₁ r₁
     aggregate r₁ (tfilter t₂ (λ r₂ => (getKey₂ r₂) == k))
   )
 
@@ -437,8 +422,8 @@ def join {κ : Type u_η} [DecidableEq κ]
                tfilter t₂ (λ r₂ => getKey₂ r₂ == k))
              combine
 
--- TODO: as with `count`, should we enforce some sort of constraint on κ to
--- allow for optimizations (e.g, RBTs)?
+-- As with `count`, we could enforce some constraint on κ to allow for
+-- optimizations (e.g, RBTs)?
 -- FIXME: we need to allow for schema' to have a different η, but this leads
 -- to annoying typeclass resolution errors. Also, we probably need a distinct η'
 -- in other functions where we can change schemata -- double-check!
@@ -799,7 +784,7 @@ def pivotTable (t : Table schema)
                 (List (Option c.1.2) → Option c'.2)))
   [inst : DecidableEq (Row (Schema.fromCHeaders cs))]
   : Table (Schema.append (Schema.fromCHeaders cs)
-                       (Schema.map (·.1) aggs)) :=
+                         (Schema.map (·.1) aggs)) :=
                       --  (Schema.fromCHeaders (aggs.map (λ a => a.2.1)))) :=
 groupBy t
   (λ r => r.pick cs)
@@ -817,12 +802,6 @@ groupBy t
       let newCell : Cell c'.1 c'.2 := Cell.fromOption $
         f (getColumn2 subT c.1.1 c.2)
       let rest : Row $ Schema.map (·.1) as := mkSubrow as
-      let newRow : Row $ c' :: Schema.map (·.1) as := Row.cons newCell rest
-      have h : Row (c' :: Schema.map (·.1) as) =
-               Row (Schema.map (·.1) (⟨c', c, f⟩ :: as)) := rfl
-      -- TODO: why won't the type checker unfold `map`‽
-      -- let newNewRow : Row $ (a :: as).map (λ a => a.1) := newRow
-      -- Row.cons (newCell : Cell c'.1 c'.2) (rest : Row $ as.map (λ a => a.1)) --  : Row $ a.1 :: as.map (λ a => a.1))
-      cast h newRow -- FIXME: we shouldn't need to pull out the `Eq` stops for this...
+      Row.cons newCell rest
     Row.append k (mkSubrow aggs)
   )
