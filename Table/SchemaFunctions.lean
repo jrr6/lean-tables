@@ -95,27 +95,6 @@ theorem List.length_rw {T : α → Type _} {s t : α} :
 
 
 -- Lemmas for selectColumns2_spec2
-theorem Schema.get_nths_eq_get_get :
-  ∀ (xs : List α) (ns : List (Fin $ Schema.length xs))
-  (i : Nat) (hi : i < List.length ns),
-  List.get (Schema.nths xs ns) ⟨i, length_nths xs ns ▸ hi⟩ =
-  List.get xs (List.get (Schema.length_eq_List_length ▸ ns)
-    ⟨i, List.length_rw (T := λ f => Fin (f xs)) ns Schema.length_eq_List_length
-        ▸ hi⟩)
-| xs, n :: ns, 0, hi => by
-  simp only [nths, map, get]
-  rw [nth_eq_get]
-  simp only [List.get]
-  sorry
-| xs, n :: ns, .succ i, hi => by
-  simp only [nths, map]
-  rw [nth_eq_get]
-  simp only [List.get]
-  have ih := get_nths_eq_get_get xs ns i (Nat.le_of_succ_le_succ hi)
-  sorry
-  -- simp only [←nths._eq_1]
-  -- rw [←ih]
-
 theorem List.get_map :
   ∀ (f : α → β) (xs : List α) (i : Fin xs.length),
   f (get xs i) = get (map f xs) ⟨i.val, (length_map xs f).symm.subst i.isLt⟩
