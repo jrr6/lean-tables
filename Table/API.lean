@@ -73,8 +73,6 @@ def leftJoin {schema₁ schema₂ : @Schema η}
 }
 
 -- # Properties
--- TODO: Use Fin instead of ad-hoc autoParams (e.g., for `getRow`)
--- These must be reducible because they appear in types later on
 @[reducible]
 def nrows (t : Table schema) : Nat := Schema.length t.rows
 
@@ -156,7 +154,6 @@ def head (t : Table schema) (z : Int) : Table schema :=
     else let n := z.toNat; t.rows.take n
   }
 
--- TODO: same decidability issues as `find` (not dealing with for now)
 def distinct [DecidableEq (Row schema)] : Table schema → Table schema
 | {rows := []} => {rows := []}
 | {rows := r :: rs} =>
@@ -207,8 +204,6 @@ def tsort {τ} [Ord τ]
   )
 }
 
--- TODO: Worth creating a `CertifiedOrdHeader` type? Also, would be nice if the
--- τ in the header could be fully implicit (can still be inferred using `_`)
 def sortByColumns (t : Table schema)
                   (cs : List ((h : Header) × Schema.HasCol h schema × Ord h.2))
     : Table schema :=
@@ -534,24 +529,6 @@ def renameColumns (t : Table schema)
     : Table (schema.renameColumns ccs) :=
 {rows := t.rows.map (Row.renameCells ccs)}
 
--- TODO: move this somewhere else
-def isSubRow : {schema : @Schema η} →
-               {subschema : EqSubschema schema} →
-               (sr : Row subschema.toSchema) →
-               (r : Row schema) →
-               Bool
-| _, [], Row.nil, _ => true
-| s :: ss, ⟨(nm, _), pf, _⟩ :: sbs, Row.cons sc scs, r =>
-  have hterm : sizeOf scs < sizeOf (Row.cons sc scs) :=
-    by conv => lhs; rw [←Nat.zero_add (sizeOf scs)]
-       apply @Nat.add_lt_add_right 0 (1 + sizeOf sc) _ (sizeOf scs)
-       rw [Nat.add_comm, Nat.add_one]
-       apply Nat.zero_lt_succ
-  if r.getCell pf = sc
-  then isSubRow scs r
-  else false
-decreasing_by assumption
-
 -- TODO: having to maually specify the schema is really annoying -- can we make
 -- this better? Also, having separate `EqSubschema` and `Subschema` types feels
 -- inelegant.
@@ -560,7 +537,7 @@ def find {schema : @Schema η}
     (t : Table schema) → Row (subschema.toSchema) → Option (Fin (nrows t))
 | {rows := []}, r => none
 | {rows := r :: rs}, r' =>
-  if isSubRow r' r
+  if Row.isSubRow r' r
   then some ⟨0, Nat.zero_lt_succ (Schema.length rs)⟩
   else (find subschema {rows := rs} r').map (λ n =>
           ⟨n.val + 1, Nat.succ_lt_succ n.isLt⟩)
@@ -608,8 +585,10 @@ def pivotLonger {τ : Type u_η}
       Row.append remainingCells r₂
     )
 
--- TODO: we can't put this in `Schema.lean` because it depends on API functions
-def Schema.hasColOfMemPivotCol {τ : Type u} {t : Table schema} {lblCol : η} {lblEntry : η}
+-- Note that we can't put this in `Schema.lean` because it depends on API
+-- functions
+def Schema.hasColOfMemPivotCol
+  {τ : Type u} {t : Table schema} {lblCol : η} {lblEntry : η}
   : (hc : schema.HasCol (lblCol, η)) →
     (hmem : List.MemT (some lblEntry) (getColumn2 t lblCol hc)) →
     Schema.HasCol (lblEntry, τ) $

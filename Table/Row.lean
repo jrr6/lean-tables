@@ -61,14 +61,14 @@ def Row.certifiedFoldr {β} : {schema : @Schema η} →
     f cell' (Schema.HasCol.tl h) acc
   ) z rs)
 
--- TODO: seems like B2T2 implicitly wants a bunch of row operations that just
--- happen to be identical to table operations in their TS implementation
+-- It seems like B2T2 implicitly wants a bunch of row operations that just
+-- happen to be identical to table operations in their TS implementation. We
+-- manually reimplement them here.
 def Row.addColumn {η} [DecidableEq η] {schema : @Schema η} {τ}
                   (r : Row schema) (c : η) (v : Option τ) :
     Row (Schema.append schema [(c, τ)]) :=
 Row.append r (Row.singleCell $ Cell.fromOption v)
 
--- Not sure if we'll ever need this...
 def Row.toList {schema : @Schema η} {α} (f : ∀ {n β}, @Cell η dec_η n β → α)
     : Row schema → List α
 | Row.nil => []
@@ -83,11 +83,6 @@ def Row.length {schema : @Schema η} : Row schema → Nat
 | Row.nil => 0
 | Row.cons _ r' => r'.length + 1
 
--- TODO: probably makes more sense to move this to some general "collection"
--- interface rather than reimplementing for every type -- wonder if this is
--- something James is working on
--- It would also be nice if we could make this function less verbose.
--- Unfortunately, Lean's type-checker needs some help...
 def Row.sieve {schema} :
     (bs : List Bool) → Row schema → @Row η dec_η (Schema.sieve bs schema)
 | [], Row.nil => Row.nil
@@ -162,6 +157,23 @@ def Row.pick {schema : @Schema η} :
 | r, [] => Row.nil
 | r, (c::cs) => Row.cons (Row.getCell r c.2) (pick r cs)
 
+def Row.isSubRow : {schema : @Schema η} →
+               {subschema : EqSubschema schema} →
+               (sr : Row subschema.toSchema) →
+               (r : Row schema) →
+               Bool
+| _, [], Row.nil, _ => true
+| s :: ss, ⟨(nm, _), pf, _⟩ :: sbs, Row.cons sc scs, r =>
+  have hterm : sizeOf scs < sizeOf (Row.cons sc scs) :=
+    by conv => lhs; rw [←Nat.zero_add (sizeOf scs)]
+       apply @Nat.add_lt_add_right 0 (1 + sizeOf sc) _ (sizeOf scs)
+       rw [Nat.add_comm, Nat.add_one]
+       apply Nat.zero_lt_succ
+  if r.getCell pf = sc
+  then isSubRow scs r
+  else false
+decreasing_by assumption
+
 def Row.removeColumn {s : Schema} {c : η} :
     (h : s.HasName c) → Row s → Row (s.removeName h)
 | Schema.HasName.hd, Row.cons r rs => rs
@@ -198,7 +210,7 @@ def Row.removeOtherSchemaCols {schema' schema : @Schema η} :
 | ActionList.cons c cs, r =>
   removeOtherSchemaCols cs (r.removeColumn $ Schema.colImpliesName c.2.2.1)
 
-  def Row.retypedSubschemaPres :
+def Row.retypedSubschemaPres :
   ∀ {sch : @Schema η} {retNm : η} {τ : Type _} {hretNm : sch.HasName retNm}
     {rs : RetypedSubschema sch},
   Row (RetypedSubschema.toSchema rs) →
@@ -227,8 +239,6 @@ termination_by length_retypedSubschemaPres r => r.length
 instance : DecidableEq (@Row η _ [])
 | Row.nil, Row.nil => Decidable.isTrue rfl
 
--- TODO: simplify by de-simp-lifying
--- TODO: do we explicitly need it, or will the lookup figure that out for us?
 instance {ss : @Schema η}
          {nm : η}
          {τ : Type u}
@@ -237,16 +247,7 @@ instance {ss : @Schema η}
          [ir : DecidableEq (Row ss)]
     : DecidableEq (Row ((nm, τ) :: ss)) :=
 λ (Row.cons c₁ r₁) (Row.cons c₂ r₂) =>
-  have hc_dec : Decidable (c₁ = c₂) := by apply ic;
-  have hr_dec : Decidable (r₁ = r₂) := by apply ir;
-  -- TODO: this is copied straight from the prelude (l. 333) - figure out how
-  -- to just use that instance
-  have h_conj_dec : (Decidable (c₁ = c₂ ∧ r₁ = r₂)) :=
-    match hc_dec with
-    | isTrue hc =>
-      match hr_dec with
-      | isTrue hr  => isTrue ⟨hc, hr⟩
-      | isFalse hr => isFalse (fun h => hr (And.right h))
-    | isFalse hc =>
-      isFalse (fun h => hc (And.left h));
-  by simp; apply h_conj_dec
+  let hc_dec : Decidable (c₁ = c₂) := ic _ _
+  let hr_dec : Decidable (r₁ = r₂) := ir _ _
+  let h_conj_dec : (Decidable (c₁ = c₂ ∧ r₁ = r₂)) := inferInstance
+  congrArg Decidable (Row.cons.injEq c₁ r₁ c₂ r₂) ▸ h_conj_dec
