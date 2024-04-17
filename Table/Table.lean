@@ -15,11 +15,10 @@ structure Table {η : Type u_η} [DecidableEq η] (hs : @Schema η) where
   rows : List (Row hs)
 
 -- Decidable equality
--- TODO: simplify a la case 4 of Cell instance?
 instance {η : Type u_η} [dec_η : DecidableEq η]
          {sch : @Schema η} [inst : DecidableEq (Row sch)]
     : DecidableEq (Table sch) :=
 λ {rows := r₁} {rows := r₂} =>
-dite (r₁ = r₂)
-     (λ htrue => isTrue $ congrArg Table.mk htrue)
-     (λ hfalse => isFalse (λ hneg => absurd (Table.mk.inj hneg) hfalse))
+  have eq1 := congrArg Decidable $ Table.mk.injEq r₁ r₂
+  let listInst : DecidableEq (List (Row sch)) := inferInstance
+  eq1.mpr (listInst r₁ r₂)
