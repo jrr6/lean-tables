@@ -9,29 +9,6 @@ elab_rules : term
 | `(headerTacTerm| byHeader) => do
   Lean.Elab.Term.elabByTactic (← `(tactic| header)) none
 
--- #reduce (byHeader : Schema.HasCol ("hi", Nat) [("hi", Nat)])
-
--- private def mkInfoTree (elaborator : Name) (stx : Syntax) (trees : Std.PersistentArray InfoTree) : CommandElabM InfoTree := do
---   let ctx ← read
---   let s ← get
---   let scope := s.scopes.head!
---   let tree := InfoTree.node (Info.ofCommandInfo { elaborator, stx }) trees
---   return InfoTree.context {
---     env := s.env, fileMap := ctx.fileMap, mctx := {}, currNamespace := scope.currNamespace,
---     openDecls := scope.openDecls, options := scope.opts, ngen := s.ngen
---   } tree
--- elab_rules : term
--- | `(byHeader) => do
---   let (deLean.Elab.liftMacroM <| Lean.Elab.expandMacroImpl? (←Lean.getEnv) (← `(tactic| header))
---   withInfoTreeContext (mkInfoTree := mkInfoTree decl stx) do
---             let stxNew ← liftMacroM <| liftExcept stxNew?
---             withMacroExpansion stx stxNew do
---               elabCommand stxNew
--- -- Lean.Elab.expandMacroImpl? (← `(tactic| header)) none --do Lean.Elab.Term.elabLeadingParserMacro (← `(tactic| header)) none
--- #check Lean.Elab.Command.elabCommand
--- #reduce (byHeader : Nat)
--- end
-
 -- # Table Notation
 declare_syntax_cat cell
 syntax (name := emptyCell) "EMP" : cell
@@ -109,37 +86,21 @@ TODO: better termination checking
   `Prod.mk`
 -/
 elab "action_list_tactic" : tactic => do
-  -- let maxPasses := 10
-  -- let mut numCycles := 0
   let maxIters := 100
   let mut numIters := 0
   -- We shouldn't need to make more than 2 passes through the goals; if we do,
   -- then the goal is probably unsolvable
   let mut curGoals ← getGoals
-  -- let firstGoal := curGoals[0]!
-  -- while curGoals.length > 0 && numCycles < maxPasses do
   -- TODO: detect failure intelligently rather than spinning
   while curGoals.length > 0 && numIters < maxIters do
-    -- let mut failure := false
-    -- -- Work on this goal as much as we can
-    -- while ! failure do
-    --   try
-    --     evalTactic (← `(tactic| action_list_tactic_one_goal))
-    --   catch _ =>
-    --     failure := true
-    -- curGoals ← getGoals
-    -- if curGoals.length > 0 && curGoals[0]! == firstGoal then
-      -- numCycles := numCycles + 1
     evalTactic (← `(tactic| action_list_tactic_no_cycle))
     evalTactic (← `(tactic| rotate_left))
     numIters := numIters + 1
     curGoals ← getGoals
-  -- if curGoals.length > 0 && numCycles == maxPasses then
-  --   throwError "Unable to generate required (Action)List proof"
 
 -- Detects whether an argument type for an (Action)List requires tuple insertion
--- TODO: decide which approach to use
--- Previously, defeq approach would break because `e` contained bound arguments
+-- Note: this can also be done using `isDefEq`, though that breaks if `e`
+-- contains bound arguments
 def isProdArgTp (e : Expr) : MetaM Bool := do
   -- `whnfD` approach
   let e ← whnfD e
@@ -149,21 +110,10 @@ def isProdArgTp (e : Expr) : MetaM Bool := do
   -- Nested product cases
   (e.isAppOf `Sigma && (← whnfD e.getAppArgs[0]!).isAppOf `Prod)
 
-  -- `isDefEq` approach
-  -- let prodUnifTgt := mkAppN (Expr.const ``Prod
-  --                             [(← mkFreshLevelMVar), (← mkFreshLevelMVar)])
-  --                           #[(← mkFreshTypeMVar), (← mkFreshTypeMVar)]
-  -- let sigmaUnifTgt :=
-  --   mkAppN (.const ``Sigma [(← mkFreshLevelMVar), (← mkFreshLevelMVar)])
-  --         #[prodUnifTgt, (← mkFreshExprMVar none)]
-  -- return (← isDefEq e prodUnifTgt) || (← isDefEq e sigmaUnifTgt)
-
 elab_rules : term <= expType
--- @[term_elab autocomp_actionlist] def elabAutocompActionList : TermElab
   | `(A[ $elems,* ]) => do
     -- Detect (a) if we need an ActionList or List and (b) whether we need
     -- tuples with holes
-    -- let isList := expType.isAppOf `List
     let listTpMVar ← mkFreshTypeMVar
     let isList ← isDefEq expType
                   (.app (.const ``List [(← mkFreshLevelMVar)]) listTpMVar)
@@ -173,11 +123,7 @@ elab_rules : term <= expType
       else do
         -- TODO: find a way to avoid having to hardcode the position of the
         -- relevant arg to the `ActionList` constructor?
-
-        -- let actionListFnType ← mkFreshTypeMVar
-        -- TODO: issue is that we're extracting *under* a binder; of course there
-        -- are bound variables!
-        -- let c ← isDefEq expType (.forallE `x (← mkFreshTypeMVar) (← mkFreshExprMVar none) _)
+        -- Note: this section can also be done using `isDefEq`
         let actionListFnMVar ← mkFreshExprMVar none
         let defeqOK ← isDefEq expType
           (mkAppN (.const ``ActionList
@@ -189,20 +135,6 @@ elab_rules : term <= expType
 
         let actionListFn ← instantiateMVars actionListFnMVar
         let actionListFnType ← inferType actionListFn
-        -- let paramArg ← mkFreshExprMVar none
-        -- let predType : Expr :=
-        --   .forallE .anonymous (← mkFreshTypeMVar)
-        --     (.forallE .anonymous paramArg (←mkFreshTypeMVar) .default) .default
-        -- let defeqOK ← isDefEq actionListFnType predType
-        -- if ! defeqOK then
-        --   throwError "Found invalid ActionList function type"
-        -- let paramArg ← instantiateMVars paramArg
-        -- dbg_trace s!"the param arg is {paramArg}"
-        -- let oldActionListFnType ← inferType expType.getAppArgs[3]!.getAppFn
-        -- dbg_trace s!"Old type: {oldActionListFnType}"
-        -- dbg_trace ("there for type " ++ toString expType.getAppArgs[3]! ++ ":")
-        -- dbg_trace (← inferType actionListFnName)
-
 
         -- Type of the "action function" for this action list
         -- let actionListFnType ← inferType expType.getAppArgs[3]!.getAppFn
@@ -226,10 +158,6 @@ elab_rules : term <= expType
         let elemRaw : TSyntax `term := ⟨elems.elemsAndSeps.get! i⟩
         let elemRawTp ← inferType (← elabTerm elemRaw none)
         let elemRawIsTuple := (← whnfD elemRawTp).isAppOf ``Prod  -- or use paramTp
-        -- let unifTgt := mkAppN (Expr.const ``Prod
-        --                         [(← mkFreshLevelMVar), (← mkFreshLevelMVar)])
-        --                       #[(← mkFreshTypeMVar), (← mkFreshTypeMVar)]
-        -- let elemRawIsTuple ← isDefEq elemRawTp unifTgt
         let item : TSyntax `term :=
           if needTuple && !elemRawIsTuple
           then (← `(($elemRaw, _)))
@@ -264,46 +192,3 @@ instance {η} {schema : @Schema η}
       acc) "" schema
     ++ "\n"
     ++ List.foldr (λ r acc => inst.toString r ++ "\n" ++ acc) "" t.rows
-
--- def students : Table [("name", String), ("age", Nat), ("favorite color", String)] :=
--- Table.mk [
---   /["Bob"  , 12, "blue" ],
---   /["Alice", 17, "green"],
---   /["Eve"  , 13, "red"  ]
--- ]
-
--- #eval renameColumns students A[("favorite color", "preferred color"),
---                          ("name", "first name")]
-
--- def abstractAgeUpdate := λ (r : Row $ schema students) =>
---   match getValue r "age" (by header) with
---   | some age =>
---     match (age ≤ 12 : Bool), (age ≤ 19 : Bool) with
---     | true, _ => /["age" := "kid"]
---     | _, true => /["age" := "teenager"]
---     | _, _ => /["age" := "adult"]
---   | _ => /["age" := EMP]
-
--- #reduce RetypedSubschema (schema students)
--- TODO: why aren't any of the `RetypedSubschema` metavars being synthesized
--- prior to elaborating the `A[]` syntax?
--- #eval update A["age"] students abstractAgeUpdate
--- #eval (A[1,2,3] : List (Fin 4))
-
--- This is an example that *won't* work with our syntax, since we expect that
--- any non-dependent tuples have inferrable second arguments
--- #reduce (A["name", "hello"] : List (String × (Schema.HasName "hi" [("hi", Nat)])))
-
--- #reduce (A["hi"] : List ((s : String) × Schema.HasName s [("hi", Nat)]))
-
--- #eval pivotLonger students A["age"] "attribute" "value"
-
--- #eval leftJoin students students A["name", "age"]
--- #eval dropColumns students A["age", "name"]
--- #eval selectColumns3 students A["favorite color", "age"]
--- def oAverage (xs : List $ Option Nat) : Option Nat := some $
---   List.foldl (λ acc => λ | none => acc | some x => x + acc) 0 xs / xs.length
-
--- #eval
--- pivotTable students A["favorite color"] [⟨("age-average", _), ⟨("age", _), by header⟩, oAverage⟩]
--- #reduce (A["a1", "a"] : ActionList (Schema.removeOtherDecCH [("a", Nat), ("a1", Nat)]) [("a", Nat), ("a1", Nat), ("b", Nat)])
