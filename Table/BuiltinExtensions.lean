@@ -42,21 +42,6 @@ instance (k : Nat) : OfNat (Fin k.succ) n :=
   then ⟨n, h⟩
   else ⟨0, Nat.zero_lt_succ k⟩
 
--- TODO: could solve schema woes...
--- mutual
---   inductive UniqueList (α : Type _)
---   | nil : UniqueList α
---   | cons (x : α) (xs : UniqueList α) : ¬(UniqueList.Mem x xs) → UniqueList α
-
---   inductive UniqueList.Mem (α : Type _) : α → UniqueList α → Prop
---   | head (a : α) (as : UniqueList α) : Mem a (UniqueList.cons a as)
---   | tail (a : α) {b : α} {as : List α} : Mem b as → Mem b (UniqueList.cons a as)
--- end
-
--- Nifty, but hard to write proofs over
--- def List.prod {α β} (xs : List α) (ys : List β) : List (α × β) :=
--- List.foldl List.append [] (List.map (λ x => List.map (λ y => (x, y)) ys) xs)
-
 -- This goes the wrong way -- keep it around just in case...
 theorem Nat.lt_of_add_lt_add : ∀ (a m n : Nat), m + a < n + a → m < n
 | 0, m, n, h => h
@@ -97,19 +82,12 @@ termination_by List.prod xs ys => xs.length + ys.length
 def List.dropLastN {α} : Nat → List α → List α :=
   (λ n => reverse ∘ List.drop n ∘ reverse)
 
--- This is slick, but unfortunately, it breaks type inference
--- def List.sieve' {α} (bs : List Bool) (xs : List α) : List α :=
---   xs |> List.zip bs
---      |> List.filter Prod.fst
---      |> List.map Prod.snd
-
 def List.sieve {α} : List Bool → List α → List α
 | [], xs => xs
 | _, [] => []
 | true :: bs, x :: xs => x :: sieve bs xs
 | false :: bs, _ :: xs => sieve bs xs
 
--- TODO: I don't think we even need this function after all...
 def List.flatten {α} : List (List α) → List α
 | [] => []
 | [] :: ys => flatten ys
@@ -123,7 +101,6 @@ def List.toSingletons : List α → List (List α)
 | [] => []
 | x :: xs => [x] :: toSingletons xs
 
--- TODO: better name?
 def List.somes : List (Option α) → List α
 | [] => []
 | none :: xs => somes xs
@@ -169,8 +146,7 @@ theorem List.length_verifiedEnum : ∀ (xs : List α),
 | [] => rfl
 | x :: xs => congrArg (·+1) (length_vEnumFrom _ _ _ _)
 
--- TODO: rename to reflect change in stdlib
-theorem List.filter_length_aux {α} (g : α → Bool) (xs : List α) :
+theorem List.length_filterTR_le {α} (g : α → Bool) (xs : List α) :
     ∀ rs : List α, List.length (List.filterTR.loop g xs rs)
                    <= List.length xs + List.length rs :=
 by
@@ -201,7 +177,6 @@ by
 
 theorem List.filter_length {α} (g : α → Bool) (xs : List α) :
     List.length (List.filter g xs) <= List.length xs :=
-  -- List.filter_length_aux g xs []
 by induction xs with
    | nil => simp [length]
    | cons x xs ih =>
@@ -334,11 +309,6 @@ def List.mergeSortWith {α} : (α → α → Ordering) → List α → List α
 termination_by mergeSortWith cmp xs => xs.length
 decreasing_by assumption
 
--- theorem List.length_map : ∀ (xs : List α) (f : α → β),
---     List.length (List.map f xs) = List.length xs
--- | [], _ => rfl
--- | (x :: xs), f => congrArg _ (length_map xs f)
-
 theorem List.zip_length_eq_of_length_eq :
   ∀ (xs : List α) (ys : List β) (h : xs.length = ys.length),
     (List.zip xs ys).length = xs.length
@@ -349,14 +319,7 @@ theorem List.zip_length_eq_of_length_eq :
     apply Nat.succ.inj
     apply h
   )
-  by
-  simp only [List.zip, List.zipWith]
-  -- TODO: how do you "refold" a definition in Lean 4?
-  have aux : List.zipWith Prod.mk xs ys = List.zip xs ys := rfl
-  rw [aux]
-  simp only [List.length]
-  apply congrArg (λ x => x + 1)
-  apply ih
+  congrArg (λ x => x + 1) ih
 
 theorem List.length_prod : ∀ (xs : List α) (ys : List β),
   List.length (List.prod xs ys) = xs.length * ys.length
@@ -370,8 +333,6 @@ theorem List.length_prod : ∀ (xs : List α) (ys : List β),
      simp only [length]
      rw [Nat.one_mul, Nat.one_mul]
 | x :: x' :: xs, y :: ys =>
-  -- TODO: could probably consolidate these with the List.prod helper lemmas
-  -- (there are some slight discrepancies due to specifying `y :: ys`)
   have h_term₁ : Nat.succ 0 + Nat.succ (length ys) <
                  Nat.succ (Nat.succ (length xs)) + Nat.succ (length ys) :=
     by apply Nat.add_lt_add_of_lt
@@ -479,8 +440,6 @@ Sublist.recOn
         | _, _, rfl, h₁ => Sublist.cons2 _ _ _ (IH _ h₁)) rfl)
   l₁ h₁
 
--- This shouldn't need to be this verbose -- is something up with the defeqs for
--- `sieve`?
 theorem List.sieve_sublist : (bs : List Bool) → (xs : List α) →
   Sublist (List.sieve bs xs) xs
 | [], [] => Sublist.nil
@@ -501,32 +460,6 @@ theorem List.sublist_of_map_sublist :
   have ih := sublist_of_map_sublist xs ys f h
   Sublist.cons2 (map f xs) (map f ys) (f x) ih
 
--- theorem List.filterAux_spec : ∀ (p : α → Bool) (xs acc : List α),
---   filterAux p xs acc = (reverse acc) ++ filter p xs := by
---   intros p xs
---   induction xs with
---   | nil => intros acc; simp [filter, filterAux]
---   | cons x xs ih =>
---     intros acc
---     simp only [filterAux]
---     cases hp : p x
---     . simp only
---       rw [ih]
---       conv =>
---         rhs
---         simp only [filter, filterAux, hp]
---         rw [ih]
---     . simp only
---       apply (
---         -- TODO: get this out of calc mode eventually
--- calc filterAux p xs (x :: acc)
---       = reverse (x :: acc) ++ filter p xs := ih _
---       _ = reverse acc ++ [x] ++ filter p xs := by simp
---       _ = reverse acc ++ reverse [x] ++ filter p xs := by simp
---       _ = reverse acc ++ filterAux p xs [x] := by rw [ih, append_assoc]
---       _ = reverse acc ++ filterAux p (x :: xs) [] := by simp [filterAux, hp]
---       )
-
 def List.filterSpec (p : α → Bool) : List α → List α
 | [] => []
 | x :: xs => if p x then x :: filterSpec p xs else filterSpec p xs
@@ -539,16 +472,6 @@ by induction xs with
      cases p x with
      | true => simp only [ite_true, ih]
      | false => simp only [ite_false, ih]
--- by
---   induction xs with
---   | nil => simp only [filter, filterAux, filterSpec, reverse, reverseAux]
---   | cons x xs ih =>
---     simp only [filter, filterAux, filterSpec]
---     cases p x with
---     | true =>
---       simp only [ite_true]
---       rw [filterAux_spec, reverse_singleton, singleton_append, ih]
---     | false => simp only [ite_false]; rw [←filter, ih]
 
 theorem List.reverseAux_spec (xs acc : List α) :
   reverseAux xs acc = reverse xs ++ acc := by
@@ -571,18 +494,6 @@ theorem List.reverse_eq_reverseSpec (xs : List α) :
     simp only [reverse, reverseSpec, reverseAux]
     rw [reverseAux_spec]
     exact congrArg (· ++ [x]) ih
-
--- theorem List.filterAux_acc_eq_rev_append : ∀ (p : α → Bool) (xs as bs : List α),
---   filterAux p xs (bs ++ as) = reverse as ++ filterAux p xs bs
--- | p, [], as, bs => by simp [filterAux]
--- | p, xs, [], bs => by simp [filterAux]
--- | p, x :: xs, a :: as, bs =>
---   have ih_true := filterAux_acc_eq_rev_append p xs (a :: as) (x :: bs)
---   have ih_false := filterAux_acc_eq_rev_append p xs (a :: as) bs
---   by simp only [filterAux]
---      cases p x with
---      | true => simp only; apply ih_true
---      | false => simp only; apply ih_false
 
 def List.removeAllEq [DecidableEq α] (xs ys : List α) : List α :=
   xs.filter (fun x => x ∉ ys)
@@ -810,9 +721,6 @@ by unfold LT.lt
    rw [←Nat.not_le_eq]
    apply h
 
--- I suspect this is probably built in somewhere, but I'm not finding it
--- def Int.abs (z : Int) := if z < 0 then -z else z
-
 def Int.abs : Int → Nat
 | Int.ofNat n => n
 | Int.negSucc n => n.succ
@@ -850,7 +758,6 @@ by intros h
      simp only
      rw [neg_succ_eq_neg_ofNat_succ]
 
--- Is this really not in the library yet, or am I missing something?
 theorem Int.add_comm : ∀ (x y : Int), x + y = y + x :=
 by intros x y
    unfold HAdd.hAdd
@@ -872,9 +779,6 @@ by intros x y
 -- (Contains infrastructure for `groupBy`, as well as some extra proofs that
 -- aren't used but might be useful in the future.)
 
--- TODO: figure out where De Morgan's laws are hiding in the library...
--- (There's `Decidable.not_and_iff_or_not`, but why should we require
--- decidability?)
 theorem not_or_distrib : ¬ (a ∨ b) ↔ ¬a ∧ ¬b :=
 Iff.intro
 (λ h => And.intro (λ ha => h (Or.intro_left _ ha))
@@ -883,10 +787,6 @@ Iff.intro
   match hneg with
   | Or.inl ha => h.left ha
   | Or.inr hb => h.right hb)
-
--- Again, this must be in the library somewhere...
--- theorem And.comm : p ∧ q ↔ q ∧ p :=
---   Iff.intro (λ h => And.intro h.right h.left) (λ h => And.intro h.right h.left)
 
 theorem Iff.not_iff_not_of_iff : (p ↔ q) → (¬ p ↔ ¬ q) := λ hpq =>
   Iff.intro (λ hnp hq => hnp $ hpq.mpr hq) (λ hnq hp => hnq $ hpq.mp hp)
@@ -1125,8 +1025,6 @@ theorem List.all_pred {p : α → Prop} [DecidablePred p] {xs : List α} :
         intro x' hx'
         apply hbackward _ $ List.Mem.tail _ hx'
 
--- This didn't end up getting used for the `length_groupByKey` proof, but I'm
--- keeping it around just in case
 @[instance] def List.forAllDecidable (xs : List α) (p : α → Prop)
   [DecidablePred p] : Decidable (∀x, x ∈ xs → p x) :=
 if h : xs.all (λ x => decide (p x))
@@ -1156,7 +1054,6 @@ theorem List.mem_cons_iff_mem_singleton_or_tail (y : α) (ys : List α) (x : α)
 -- I'm leaving it, at least for now.
 theorem List.filter_filter (p₁ p₂ : α → Bool) (xs : List α) :
   filter p₁ (filter p₂ xs) = filter (λ x => p₂ x ∧ p₁ x) xs := by
-  -- filter p₁ (filter p₂ xs) = filter (λ x => p₂ x ∧ p₁ x) xs := by
   rw [filter_eq_filterSpec, filter_eq_filterSpec, filter_eq_filterSpec]
   induction xs with
   | nil => simp [filterSpec]
@@ -1175,7 +1072,6 @@ theorem List.filter_filter (p₁ p₂ : α → Bool) (xs : List α) :
         simp only [filterSpec, h₁, h₂, ite_true]
         exact congrArg _ ih
 
--- TODO: Migration issue -- eliminate sorry
 theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
   ∀ (xs acc : List α),
   uniqueAux xs acc = reverse acc ++ unique (xs.filter (· ∉ acc))
@@ -1207,7 +1103,7 @@ theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
       simp only [unique]
       rw [ih₃]
       rw [reverse_singleton, singleton_append, filter_filter]
-      -- TODO: this was just `by simp` in Lean 4.0.0…what happened?
+      -- TODO: this was just `by simp` in Lean 4.0.0...what happened?
       have : (λ x_1 => decide (
               (decide ¬x_1 ∈ acc) = true ∧ (decide ¬x_1 ∈ [x]) = true)
              ) = (λ x_1 => decide (¬x_1 ∈ acc ∧ ¬x_1 ∈ [x])) := by
@@ -1242,14 +1138,13 @@ theorem List.uniqueAux_acc_append {α} [DecidableEq α] (xs : List α)
   uniqueAux xs acc = reverse acc ++ unique xs := by
   have : filter (fun a => decide ¬a ∈ acc) xs = xs := by
     induction xs with
-    | nil => simp [filter] -- previously filterAux
+    | nil => simp [filter]
     | cons x xs ih =>
-      simp only [filter]  -- previously filterAux
+      simp only [filter]
       have : decide (¬x ∈ acc) = true := by simp [h x (Mem.head _)]
       rw [this]
       simp only
       rw [ih]
-      -- rw [filterAux_spec, ih, reverse_singleton, singleton_append]
       . intros x hx
         apply h x (Mem.tail _ hx)
   rw [uniqueAux_acc_append_filter]
@@ -1283,10 +1178,11 @@ def List.memT_filter_false_of_memT {α} {x : α} {p : α → Bool} :
 -- want to write this as a proof term
 def List.memT_unique_of_memT {α} [DecidableEq α]
   : ∀ {x : α} {xs : List α}, MemT x xs → MemT x xs.unique
-| x, _, .hd _ _ => by
-  simp only [unique, uniqueAux, not_mem_nil, ite_false]
+| x, .(x) :: xs, .hd _ _ => by
+  unfold unique
+  unfold uniqueAux
+  simp only [not_mem_nil, ite_false]
   rw [uniqueAux_acc_append_filter]
-  simp only [reverse_singleton, singleton_append]
   apply MemT.hd _ _
 | x, y :: xs, .tl .(y) htl =>
   -- TODO: we keep using this...probably make it a separate simp lemma
@@ -1959,8 +1855,7 @@ theorem List.neq_of_mem_not_mem {x y : α} {xs : List α} :
   x ∈ xs → y ∉ xs → x ≠ y :=
   λ hxs => mt (λ heq => heq ▸ hxs)
 
--- TODO: rename
-theorem List.get_helper_thing {y :α} {xs ys : List α} {i} :
+theorem List.get_mem_cons_of_head_not_mem_getee {y :α} {xs ys : List α} {i} :
   xs.get i ∈ y :: ys → y ∉ xs → xs.get i ∈ ys :=
   λ hget hnmem =>
   have hget_lem := get_mem xs i
@@ -1999,7 +1894,7 @@ theorem List.sieve_mem_iff_true_unique :
       apply sieve_mem_iff_true_unique
       . apply Nat.lt_of_succ_lt_succ pf1
       . exact hu'
-      . exact List.get_helper_thing hf hnmem)
+      . exact List.get_mem_cons_of_head_not_mem_getee hf hnmem)
     (λ hb => by
       simp only [get, sieve] at *
       apply Mem.tail
@@ -2044,7 +1939,7 @@ theorem List.sieve_map_mem_iff_true_unique :
         simp only [get, sieve, map] at *
         apply ih
         . exact hu
-        . apply get_helper_thing hf hnmem
+        . apply get_mem_cons_of_head_not_mem_getee hf hnmem
         . apply Nat.lt_of_succ_lt_succ pf1
       | false =>
         simp only [get, sieve, map] at *
