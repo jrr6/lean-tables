@@ -187,7 +187,7 @@ Table.mk [
 -- `quizScoreSelect`
 -- This is basically cheating, but we're limited by the fact that things like
 -- `IsQuizSchema` can't seem to live in `Type`; we've already shown above that
--- less "cheat"-like but uglier solutions are possible
+-- less "cheating"-like but uglier solutions are possible
 def quizNatCH (i : Fin 4) :
   (schema gradebook).HasCol ("quiz" ++ toString (i.val + 1), Nat) := by
   -- Tools like `aesop` could probably make shorter work of this
@@ -275,8 +275,8 @@ Table.mk [
   ]]
 ]
 
--- TODO: a fun (?) challenge would be to *prove* that this is extensionally
--- equal to `groupByRetentive`...
+-- A fun (?) challenge would be to *prove* that this is extensionally equal to
+-- `groupByRetentive`...
 
 -- `groupBySubtractive`
 def groupBySubtractive' {schema : @Schema η} {τ : Type u} [DecidableEq τ]

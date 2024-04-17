@@ -34,7 +34,7 @@ The main types in the table encoding:
 - *Table* (indexed by a schema): a list of rows
   Ex: `[/["Name 1", 1], /["Name 2", 2]]`
 - *Row* (indexed by a schema `s`): Empty, or a `hd s`-cell cons-ed onto a
-  `tl s`-row (≈ `hlist`)
+  `tl s`-row (≈ `HList`)
   Ex: `/[]`, `/["Name 1", 1] = Row.cons (Cell.val "Name 1") ...`
 - *Cell* (indexed by a header): is either empty or contains a value of the
   type specified by the header (≈ `option`)
