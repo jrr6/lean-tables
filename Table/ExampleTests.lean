@@ -4,7 +4,7 @@ import Table.Notation
 import Table.Widgets
 import Table.TestingNotation
 
--- Table equality typeclass resolution requires a lot of instances
+-- Table equality type-class resolution requires a lot of instances
 set_option synthInstance.maxSize 12000000
 set_option synthInstance.maxHeartbeats 0
 
@@ -155,16 +155,8 @@ values [/["Alice", 12], /["Bob", 13]]
 ] : Table [("name", String), ("age", Nat)])
 
 -- `crossJoin`
--- FIXME: this fails without explicitly annotating the (reduced) type of `petiteJelly`
--- def petiteJelly : Table [("get acne", Bool), ("red", Bool), ("black", Bool)] :=
-def petiteJelly : Table
-    (Schema.nths
-      [("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool), ("yellow", Bool),
-        ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
-      A[0, 1, 2]) := -- Note that decidability fails if the `A` is omitted
-selectRows1
-  (selectColumns2 jellyAnon A[0, 1, 2])
-  A[0, 1]
+def petiteJelly :=
+  selectRows1 (selectColumns2 jellyAnon A[0, 1, 2]) A[0, 1]
 #test
 crossJoin students petiteJelly
 =
@@ -183,8 +175,6 @@ crossJoin emptyTable petiteJelly
 Table.mk []
 
 -- `leftJoin`
--- TODO: we need the `header` (and probably `name`) tactic to be able to "see
--- through" the various Schema ActionList functions like `removeOtherDecCH`
 #test
 leftJoin students gradebook A["name", "age"]
 =
@@ -205,16 +195,6 @@ Table.mk [
   /[ "Smith"      , 34            , "Clerical"      ],
   /[ "Williams"   , EMP           , EMP             ]
 ]
-
-#eval leftJoin
-(Table.mk [
-  /["name" := "Bob", "age" := 18]
-])
-(Table.mk [
-  /["name" := "Bob", "location" := "USA"],
-  /["name" := "Bob", "location" := "UK"]
-])
-A["name"]
 
 -- `nrows`
 #test nrows (@emptyTable String _) = 0
@@ -390,7 +370,7 @@ Table.mk [
 ]
 
 #test
-distinct (selectColumns3 gradebook A["quiz3"] :)
+distinct (selectColumns3 gradebook A["quiz3"])
 =
 Table.mk [ /[7], /[8] ]
 
@@ -579,8 +559,10 @@ Table.mk [
 def oAverage (xs : List $ Option Nat) : Option Nat := some $
   List.foldl (λ acc => λ | none => acc | some x => x + acc) 0 xs / xs.length
 
+-- TODO: our A[] notation is not yet robust enough to handle the second argument
 #test
-pivotTable students A["favorite color"] [⟨("age-average", _), ⟨("age", _), by header⟩, oAverage⟩]
+pivotTable students A["favorite color"]
+           [⟨("age-average", _), ⟨("age", _), by header⟩, oAverage⟩]
 =
 Table.mk [
   /[ "blue"         , 12          ],
@@ -594,13 +576,11 @@ def proportion (bs : List $ Option Bool) : Option Nat := some $
 
 -- KC says order doesn't matter, so okay that we disagree w/ B2T2
 #test
-(
 pivotTable
   jellyNamed
   A["get acne", "brown"]
   [⟨("red-proportion", _), ⟨("red", _), by header⟩, proportion⟩,
    ⟨("pink-proportion", _), ⟨("pink", _), by header⟩, proportion⟩]
-:)
 =
 Table.mk [
   /[ true     , false , 0              , 25              ],
@@ -610,14 +590,13 @@ Table.mk [
 ]
 
 -- `groupBy`
--- TODO: handle `none` case?
 def colorTemp : (Row $ schema students) → String := λ r =>
-  match getValue r "favorite color" (by header) with
+  match getValue r "favorite color" with
   | some "red" => "warm"
   | _ => "cool"
 
 def nameLength : (Row $ schema students) → Nat := λ r =>
-  match getValue r "name" (by header) with
+  match getValue r "name" with
   | some s => String.length s
   | _ => 0
 
@@ -636,7 +615,7 @@ Table.mk [
 ]
 
 def abstractAge := λ (r : Row $ schema gradebook) =>
-  match getValue r "age" (by header) with
+  match getValue r "age" with
   | some age =>
     match (age ≤ 12 : Bool), (age ≤ 19 : Bool) with
     | true, _ => "kid"
@@ -645,7 +624,7 @@ def abstractAge := λ (r : Row $ schema gradebook) =>
   | _ => ""
 
 def finalGrade := λ (r : Row $ schema gradebook) =>
-  match getValue r "final" (by header) with
+  match getValue r "final" with
   | some grade => grade
   | _ => 0
 
@@ -699,24 +678,10 @@ Table.mk [
 ]
 
 -- `pivotLonger`
--- TODO: more typeclass issues...
-
-#synth Decidable
-    (pivotLonger students (ActionList.cons { fst := "age", snd := Schema.HasCol.tl Schema.HasCol.hd } ActionList.nil)
-        "attribute" "value" =
-      { rows := [] })
-#synth DecidableEq (Table (Schema.append (Schema.removeTypedNames [("name", String), ("age", String), ("favorite color", String)] (ActionList.cons { fst := "age", snd := Schema.HasCol.tl Schema.HasCol.hd } ActionList.nil)) [("attribute", String), ("value", Nat)]))
 
 #test
-pivotLonger students A["age"] "attribute" "value"
-  =
-Table.mk []
-
-#test
-(
 pivotLonger gradebook A["midterm", "final"] "exam" "score"
-:)
-=--[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , "midterm" , 77    ],
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , "final"   , 87    ],
@@ -726,12 +691,16 @@ Table.mk [
   /[ "Eve"   , 13  , 7     , 9     , 8     , 8     , "final"   , 77    ]
 ]
 
+-- TODO: this takes unreasonably long if the type is not hinted
+-- The issue is not with the type-level computation, since the below is fast:
+--   #reduce Schema.append ((schema gradebook).removeTypedNames
+--     A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"])
+--     [("test", String), ("score", Nat)]
+-- So it's something to do with the Table DecEq instance
 #test
-(
 pivotLonger gradebook A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
             "test" "score"
-:)
-=--(Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)])
+=(Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)])
 Table.mk [
   /[ "Bob"   , 12  , "quiz1"   , 8     ],
   /[ "Bob"   , 12  , "quiz2"   , 9     ],
@@ -753,86 +722,33 @@ Table.mk [
   /[ "Eve"   , 13  , "final"   , 77    ]
 ]
 
--- TODO: `pivotWider` is having problems
--- The decidability type-class instance it needs as an arg (to `pivotWider`
--- itself) isn't being synthesized
-
-#synth DecidableEq (Row [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
-#synth DecidableEq
-    (Row
-      (Schema.removeNames [("name", String), ("age", Nat), ("favorite color", String)]
-        (ActionList.cons (Schema.cNameOfCHead { fst := ("name", String), snd := Schema.HasCol.hd })
-          (ActionList.cons (Schema.cNameOfCHead { fst := ("age", Nat), snd := Schema.HasCol.hd }) ActionList.nil))))
-#table @pivotWider _ _ _ _ students "name" "age" _ _
-  ((by inst :  DecidableEq
-    (Row
-      (Schema.removeNames [("name", String), ("age", Nat), ("favorite color", String)]
-        (ActionList.cons (Schema.cNameOfCHead { fst := ("name", String), snd := Schema.HasCol.hd })
-          (ActionList.cons (Schema.cNameOfCHead { fst := ("age", Nat), snd := Schema.HasCol.hd }) ActionList.nil))))))
+-- TODO: `pivotWider` has type-class issues because `getColumn2` (in its type)
+-- is not reducible
 
 #test
-(pivotWider students "name" "age" :)
-=--(Table [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
+pivotWider students "name" "age"
+=(Table [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
 Table.mk [
   /["blue", 12, EMP, EMP],
   /["green", EMP, 17, EMP],
   /["red", EMP, EMP, 13]
 ]
 
-def longerTable :=
-  pivotLonger gradebook A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
-            "test" "score"
--- This is the above:
--- def longerTable : Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)] :=
--- Table.mk [
---   /[ "Bob"   , 12  , "quiz1"   , 8     ],
---   /[ "Bob"   , 12  , "quiz2"   , 9     ],
---   /[ "Bob"   , 12  , "quiz3"   , 7     ],
---   /[ "Bob"   , 12  , "quiz4"   , 9     ],
---   /[ "Bob"   , 12  , "midterm" , 77    ],
---   /[ "Bob"   , 12  , "final"   , 87    ],
---   /[ "Alice" , 17  , "quiz1"   , 6     ],
---   /[ "Alice" , 17  , "quiz2"   , 8     ],
---   /[ "Alice" , 17  , "quiz3"   , 8     ],
---   /[ "Alice" , 17  , "quiz4"   , 7     ],
---   /[ "Alice" , 17  , "midterm" , 88    ],
---   /[ "Alice" , 17  , "final"   , 85    ],
---   /[ "Eve"   , 13  , "quiz1"   , 7     ],
---   /[ "Eve"   , 13  , "quiz2"   , 9     ],
---   /[ "Eve"   , 13  , "quiz3"   , 8     ],
---   /[ "Eve"   , 13  , "quiz4"   , 8     ],
---   /[ "Eve"   , 13  , "midterm" , 84    ],
---   /[ "Eve"   , 13  , "final"   , 77    ]
--- ]
--- Need this instance (should be auto-synthesized, but issues persist...)
-instance : DecidableEq (Row
-      (Schema.removeNames [("name", String), ("age", Nat), ("test", String), ("score", Nat)]
-        (ActionList.cons
-          (Schema.cNameOfCHead
-            ⟨("test", String),
-              Schema.HasCol.tl (Schema.HasCol.tl Schema.HasCol.hd)⟩)
-          (ActionList.cons
-            (Schema.cNameOfCHead { fst := ("score", Nat), snd := Schema.HasCol.tl (Schema.HasCol.tl Schema.HasCol.hd) })
-            ActionList.nil)))) := by inst
--- FIXME: this is back to freezing
--- #test pivotWider longerTable ⟨"test", by header⟩ ⟨("score", _), by header⟩
--- =--(Table [("name", String), ("quiz1", Nat), ("quiz2", Nat), ("quiz3", Nat), ("quiz4", Nat), ("midterm", Nat), ("final", Nat)])
--- Table.mk [
---   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , 77      , 87    ],
---   /[ "Alice" , 17  , 6     , 8     , 8     , 7     , 88      , 85    ],
---   /[ "Eve"   , 13  , 7     , 9     , 8     , 8     , 84      , 77    ]
--- ]
+-- TODO: test freezing without the type annotation
+def longerTable :
+    Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)] :=
+  pivotLonger gradebook
+              A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
+              "test"
+              "score"
 
--- #table pivotWider longerTable ⟨"test", .tl $ .tl .hd⟩ ⟨("score", _), .tl $ .tl .hd⟩
-
-instance : DecidableEq
-    (Row
-      (Schema.removeNames [("name", String), ("age", Nat), ("favorite color", String)]
-        (ActionList.cons
-          (Schema.cNameOfCHead
-            ⟨("name", String), Schema.HasCol.hd⟩)
-          (ActionList.cons (Schema.cNameOfCHead { fst := ("age", Nat), snd := Schema.HasCol.hd }) ActionList.nil)))) := by inst
-#eval pivotWider students "name" "age"
+#test pivotWider longerTable "test" "score"
+=(Table [("name", String), ("age", Nat), ("quiz1", Nat), ("quiz2", Nat), ("quiz3", Nat), ("quiz4", Nat), ("midterm", Nat), ("final", Nat)])
+Table.mk [
+  /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , 77      , 87    ],
+  /[ "Alice" , 17  , 6     , 8     , 8     , 7     , 88      , 85    ],
+  /[ "Eve"   , 13  , 7     , 9     , 8     , 8     , 84      , 77    ]
+]
 
 -- `flatten`
 #test
@@ -855,11 +771,11 @@ Table.mk [
 
 def t := buildColumn gradebookSeq "quiz-pass?" (λ r =>
   let isPass : Nat → Bool := λ n => n >= 8
-  (getValue r "quizzes" (by header)).map (List.map isPass)
+  (getValue r "quizzes").map (List.map isPass)
 )
 
 #test
-(flatten t A["quiz-pass?", "quizzes"] :)
+flatten t A["quiz-pass?", "quizzes"]
 =
 Table.mk [
   /[ "Bob"   , 12  , 8       , 77      , 87    , true       ],
@@ -876,23 +792,6 @@ Table.mk [
   /[ "Eve"   , 13  , 8       , 84      , 77    , true       ]
 ]
 
-
-def unbalancedTable :
-  Table [("id", Nat), ("seq1", List Nat), ("seq2", List String)] :=
-Table.mk [
-  /[0, [0, 1, 2], ["a", "b"]],
-  /[1, [], ["c"]],
-  /[2, [3, 4], ["d", "e", "f"]],
-  /[3, [5, 6], []],
-  /[4, [], []]
-]
-
--- TODO: notify B2T2 that their implementation crashes on the (valid) example
--- given by the row with ID 4.
-#eval flatten unbalancedTable A["seq1"]
-#eval flatten unbalancedTable A["seq1", "seq2"]
-
--- FIXME: more typeclass issues
 -- `transformColumn`
 def addLastName := Option.map (· ++ " Smith")
 
@@ -930,7 +829,8 @@ Table.mk [
   /[ "Eve"      , 13  , "red"           ]
 ]
 
--- FIXME: this test fails -- not sure how to work around this
+-- This test fails because our action list behavior doesn't match the
+-- "simultaneity" of renaming B2T2 expects
 #test
 renameColumns gradebook A[("midterm", "final"), ("final", "midterm")]
 =
@@ -997,7 +897,7 @@ Table.mk [
 Table.mk [
   /[ULift.up "blue" , Table.mk [/["Bob"  , 12]]],
   /[ULift.up "green", Table.mk [/["Alice", 17]]],
-  /[ULift.up "red", Table.mk [/["Eve"  , 13]]]
+  /[ULift.up "red",   Table.mk [/["Eve"  , 13]]]
 ]
 
 #test
@@ -1022,7 +922,7 @@ Table.mk [
 
 -- `update`
 def abstractAgeUpdate := λ (r : Row $ schema students) =>
-  match getValue r "age" (by header) with
+  match getValue r "age" with
   | some age =>
     match (age ≤ 12 : Bool), (age ≤ 19 : Bool) with
     | true, _ => /["age" := "kid"]
@@ -1032,10 +932,11 @@ def abstractAgeUpdate := λ (r : Row $ schema students) =>
 
 #eval update [⟨("age", String), by name⟩] students abstractAgeUpdate
 
--- FIXME: why are we back to needing the `:)` notation here?
+-- TODO: why are we back to needing the `:)` notation here? Also, the reducible
+-- function in the `update` type is not reducing (WF recursion may be to blame?)
 #test
 (update A["age"] students abstractAgeUpdate :)
-=--[by inst]--(Table [("name", String), ("age", String), ("favorite color", String)])
+=[by inst]--(Table [("name", String), ("age", String), ("favorite color", String)])
 Table.mk [
   /[ "Bob"   , "kid"      , "blue"         ],
   /[ "Alice" , "teenager" , "green"        ],
@@ -1043,7 +944,7 @@ Table.mk [
 ]
 
 def didWellUpdate := λ (r : Row $ schema gradebook) =>
-  match getValue r "midterm" (by header), getValue r "final" (by header) with
+  match getValue r "midterm", getValue r "final" with
   | some (m : Nat), some (f : Nat) => /["midterm" := (85 ≤ m : Bool), "final" := (85 ≤ f : Bool)]
   | some m, none   => /["midterm" := (85 ≤ m : Bool), "final" := EMP]
   | none, some f   => /["midterm" := EMP, "final" := (85 ≤ f : Bool)]
@@ -1051,7 +952,7 @@ def didWellUpdate := λ (r : Row $ schema gradebook) =>
 
 #test
 (update A["midterm", "final"] gradebook didWellUpdate :)
-=
+=[by inst]
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , false   , 7     , 9     , true  ],
   /[ "Alice" , 17  , 6     , 8     , true    , 8     , 7     , true  ],
@@ -1061,7 +962,7 @@ Table.mk [
 -- `select`
 #test
 select students (λ (r : Row $ schema students) (n : Fin (nrows students)) =>
-  let colorCell : Cell "COLOR" String := Cell.fromOption $ getValue r "favorite color" (by header)
+  let colorCell : Cell "COLOR" String := Cell.fromOption $ getValue r "favorite color"
   let ageCell : Cell "AGE" Nat := Cell.fromOption $ getValue r "age"
   (Row.cons (Cell.val n.val : Cell "ID" Nat) $
   Row.cons colorCell $
@@ -1114,7 +1015,7 @@ def decertify {sch : @Schema String}
               (f : Row sch → Nat → Table sch)
               (r : Row sch)
               (nhn : Fin (nrows gradebook)) :=
-f r nhn.1
+  f r nhn.1
 
 #test
 selectMany gradebook (decertify repeatRow)
