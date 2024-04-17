@@ -520,7 +520,6 @@ theorem dropColumn_spec2_unique :
       . congr
         apply ih
         . cases hsch; assumption
-        -- TODO: extracting the "real" proof would prevent the need for this
         . exact Table.mk []
       . exact hneq
 
@@ -537,7 +536,7 @@ theorem dropColumns_spec1 :
   simp only [nrows, dropColumns, Schema.length_eq_List_length]
   apply List.length_map
 
--- TODO: might be able to more closely approximate for a unique schema
+-- Approximation for non-unique schemata
 theorem dropColumns_spec2 :
   ∀ (t : Table sch) (cs : ActionList Schema.removeCertifiedName sch),
   header (dropColumns t cs) = Schema.names (sch.removeNames cs) :=

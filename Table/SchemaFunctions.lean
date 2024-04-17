@@ -222,7 +222,7 @@ def Schema.retypedFromSubschemaHasNameOfRSToSchema :
 | [], ⟨_, hrs⟩ :: _, _, _ => nomatch hrs
 | (_, _) :: _, [_], _, .tl h => nomatch h
 | sch, ⟨hdr, hnm⟩ :: rest, nmToFind, hntf =>
-  have hsch := Schema.schemaHasRetypedSubschemaName hntf
+  let hsch := Schema.schemaHasRetypedSubschemaName hntf
   retypedSubschemaHasSchemaName _ hsch
 
 theorem Schema.retypedFromSubschema_preserves_names :
