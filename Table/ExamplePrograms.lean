@@ -15,8 +15,8 @@ variable {η : Type u_η} [DecidableEq η] {sch : @Schema η}
 def dotProduct (t : Table sch) (c1 : η) (c2 : η)
                (hc1 : sch.HasCol (c1, Nat) := by header)
                (hc2 : sch.HasCol (c2, Nat) := by header) :=
-  let ns := getColumn2 t c1 hc1
-  let ms := getColumn2 t c2 hc2
+  let ns := getColumn2 t c1
+  let ms := getColumn2 t c2
   List.zip ns ms |>.foldl (λ | acc, (.some n, .some m) => acc + n * m
                              | acc, _                  => acc) 0
 
@@ -61,7 +61,6 @@ def sampleRows (t : Table sch) (n : Fin (nrows t).succ) : Table sch :=
 #table sampleRows gradebookMissing 2
 
 -- `pHackingHomogeneous` and `pHackingHeterogeneous`
--- TODO: see if there's a more elegant way to handle the types
 
 def fisherTest (xs : List (Bool × Bool)) :=
   let tab := xs.foldl (λ acc (x, y) =>
@@ -84,17 +83,16 @@ def fisherTest (xs : List (Bool × Bool)) :=
     * fact tab[1]![1]!
     * fact (tab.foldl (List.foldl (·+·)) 0))
 
-def pHacking {sch: Schema} (t : Table sch)
-  (hacne : sch.HasCol ("get acne", Bool))
-  (hall : ∀ x : CertifiedHeader sch,
-    List.MemT x sch.certify → x.1.1 ≠ "name" → x.1.2 = Bool) :=
-  let colAcne := getColumn2 t "get acne" hacne
+def pHacking {sch : Schema} (t : Table sch)
+  (hacne : sch.HasCol ("get acne", Bool) := by header)
+  (hhom : sch.Homogeneous Bool := by repeat constructor) :=
+  let colAcne := getColumn2 t "get acne"
   let opts := sch.certify.certifiedMap (λ hdr hmem =>
+    -- A more elegant approach would be to write a lemma that shows
+    -- "inheritance" of homogeneity by subschemata
     if hdr.1.1 = "get acne" then none else
-    if hnm : hdr.1.1 = "name" then none else
     let colJB : List (Option Bool) :=
-      cast (congrArg (List ∘ Option) $ hall _ hmem hnm) $
-        getColumn2 t hdr.1.1 hdr.2
+        getColumn2 t hdr.1.1 (Schema.homogenizeHC hhom hdr.2)
     let nonempties := List.zip colAcne colJB
       |>.filterMap (λ
         | (.some x, .some y) => some (x, y)
@@ -107,53 +105,79 @@ def pHacking {sch: Schema} (t : Table sch)
   )
   opts.somes
 
-def pHackingHomogeneous :=
-  pHacking jellyAnon (by header) (λ x hx _ => by
-    repeat (
-      cases hx
-      simp only
-      rename_i hx
-    )
-    contradiction
-  )
+def pHackingHomogeneous := pHacking jellyAnon
+
 #test
 pHackingHomogeneous
 =
 ["orange"]
 
-def pHackingHeterogeneous :=
-  pHacking jellyNamed (by header) (λ x hx hnm => by
-    repeat (
-      cases hx
-      (simp only <;> contradiction)
-      rename_i hx
-    )
-    contradiction
-  )
+def pHackingHeterogeneous := pHacking (dropColumns jellyNamed A["name"])
+
 #test
 pHackingHeterogeneous
 =
 ["orange"]
 
 -- `quizScoreFilter`
+
+-- TODO: in principle, there's no reason this shouldn't be able to be in `Type`
+-- (which would allow us to recurse on the proof directly), but Lean freezes if
+-- we try (specifically, if we include the `IsQuizSchema hs` argument for the
+-- recursive constructors)
+inductive IsQuizSchema : @Schema String → Prop
+-- inductive IsQuizSchema : @Schema String → Type 1
+  | nil      : IsQuizSchema []
+  | consQuiz {nm hs} :
+    nm.startsWith "quiz" = true →
+    IsQuizSchema hs →
+    IsQuizSchema ((nm, Nat) :: hs)
+  | consNonQuiz {nm τ hs} :
+    nm.startsWith "quiz" = false →
+    IsQuizSchema hs →
+    IsQuizSchema ((nm, τ) :: hs)
+
+theorem gradebook_schema_is_quiz_schema : IsQuizSchema (schema gradebook) := by
+  repeat (first | apply IsQuizSchema.consQuiz (by decide)
+                | apply IsQuizSchema.consNonQuiz (by decide)
+                | apply IsQuizSchema.nil)
+
+-- TODO: figure out why elaboration is taking so long here
+set_option maxHeartbeats 1000000
+theorem quiz_col_type_eq_Nat_of_IsQuizSchema {nm : String} :
+  {sch : @Schema String} → {τ : Type _} →
+  IsQuizSchema sch → sch.HasCol (nm, τ) → nm.startsWith "quiz" = true → τ = Nat
+  | (.(nm), .(Nat)) :: hs, .(Nat), .consQuiz heq hrest, .hd =>
+    λ _ => rfl
+  | (_, _) :: hs, τ, .consQuiz _ hrest, .tl hc' =>
+    λ heq => quiz_col_type_eq_Nat_of_IsQuizSchema hrest hc' heq
+  | (.(nm), τ) :: hs, .(τ), .consNonQuiz hneq hrest, .hd =>
+    λ heq => absurd heq (Bool.not_eq_true _ ▸ hneq)
+  | (nm, σ) :: hs, τ, .consNonQuiz hneq hrest, .tl hc' =>
+    λ heq => quiz_col_type_eq_Nat_of_IsQuizSchema hrest hc' heq
+
+-- We take some minor liberties with our implementation to make it more amenable
+-- to casting
 #test
 buildColumn gradebook "average-quiz" (λ r =>
-  -- This trick doesn't work in Lean because we can't check that all of these
-  -- columns have type `Nat` (maybe there's some clever way to dynamically
-  -- attempt to infer an addition type-class instance at runtime, but it's not
-  -- going to be as straightforward as B2T2's TypeScript approach)
-  -- let quizColNames := List.filter (λ c =>
-  --   String.startsWith c.1.1 "quiz"
-  -- ) r.schema.certify
-  let quizColNames : List ((c : String) × r.schema.HasCol (c, Nat)) :=
-    [⟨"quiz1", by header⟩, ⟨"quiz2", by header⟩,
-     ⟨"quiz3", by header⟩, ⟨"quiz4", by header⟩]
-  let scores : List (Option Nat) := List.map (λ c =>
+  let quizColNames : List ((nm : String) × r.schema.HasCol (nm, Nat)) :=
+    r.schema.certify.filterMap (λ chdr =>
+      if h : chdr.1.1.startsWith "quiz"
+      then
+        let chdr' : Schema.HasCol (chdr.1.1, chdr.1.2) r.schema := chdr.2
+        some ⟨chdr.1.1,
+              Eq.rec (motive := λ x _ => Schema.HasCol (chdr.1.1, x) r.schema)
+                     chdr'
+                     (quiz_col_type_eq_Nat_of_IsQuizSchema
+                        gradebook_schema_is_quiz_schema chdr.2 h)⟩
+      else none)
+  let scores : List (Option Nat) := quizColNames.map (λ c =>
     (r.getCell c.2).toOption
-  ) quizColNames
+  )
+
   some $ scores.somes.foldl (·+·) 0 / scores.length
 )
-=[by inst]
+=
 Table.mk [
 /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    , 8],
 /[ "Alice" , 17  , 6     , 8     , 88      , 8     , 7     , 85    , 7],
@@ -161,37 +185,43 @@ Table.mk [
 ]
 
 -- `quizScoreSelect`
--- This is basically cheating, but I don't see a better way
-def quizNatCH : ∀ (i : Fin 4),
-  (schema gradebook).HasCol ("quiz" ++ toString (i.val + 1), Nat)
-| 0 | 1 | 2 | 3 => by header
-def quizColNames : List (CertifiedHeader (schema gradebook)) :=
-  List.map
-    (λ (i : Fin 4) => ⟨("quiz" ++ toString (i.val + 1), Nat), quizNatCH i⟩)
-    [0, 1, 2, 3]
-def quizTable := selectColumns3 gradebook quizColNames
+-- This is basically cheating, but we're limited by the fact that things like
+-- `IsQuizSchema` can't seem to live in `Type`; we've already shown above that
+-- less "cheat"-like but uglier solutions are possible
+def quizNatCH (i : Fin 4) :
+  (schema gradebook).HasCol ("quiz" ++ toString (i.val + 1), Nat) := by
+  -- Tools like `aesop` could probably make shorter work of this
+  cases i with | mk _ isLt =>
+  repeat (
+    rename_i val
+    cases val
+    . repeat constructor
+  )
+  contradiction
 
--- This is exactly the same issue as `quizScoreFilter`
-#check Schema.hasNameOfFromCHeaders
+def quizColNames : List ((s : String) × (schema gradebook).HasCol (s, Nat)) :=
+  List.map
+    (λ (i : Fin 4) => ⟨"quiz" ++ toString (i.val + 1), quizNatCH i⟩)
+    [0, 1, 2, 3]
+def quizTable :=
+  selectColumns3 gradebook (quizColNames.map (λ c => ⟨(c.1, Nat), c.2⟩))
+
 def quizAndAverage :=
   buildColumn quizTable "average" (λ r =>
     let ns := quizColNames.certifiedMap (λ ch pf =>
-      -- This is especially unpleasant
-      have : ch.1.2 = Nat := by
-        repeat (
-          cases pf
-          try rfl
-          rename_i pf
-        )
-        contradiction
-      this ▸ r.getCell (Schema.fromCHHasFromCH ch _ pf) |>.toOption
+      -- This is particularly unpleasant because Lean fails to infer the correct
+      -- function argument to `memT_map_of_memT`
+      r.getCell (Schema.fromCHHasFromCH ⟨(ch.1, Nat), ch.2⟩ _
+        (List.memT_map_of_memT
+          (λ c => (⟨(c.1, Nat), c.2⟩ : CertifiedHeader (schema gradebook)))
+          pf))
+      |>.toOption
     )
     some $ ns.somes.foldl (·+·) 0 / ns.length
   )
 
-#test addColumn gradebook "average-quiz"
-        (getColumn2 quizAndAverage "average")
-=[by inst]
+#test addColumn gradebook "average-quiz" (getColumn2 quizAndAverage "average")
+=
 Table.mk [
   /["Bob", 12, 8, 9, 77, 7, 9, 87, 8],
   /["Alice", 17, 6, 8, 88, 8, 7, 85, 7],

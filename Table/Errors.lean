@@ -70,32 +70,37 @@ Table.mk [
 universe u_η
 variable {η : Type u_η} [DecidableEq η] {sch : @Schema η}
 
+-- Since we don't have an actual image type, we fake it:
 abbrev Image : Type := Nat  -- Any inhabited type will do
 opaque scatterPlot (t : Table sch)
-                   (c1 : ((nm : η) × sch.HasCol (nm, Nat)))
-                   (c2 : ((nm : η) × sch.HasCol (nm, Nat))) : Image
+                   (c1 : η)
+                   (c2 : η)
+                   (hc1 : sch.HasCol (c1, Nat) := by header)
+                   (hc2 : sch.HasCol (c2, Nat) := by header) : Image
 -- What's a "categorical value?" For our purposes, let's make it a boolean.
 opaque pieChart (t : Table sch)
-                (c1 : ((nm : η) × sch.HasCol (nm, Bool)))
-                (c2 : ((nm : η) × sch.HasCol (nm, Nat))) : Image
+                (c1 : η)
+                (c2 : η)
+                (hc1 : sch.HasCol (c1, Bool) := by header)
+                (hc2 : sch.HasCol (c2, Nat) := by header) : Image
 
 
 -- ## midFinal
--- Error message is somewhat unreadable but is localized.
+-- We generate this error message, so it's fairly helpful by design
 def midFinal :=
-  scatterPlot gradebook ⟨"mid", by header⟩ ⟨"final", by header⟩
+  scatterPlot gradebook "mid" "final"
 
 def midFinalCorrected :=
-  scatterPlot gradebook ⟨"midterm", by header⟩ ⟨"final", by header⟩
+  scatterPlot gradebook "midterm" "final"
 
 -- ## blackAndWhite
 def eatBlackAndWhite (r : Row (schema jellyAnon)) : Option Bool :=
-  some $ getValue r "black and white" (by header) == true
+  getValue r "black and white" == some true
 def blackAndWhite :=
   buildColumn jellyAnon "eat black and white" eatBlackAndWhite
 
 def eatBlackAndWhiteCorrected (r : Row (schema jellyAnon)) : Option Bool :=
-  match getValue r "black" (by header), getValue r "white" (by header) with
+  match getValue r "black", getValue r "white" with
     | .some true, .some true => true
     | _, _                   => false
 def blackAndWhiteCorrected :=
@@ -107,129 +112,127 @@ def blackAndWhiteCorrected :=
 def showAcneProportions {sch : @Schema String}
   (t : Table sch)
   (hacne : sch.HasCol ("get acne", Bool)) :=
-  pieChart (count t ⟨"get acne", hacne⟩) ⟨"true", by header⟩ ⟨"get acne", hacne⟩
-def pieCount := showAcneProportions jellyAnon (by header)
+  pieChart (count t "get acne") "true" "get acne"
+def pieCount := showAcneProportions jellyAnon
 
 def showAcneProportionsCorrected {sch : @Schema String}
   (t : Table sch)
   (hacne : sch.HasCol ("get acne", Bool)) :=
-  pieChart (count t ⟨"get acne", hacne⟩)
-           ⟨"value", by header⟩ ⟨"count", by header⟩
-def pieCountCorrected := showAcneProportionsCorrected jellyAnon (by header)
+  pieChart (count t "get acne" hacne) "value" "count"
+def pieCountCorrected := showAcneProportionsCorrected jellyAnon
 
 -- ## brownGetAcne
 def brownAndGetAcne {sch: @Schema String}
-  (hacne : sch.HasCol ("get acne", Bool))
-  (hbrown : sch.HasCol ("brown", Bool))
-  (r : Row sch) :=
-  match getValue r "brown" hbrown, getValue r "get acne" hacne with
+  (r : Row sch)
+  (hacne : sch.HasCol ("get acne", Bool) := by header)
+  (hbrown : sch.HasCol ("brown", Bool) := by header) :=
+  match getValue r "brown", getValue r "get acne" with
   | .some true, .some true => some true
   | _         , _          => some false
 def brownAndGetAcneTable :=
-  buildColumn jellyNamed "part2" (brownAndGetAcne (by header) (by header))
+  buildColumn jellyNamed "part2" brownAndGetAcne
 def brownGetAcne :=
-  count brownAndGetAcneTable ⟨"brown and get acne", by header⟩
+  count brownAndGetAcneTable "brown and get acne"
 
 def brownAndGetAcneTableCorrected :=
-  buildColumn jellyNamed "brown and get acne"
-    (brownAndGetAcne (by header) (by header))
+  buildColumn jellyNamed "brown and get acne" brownAndGetAcne
 def brownGetAcneCorrected :=
-  count brownAndGetAcneTableCorrected ⟨"brown and get acne", by header⟩
+  count brownAndGetAcneTableCorrected "brown and get acne"
 
 -- ## getOnlyRow
--- Proof error is again not entirely enlightening, but locality should make it
--- clear where things are going wrong.
+-- Proof error is not at all enlightening, but locality should at least make it
+-- somewhat evident where things are going wrong.
 def getOnlyRow :=
   getValue (
     getRow
-      (tfilter students (λ r => getValue r "name" (by header) = "Alice"))
+      (tfilter students (λ r => getValue r "name" = "Alice"))
       1
-      (by decide)
   )
   "favorite color"
-  (by header)
 
 def getOnlyRowCorrected :=
   getValue (
     getRow
-      (tfilter students (λ r => getValue r "name" (by header) = "Alice"))
+      (tfilter students (λ r => getValue r "name" = "Alice"))
       0
-      (by decide)
   )
   "favorite color"
-  (by header)
 
 -- ## favoriteColor
 def participantsLikeGreen {sch : @Schema String} (t : Table sch)
-  (hcolor: sch.HasCol ("favorite color", String)) :=
-      tfilter t (λ r => getValue r "favorite color" hcolor)
+  (hcolor: sch.HasCol ("favorite color", String) := by header) :=
+      tfilter t (λ r => getValue r "favorite color")
 
 def participantsLikeGreenCorrected {sch : @Schema String} (t : Table sch)
-  (hcolor: sch.HasCol ("favorite color", String)) :=
-      tfilter t (λ r => getValue r "favorite color" hcolor = "green")
+  (hcolor: sch.HasCol ("favorite color", String) := by header) :=
+      tfilter t (λ r => getValue r "favorite color" = "green")
 
 -- ## brownJellybeans
-def keep {sch : Schema} (hcolor : sch.HasCol ("color", Bool)) (r : Row sch) :=
+def keep {sch : Schema}
+         (hcolor : sch.HasCol ("color", Bool) := by header)
+         (r : Row sch) :=
   match getValue r "color" hcolor with
   | none => false
   | some b => b
 def countParticipants {sch : @Schema String}
-  (hcolor : sch.HasCol ("color", Bool)) (t : Table sch) (color : String) :=
-  nrows (tfilter t (keep hcolor))
-def brownJellyBeans := countParticipants (by header) jellyAnon "brown"
+  (t : Table sch) (color : String)
+  (hcolor : sch.HasCol ("color", Bool) := by header) :=
+  nrows (tfilter t keep)
+def brownJellyBeans := countParticipants jellyAnon "brown"
 
 def keepCorrected1 {sch : Schema}
-  (color: String) (hcolor : sch.HasCol (color, Bool))
+  (color: String) (hcolor : sch.HasCol (color, Bool) := by header)
   (r : Row sch) :=
   match getValue r color hcolor with
   | none => false
   | some b => b
 def countParticipantsCorrected1 {sch : @Schema String}
-  (color : String) (hcolor : sch.HasCol (color, Bool)) (t : Table sch) :=
-  nrows (tfilter t (keepCorrected1 color hcolor))
+  (color : String) (t : Table sch)
+  (hcolor : sch.HasCol (color, Bool) := by header) :=
+  nrows (tfilter t (keepCorrected1 color))
 def brownJellyBeansCorrected1 :=
-  countParticipantsCorrected1 "brown" (by header) jellyAnon
+  countParticipantsCorrected1 "brown" jellyAnon
 
 def countParticipantsCorrected2 {sch : @Schema String}
-  (color : String) (hcolor : sch.HasCol (color, Bool)) (t : Table sch) :=
+  (color : String) (t : Table sch)
+  (hcolor : sch.HasCol (color, Bool) := by header) :=
   let keep (r : Row sch) :=
-    match getValue r color hcolor with
+    match getValue r color with
     | none => false
     | some b => b
   nrows (tfilter t keep)
 def brownJellyBeansCorrected2 :=
-  countParticipantsCorrected2 "brown" (by header) jellyAnon
+  countParticipantsCorrected2 "brown" jellyAnon
 
 -- ## employeeToDepartment
 def lastNameToDeptId {sch : Schema}
   (deptTab : Table sch) (name : Option String)
-  (hln : sch.HasCol ("Last Name", String))
-  (hid : sch.HasCol ("Department ID", Nat)) :=
+  (hln : sch.HasCol ("Last Name", String) := by header)
+  (hid : sch.HasCol ("Department ID", Nat) := by header) :=
   let matchName (r : Row sch) : Bool :=
-    getValue r "Last Name" hln = name
+    getValue r "Last Name" = name
   let matchedTab := tfilter deptTab matchName
   match hnrows : nrows matchedTab with
   | 0 => none
   | .succ n =>
     let matchedRow := getRow matchedTab 0 (hnrows ▸ Nat.zero_lt_succ _)
-    getValue matchedRow "Department ID" hid
+    getValue matchedRow "Department ID"
 def employeeToDept {emplSch deptSch : @Schema String}
   (name : String)
   (emplTab : Table emplSch)
   (deptTab : Table deptSch)
-  (heln : emplSch.HasCol ("Last Name", String))
-  (hdln : deptSch.HasCol ("Last Name", String))
-  (hid : deptSch.HasCol ("Department ID", Nat)) :=
+  (heln : emplSch.HasCol ("Last Name", String) := by header)
+  (hdln : deptSch.HasCol ("Last Name", String) := by header)
+  (hid : deptSch.HasCol ("Department ID", Nat) := by header) :=
   buildColumn emplTab "Department Name" (λ r =>
-    lastNameToDeptId deptTab (getValue r "Last Name" heln) hdln hid)
+    lastNameToDeptId deptTab (getValue r "Last Name"))
 def employeeToDepartment :=
   employeeToDept "Rafferty" employees departments
-    (by header) (by header) (by header)
 
 def deptIdToDeptNameCorrected {sch : Schema}
   (deptTab : Table sch) (deptId : Option Nat)
-  (hnm : sch.HasCol ("Department Name", String))
-  (hid : sch.HasCol ("Department ID", Nat)) :=
+  (hnm : sch.HasCol ("Department Name", String) := by header)
+  (hid : sch.HasCol ("Department ID", Nat) := by header) :=
   let matchName (r : Row sch) : Bool :=
     getValue r "Department ID" hid = deptId
   let matchedTab := tfilter deptTab matchName
@@ -237,24 +240,23 @@ def deptIdToDeptNameCorrected {sch : Schema}
   | 0 => none
   | .succ n =>
     let matchedRow := getRow matchedTab 0 (hnrows ▸ Nat.zero_lt_succ _)
-    getValue matchedRow "Department Name" hnm
+    getValue matchedRow "Department Name"
 def employeeToDeptCorrected {emplSch deptSch : @Schema String}
   (name : String)
   (emplTab : Table emplSch)
   (deptTab : Table deptSch)
-  (heln : emplSch.HasCol ("Last Name", String))
-  (hdnm : deptSch.HasCol ("Department Name", String))
-  (heid : emplSch.HasCol ("Department ID", Nat))
-  (hdid : deptSch.HasCol ("Department ID", Nat)) :=
+  (heln : emplSch.HasCol ("Last Name", String) := by header)
+  (hdnm : deptSch.HasCol ("Department Name", String) := by header)
+  (heid : emplSch.HasCol ("Department ID", Nat) := by header)
+  (hdid : deptSch.HasCol ("Department ID", Nat) := by header) :=
   let matchName (r : Row emplSch) : Bool :=
-    getValue r "Last Name" heln = some name
+    getValue r "Last Name" = some name
   let matchedTab := tfilter emplTab matchName
   match hnrows : nrows matchedTab with
   | 0 => none
   | .succ n =>
     let matchedRow := getRow matchedTab 0 (hnrows ▸ Nat.zero_lt_succ _)
-    let deptId := getValue matchedRow "Department ID" heid
-    deptIdToDeptNameCorrected deptTab deptId hdnm hdid
+    let deptId := getValue matchedRow "Department ID"
+    deptIdToDeptNameCorrected deptTab deptId
 def employeeToDepartmentCorrected :=
   employeeToDeptCorrected "Rafferty" employees departments
-    (by header) (by header) (by header)

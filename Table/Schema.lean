@@ -1,4 +1,5 @@
 import Table.BuiltinExtensions
+import Lean
 
 universe u_η
 universe u
@@ -17,10 +18,39 @@ inductive Schema.HasName {η : Type u_η} : η → @Schema η → Type (max (u +
 | tl {r c rs} : HasName c rs → HasName c (r::rs)
 
 -- Tactics for generating terms of the above proof types
-macro "header" : tactic =>
-  `(tactic| repeat (first | apply Schema.HasCol.hd | apply Schema.HasCol.tl))
-macro "name" : tactic =>
-  `(tactic| repeat (first | apply Schema.HasName.hd | apply Schema.HasName.tl))
+section
+open Lean Lean.Meta Lean.Elab.Tactic
+
+def doNaiveSearch (pfTp : Name) (tacNm : String) (argNm : String)
+  : TacticM Unit := do
+    withMainContext do
+    let tgtNF ← whnfD (← getMainTarget)
+    if tgtNF.isAppOf pfTp then
+      let (arg, sch) := (tgtNF.getAppArgs[1]!, tgtNF.getAppArgs[2]!)
+      -- TODO: to make this more extensible, allow passing a list of
+      -- constructors as args to this function, then iterate through them here
+      if tacNm == "name" then
+        evalTactic
+          (← `(tactic| repeat (first | assumption
+                                     | apply Schema.HasName.hd
+                                     | apply Schema.HasName.tl)))
+      else
+         evalTactic
+          (← `(tactic| repeat (first | assumption
+                                     | apply Schema.HasCol.hd
+                                     | apply Schema.HasCol.tl)))
+      -- TODO: it would be better to get the main goal before searching, then
+      -- checking if that particular goal has been closed
+      if (← getUnsolvedGoals).length > 0 then
+        throwError m!"Could not prove that {argNm} {arg} is in schema {sch}"
+    else
+      let goal ← getMainGoal
+      throwError m!"Unsupported goal for {tacNm} tactic: {goal}"
+
+elab "header" : tactic => doNaiveSearch `Schema.HasCol "header" "header"
+
+elab "name" : tactic => doNaiveSearch `Schema.HasName "name" "name"
+end
 
 -- Schema-related convenience types
 def Subschema {η : Type u_η} (schm : @Schema η) :=
@@ -521,6 +551,21 @@ abbrev Schema.Unique {η : Type u_η} (ss : @Schema η) := List.Unique ss.names
 -- theorem Schema.lookup_eq_lookup?_unique {η : Type u_η} [DecidableEq η] :
 --   ∀ s : @Schema η, s.Unique → ∀ (nm : η), s.lookup? nm =
 -- TODO: prove equivalence with non-unique schema functions like lookup
+
+/- Homogeneous Schemata -/
+inductive Schema.Homogeneous (τ : Type _) : @Schema η → Type _
+  | nil : Schema.Homogeneous τ []
+  | cons : Schema.Homogeneous τ hs → Schema.Homogeneous τ ((nm, τ) :: hs)
+
+-- Turn an arbitrarily-typed header proof for a homogeneous schema into a
+-- homogeneously-typed one
+def Schema.homogenizeHC {nm τ} :
+    {σ : Type _} → {sch : @Schema η} →
+    sch.Homogeneous τ →
+    sch.HasCol (nm, σ) →
+    sch.HasCol (nm, τ)
+  | .(τ), _ :: _, .cons _, .hd => .hd
+  | _, _ :: _, .cons hh', .tl hc' => .tl $ homogenizeHC hh' hc'
 
 /- ActionList helpers -/
 
