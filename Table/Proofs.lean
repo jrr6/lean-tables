@@ -210,13 +210,16 @@ theorem leftJoin_spec2 {s₁ s₂ : @Schema η} :
       (schema (leftJoin t₁ t₂ cs)).lookup ⟨c, Schema.hasNameOfAppend h⟩ :=
 λ _ _ _ _ _ => Schema.lookup_eq_lookup_append _ _ _ _
 
--- TODO: spec 3
+-- TODO: leftJoin spec 3 cannot be stated as written in the spec; a suitably
+-- modified version of it that accounts for the disparity between lists and
+-- action lists should, however, hold
 -- theorem leftJoin_spec3 {s₁ s₂ : @Schema η} :
 --   ∀ (t₁ : Table s₁) (t₂ : Table s₂)
 --     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
 --     (cn : CertifiedName s₂),
 --     (h : sorry) → --require that it not be in cs
---     Schema.lookupType (schema (leftJoin t₁ t₂ cs)) cn = s₂.lookupType cn := sorry
+--     Schema.lookupType (schema (leftJoin t₁ t₂ cs)) cn = s₂.lookupType cn :=
+--       sorry
 
 -- Spec 4 as stated in the B2T2 spec is wrong. Consider the following SQLite
 -- queries:
@@ -815,6 +818,8 @@ theorem pivotLonger_spec1 :
   rfl
 
 -- TODO: pivotLonger spec 2
+-- Analogously to leftJoin spec 3, we can't state this as it's stated in B2T2,
+-- but a suitable reformulation of should hold
 
 -- Approximation without using `lookupType`
 def pivotLonger_spec3 {τ : Type u_η} :
@@ -1209,16 +1214,9 @@ theorem update_spec2 :
     Schema.retypedFromSubschema_preserves_names sch subsch
 
 -- TODO: `update` spec 3
--- This is an approximation of the original spec, which is rather clumsy to
--- state as given in Lean
-theorem update_spec3 :
-  ∀ (subsch : RetypedSubschema sch) (hsubsch : List.Unique subsch)
-    (t : Table sch) (f : Row sch → Row subsch.toSchema),
-  ∀ (c : η) (hc : Schema.HasName c subsch.toSchema),
-    Schema.lookupType (schema (update subsch t f))
-      ⟨c, Schema.retypedFromSubschemaHasNameOfRSToSchema hc⟩ =
-    Schema.lookupType subsch.toSchema ⟨c, hc⟩ :=
-  sorry
+-- This one is difficult to approximate in Lean because `RetypedSubschema`ta may
+-- repeat column names (`retypedFromSubschema` takes the last), so we can't
+-- directly translate B2T2's spec
 
 theorem update_spec4 :
   ∀ (subsch : RetypedSubschema sch) (t : Table sch)
