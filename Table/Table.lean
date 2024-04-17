@@ -4,14 +4,12 @@ import Table.Row
 universe u_η
 universe u
 -- Cell, row, table
--- Row/Cell setup based on Stephanie Weirich, "Dependent Types in Haskell,"
--- https://www.youtube.com/watch?v=wNa3MMbhwS4
--- Code!:
+-- Row/Cell setup based on Stephanie Weirich, "Dependent Types in Haskell":
 -- https://github.com/sweirich/dth/blob/master/regexp/src
 
--- We may still want to enforce distinct column names somehow...
---  --> we could subtype over lists to restrict to lists that don't contain
---      duplicates, but I could imagine that causing a lot of headaches
+-- We don't enforce uniqueness of column names as part of `Table`. Instead, a
+-- uniquely named table can be represented as a `Table` together with a
+-- `Schema.Unique` proof
 
 structure Table {η : Type u_η} [DecidableEq η] (hs : @Schema η) where
   rows : List (Row hs)

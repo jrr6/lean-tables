@@ -73,9 +73,6 @@ macro_rules
 syntax (name := autocomp_actionlist) "A[" term,* "]" : term
 
 open Lean Elab Tactic in
-elab "print_goal" : tactic => withMainContext do
-  let goal ← getMainTarget
-  dbg_trace goal
 
 -- Tactic to autogenerate ActionList proofs (we may need to cycle the goals
 -- so that our Schema proof can figure out what type we need to find an instance

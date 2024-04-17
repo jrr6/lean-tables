@@ -419,9 +419,10 @@ def join {κ : Type u_η} [DecidableEq κ]
 
 -- As with `count`, we could enforce some constraint on κ to allow for
 -- optimizations (e.g, RBTs)?
--- FIXME: we need to allow for schema' to have a different η, but this leads
--- to annoying typeclass resolution errors. Also, we probably need a distinct η'
--- in other functions where we can change schemata -- double-check!
+-- TODO: we need to allow for schema' to have a different η, but this leads
+-- to annoying typeclass resolution errors. This is likely also an issue for
+-- other functions where full generality requires allowing disparate schema-name
+-- types.
 -- Note that we can't stipulate that η' : Type u_η b/c there's no guarantee it
 -- belongs to the same universe level as η (and, indeed, enforcing this breaks
 -- things)
@@ -703,14 +704,10 @@ groupBy_certified t
           | _ => acc)
   )
 
--- TODO: a lot of stuff to fix here...
--- TODO: we should really be able to synthesize the DecidableEq instance
--- ourselves (the client only needs to use the `inst` tactic in the test file,
--- but even that really shouldn't be necessary)
 def pivotTable (t : Table schema)
   -- TODO: probably need a custom product with decidable equality instances (I
-  -- think we have one already somewhere else in the code!) (Could also try to
-  -- just let Lean infer it using `Row $ Schema.fromCHeaders etc`, but I'm not
+  -- think we have one already somewhere else in the code) (Could also try to
+  -- just let Lean infer it using `Row $ Schema.fromCHeaders ...`, but I'm not
   -- sure it's smart enough to do that -- should test!)
   (cs : List (CertifiedHeader schema))
   (aggs : List ((c' : @Header η) ×

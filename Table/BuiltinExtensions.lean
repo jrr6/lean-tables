@@ -1254,7 +1254,7 @@ theorem List.uniqueAux_acc_append {α} [DecidableEq α] (xs : List α)
         apply h x (Mem.tail _ hx)
   rw [uniqueAux_acc_append_filter]
   cases xs with
-  | nil => apply congrArg; simp [filter] -- previously filterAux
+  | nil => apply congrArg; simp [filter]
   | cons x xs =>
     apply congrArg
     rw [this]
@@ -1312,9 +1312,6 @@ def List.memT_unique_of_memT {α} [DecidableEq α]
       contradiction
     simp only [hnin, not_false_eq_true, decide_True]
 termination_by List.memT_unique_of_memT x xs hmem => xs.length
-  -- let ih : MemT x (unique (filter (fun a => decide ¬a ∈ [y]) xs)) :=
-  --   memT_unique_of_memT _
-  -- apply .tl _ ih
 
 theorem List.matchKey_fst_eq_filter_k_map_snd {κ ν} [inst : DecidableEq κ] :
   ∀ (xs : List (κ × ν)) (k : κ),
@@ -1326,33 +1323,10 @@ by intros xs k
      simp only [matchKey]
      cases inst x.1 k with
      | isFalse hfalse =>
-      --  simp only [hfalse, ite_false, List.filterAux, ih]
        simp only [hfalse, ite_false, ih, filter]
        exact rfl
      | isTrue htrue =>
        simp [htrue, ite_true, filter, ih, map]
-      --  simp only [htrue, ite_true, List.filterAux, ih]
-       -- TODO: why won't Lean reduce `match decide True with...` to the
-       -- `true` arm automatically? This workaround works but is ugly.
-      --  have h :
-      --   (x.2 :: List.map Prod.snd (List.filterAux
-      --       (λ x => decide (x.fst = k)) xs []) =
-      --     List.map Prod.snd
-      --       (match decide True with
-      --       | true => List.filterAux (fun x => decide (x.fst = k)) xs [x]
-      --       | false => List.filterAux (fun x => decide (x.fst = k)) xs []))
-      --   = (x.2 :: List.map Prod.snd (List.filterAux
-      --       (λ x => decide (x.fst = k)) xs []) =
-      --     List.map Prod.snd (List.filterAux
-      --       (fun x => decide (x.fst = k)) xs [x])) := rfl
-      --  simp only at h
-      --  apply cast (Eq.symm h)
-      --  have h_filterAux := List.filterAux_acc_eq_rev_append
-      --                       (λ x => decide (x.fst = k)) xs [x] []
-      --  rw [List.nil_append, List.reverse_singleton, List.singleton_append]
-      --   at h_filterAux
-      --  rw [h_filterAux]
-      --  simp only [List.map]
 
 theorem List.matchKey_length_lt {κ} [DecidableEq κ] {ν}
                                 (k : κ) (kvs : List (κ × ν)) :
