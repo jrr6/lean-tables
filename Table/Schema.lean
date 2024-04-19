@@ -163,11 +163,6 @@ def Schema.colImpliesName :
       schema.HasCol (c, τ) → schema.HasName c
 | h :: hs, _, _, HasCol.hd => HasName.hd
 | h :: hs, c, τ, HasCol.tl p => HasName.tl (colImpliesName p)
--- Can also be done in tactic mode:
--- | h :: hs, c, τ, p => by
---     cases p with
---     | hd => apply HasName.hd
---     | tl a => apply HasName.tl (colImpliesName a)
 
 -- There occasionally seem to be some issues with this function, too -- not sure
 -- if it's the same issue as `removeName` and `lookup`, but will leave these
@@ -194,19 +189,6 @@ def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
 @[reducible]
 def Schema.names {η : Type u_η} (sch : @Schema η) :=
   List.map (@Prod.fst η (Type u)) sch
-
--- TODO: when we come back to do uniqueness, this might be helpful
--- def Schema.removeName :
---     (s : @Schema η) → {c : η // s.HasName c} → @Schema η
-/-
-dite (c = nm)
-       (λ _ => xs)
-       (λ nh => (nm, τ) :: removeName xs ⟨c, by
-        cases h with
-        | hd => simp at nh
-        | tl tl_h => apply tl_h
-        ⟩)
--/
 
 -- Doesn't work b/c we can't definitionally equate conditionals with their
 -- evaluation, even when the equality is tautological
@@ -236,9 +218,8 @@ def Schema.removeHeader {c : η} {τ : Type u}
                         (hd : s.HasCol (c, τ))
     : @Schema η :=
   removeName s (Schema.colImpliesName hd)
--- | _::s, .hd => s
--- | s::ss, .tl h => s :: removeHeader ss h
 
+-- These seem to occasionally be necessary, depending on the Lean version
 -- theorem Schema.removeHeader_eq_1 {η : Type u_η} [DecidableEq η]
 --   {c : η} (hdr : @Header η) (ss : @Schema η) :
 --   removeHeader (hdr :: ss) Schema.HasCol.hd = ss := rfl
@@ -541,16 +522,6 @@ def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
 -- A *unique* schema is one with distinct header names. Unique schemata are
 -- required by the B2T2 spec.
 abbrev Schema.Unique {η : Type u_η} (ss : @Schema η) := List.Unique ss.names
-
--- -- TODO: prove agrees with `lookup` when uniqueness criterion above holds
--- def Schema.lookup? {η : Type u_η} [DecidableEq η] :
---   @Schema η → η → Option (Type u)
---   | [], _ => none
---   | (n, τ) :: ss, nm => if n = nm then τ else lookup? ss nm
-
--- theorem Schema.lookup_eq_lookup?_unique {η : Type u_η} [DecidableEq η] :
---   ∀ s : @Schema η, s.Unique → ∀ (nm : η), s.lookup? nm =
--- TODO: prove equivalence with non-unique schema functions like lookup
 
 /- Homogeneous Schemata -/
 inductive Schema.Homogeneous (τ : Type _) : @Schema η → Type _

@@ -35,14 +35,6 @@ instance {η} {schema : @Schema η}
     ++ List.foldr (λ r acc => rowInst.toHTML r ++ acc) "" t.rows
     ++ "</tbody></table>"
 
--- def t1 : Table [("name", String), ("age", Nat), ("favorite color", String)] :=
--- Table.mk [
---   /["Bob"  , 12, "blue" ],
---   /["Alice", 17, "green"],
---   /["Eve"  , 13, "red"  ],
---   /["Colton", 19, "blue"]
--- ]
-
 def mkTableWidget {η} [DecidableEq η] {schema : @Schema η} (t : Table schema) [htmlInst : ToHTML (Table schema)] :
     UserWidgetDefinition where
   name :=  "Display Table"
@@ -52,37 +44,8 @@ def mkTableWidget {η} [DecidableEq η] {schema : @Schema η} (t : Table schema)
       return React.createElement('div', {dangerouslySetInnerHTML: {__html: '" ++ ToHTML.toHTML t ++ "'}})
     }"
 
-def null := Lean.Json.null
-
--- @[widget] def table1Widget :=
---   mkTableWidget t1 --(Table.mk (hs := [("name", String), ("age", Nat)]) [/["hi", 3]])
-
--- #widget table1Widget Json.null
-
--- def gradebookTable : Table [("name", ULift String),
---                             ("age", ULift Nat),
---                             ("quizzes", Table [("quiz#", Nat), ("grade", Nat)]),
---                             ("midterm", ULift Nat),
---                             ("final", ULift Nat)] :=
--- Table.mk [
---   /[ULift.up "Bob"  , ULift.up 12, Table.mk [/[1, 8],
---                                              /[2, 9],
---                                              /[3, 7],
---                                              /[4, 9]], ULift.up 77, ULift.up 87],
---   /[ULift.up "Alice", ULift.up 12, Table.mk [/[1, 6],
---                                              /[2, 8],
---                                              /[3, 8],
---                                              /[4, 7]], ULift.up 88, ULift.up 85],
---   /[ULift.up "Eve"  , ULift.up 13, Table.mk [/[1, 7],
---                                              /[2, 9],
---                                              /[3, 8],
---                                              /[4, 8]], ULift.up 84, ULift.up 77]
--- ]
-
--- @[widget] def gbTableWidget := mkTableWidget gradebookTable
-
--- #widget gbTableWidget Json.null
-
+-- TODO: in an ideal world, this wouldn't be necessary, but we keep this around
+-- to deal with reducibility issues
 macro "html_inst" : tactic =>
 -- The order matters because we don't want to use a row/table's ToString impl
   `(tactic| repeat (first
@@ -93,7 +56,7 @@ macro "html_inst" : tactic =>
     | infer_instance))
 
 syntax (name := tableWidgetCommand) "#table" term : command
-
+-- TODO: this uses deprecated APIs that are broken in the latest Lean version
 @[command_elab tableWidgetCommand] private unsafe def elabTableWidget : Lean.Elab.Command.CommandElab :=
   open Lean Lean.Elab Command Term in λ
   | stx@`(#table $table:term) => do

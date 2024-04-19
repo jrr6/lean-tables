@@ -716,7 +716,6 @@ def pivotTable (t : Table schema)
   [inst : DecidableEq (Row (Schema.fromCHeaders cs))]
   : Table (Schema.append (Schema.fromCHeaders cs)
                          (Schema.map (·.1) aggs)) :=
-                      --  (Schema.fromCHeaders (aggs.map (λ a => a.2.1)))) :=
 groupBy t
   (λ r => r.pick cs)
   (λ r => r)
@@ -727,7 +726,6 @@ groupBy t
                   (c : CertifiedHeader schema) ×
                   (List (Option c.1.2) → Option c'.2))) →
       Row (Schema.map (·.1) as)
-      -- Row $ Schema.fromCHeaders (as.map (λ a => a.2.1))
     | [] => Row.nil
     | ⟨c', c, f⟩ :: as =>
       let newCell : Cell c'.1 c'.2 := Cell.fromOption $
