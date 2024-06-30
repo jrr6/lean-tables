@@ -15,7 +15,7 @@ structure Table {η : Type u_η} [DecidableEq η] (hs : @Schema η) where
   rows : List (Row hs)
 
 -- Decidable equality
-instance {η : Type u_η} [dec_η : DecidableEq η]
+instance instDecidableEqTable {η : Type u_η} [dec_η : DecidableEq η]
          {sch : @Schema η} [inst : DecidableEq (Row sch)]
     : DecidableEq (Table sch) :=
 λ {rows := r₁} {rows := r₂} =>

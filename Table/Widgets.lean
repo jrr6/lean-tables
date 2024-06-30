@@ -56,7 +56,7 @@ macro "html_inst" : tactic =>
     | infer_instance))
 
 syntax (name := tableWidgetCommand) "#table" term : command
--- TODO: this uses deprecated APIs that are broken in the latest Lean version
+-- TODO: this uses deprecated APIs
 @[command_elab tableWidgetCommand] private unsafe def elabTableWidget : Lean.Elab.Command.CommandElab :=
   open Lean Lean.Elab Command Term in λ
   | stx@`(#table $table:term) => do
@@ -71,5 +71,5 @@ syntax (name := tableWidgetCommand) "#table" term : command
     let null_stx ← `(Json.null)
     let props : Json ← runTermElabM fun _ =>
       Term.evalTerm Json (mkConst ``Json) null_stx
-    saveWidgetInfo decl props stx
+    Elab.Command.liftCoreM <| saveWidgetInfo decl props stx
   | _ => throwUnsupportedSyntax

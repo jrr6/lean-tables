@@ -39,7 +39,8 @@ theorem toOption_fromOption {nm : η} :
 end Cell
 
 -- Decidable equality
-instance {nm : η} {τ : Type u} [inst : DecidableEq τ] : DecidableEq (Cell nm τ)
+instance instDecidableEqCell {nm : η} {τ : Type u} [inst : DecidableEq τ] :
+  DecidableEq (Cell nm τ)
 | Cell.emp, Cell.emp => isTrue rfl
 | Cell.emp, (Cell.val x) => isFalse (λ hneg => Cell.noConfusion hneg)
 | (Cell.val x), Cell.emp => isFalse (λ hneg => Cell.noConfusion hneg)

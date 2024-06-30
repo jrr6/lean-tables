@@ -461,9 +461,6 @@ theorem head_spec3 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
   simp only [head, nrows, List.dropLastN, Function.comp, h,
              Schema.length_eq_List_length, ite_true]
   rw [List.length_reverse, List.length_drop, List.length_reverse]
-  -- Need separate `rw`s here so that the equality proof can be auto-generated
-  rw [List.length_reverse]
-  exact prop
 
 -- `distinct`
 
@@ -500,12 +497,10 @@ theorem dropColumn_spec2_unique :
       by simp only [decide_not, List.mem_singleton_iff, decide_True,
                     decide_False, not]
     rw [this]
-    simp only
     simp only [Schema.names, List.map]
     have : List.filter (λ x => x ∉ [nm]) (List.map Prod.fst s')
             = List.removeAllEq (List.map Prod.fst s') [nm] := rfl
-    rw [this]
-    rw [List.removeAllEq_singleton_nonelem_eq]
+    rw [this, List.removeAllEq_singleton_nonelem_eq]
     exact hnmem
   | @tl hdr nm s' h ih =>
     simp only [Schema.names, List.map]

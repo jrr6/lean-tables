@@ -158,10 +158,10 @@ elab_rules : term <= expType
         let elemRaw : TSyntax `term := ⟨elems.elemsAndSeps.get! i⟩
         let elemRawTp ← inferType (← elabTerm elemRaw none)
         let elemRawIsTuple := (← whnfD elemRawTp).isAppOf ``Prod  -- or use paramTp
-        let item : TSyntax `term :=
+        let item : TSyntax `term ← do
           if needTuple && !elemRawIsTuple
-          then (← `(($elemRaw, _)))
-          else elemRaw
+          then `(($elemRaw, _))
+          else pure elemRaw
         expandListLit i true (←``($ctor ⟨$item, by action_list_tactic⟩ $result))
 
     let nil ← if isList then ``(List.nil) else ``(ActionList.nil)

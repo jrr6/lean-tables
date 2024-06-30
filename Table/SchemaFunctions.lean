@@ -97,11 +97,6 @@ theorem List.length_rw {T : α → Type _} {s t : α} :
 
 
 -- Lemmas for selectColumns2_spec2
-theorem List.get_map :
-  ∀ (f : α → β) (xs : List α) (i : Fin xs.length),
-  f (get xs i) = get (map f xs) ⟨i.val, (length_map xs f).symm.subst i.isLt⟩
-| f, x :: xs, ⟨0, hi⟩ => rfl
-| f, x :: xs, ⟨.succ i, hi⟩ => get_map f xs ⟨i, Nat.lt_of_succ_lt_succ hi⟩
 
 theorem Schema.get_map_nths_eq_get_get :
   ∀ (xs : List (α × β)) (ns : List (Fin $ Schema.length xs)) (i : Nat)
@@ -213,7 +208,7 @@ def Schema.retypedSubschemaHasSchemaName :
 | sch, nm, [], hnm => hnm
 | (_, _) :: _, nm, ⟨(_, _), _⟩ :: rs', pf =>
   retypedSubschemaHasSchemaName (Schema.map _ rs') (Schema.hasRetypedName pf)
-termination_by retypedSubschemaHasSchemaName rs h => Schema.length rs
+termination_by _ _ rs h => Schema.length rs
 
 @[reducible]
 def Schema.retypedFromSubschemaHasNameOfRSToSchema :
@@ -236,7 +231,7 @@ theorem Schema.retypedFromSubschema_preserves_names :
       (Schema.map (fun ⟨h, pf⟩ => ⟨h, hasRetypedName pf⟩) rs)
     rw [this]
     simp only [retypeColumn_preserves_names]
-termination_by retypedFromSubschema_preserves_names sch rs => Schema.length rs
+termination_by sch rs => Schema.length rs
 
 /- fromCHeaders -/
 @[reducible]

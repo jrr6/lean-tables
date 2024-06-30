@@ -167,7 +167,7 @@ def distinct [DecidableEq (Row schema)] : Table schema → Table schema
       (rs.filter (λ r' => r ≠ r'))
     }))
   )}
-termination_by distinct t => t.rows.length
+termination_by t => t.rows.length
 
 def dropColumn (t : Table schema) (c : η) (hc : schema.HasName c := by name)
     : Table (schema.removeName hc) :=
@@ -282,10 +282,12 @@ def bin [ToString η]
 
     have hterm : max - (k + n) < max - k :=
     by apply Nat.lt_of_sub_add
-       . exact Nat.lt_of_not_ge _ _ h
+       . exact Nat.lt_of_not_le h
        . exact hn
 
     (k, cnt) :: kthBin (k + n) rest
+  termination_by k xs => max - k
+
   let bins := kthBin (n * (s / n + 1)) (s :: ss)
   {rows := bins.map (λ (k, cnt) =>
     Row.cons (Cell.val $
@@ -294,7 +296,6 @@ def bin [ToString η]
                         ++ " < "
                         ++ toString k)
       (Row.singleValue cnt))}
-termination_by kthBin k xs => max - k
 end BinTypeScope
 
 -- # Mising Values
@@ -352,9 +353,10 @@ def update {schema₁ : @Schema η}
       updateCells (schema := schema.retypeColumn _ _)
         (r.retypeCellByName hsch c)
         (Row.retypedSubschemaPres rest)
+    termination_by _ _ r rs => rs.length
+
     updateCells r newCells
   )}
-termination_by update.updateCells r rs => rs.length
 
 def fillna {τ}
            (t : Table schema)
@@ -496,9 +498,9 @@ def flattenOne {schema : @Schema η} :
     then (cleanR.retypeCell c.2.2 (Cell.val v)) :: setVals vs []
     else []
   | v :: vs, r :: rs => (r.retypeCell c.2.2 (Cell.val v)) :: setVals vs rs
+  termination_by vs rs => vs.length + rs.length
 
   (setVals vals (r :: rs), r.retypeCell c.2.2 Cell.emp) :: flattenOne rss c isFirst
-termination_by setVals vs rs => vs.length + rs.length
 
 -- Note: the number of flattened copies of a given row is equal to the min
 -- length of any sequence in a column specified in cs in that row
@@ -617,7 +619,7 @@ def pivotWider.foldProof
   simp only [getColumn2, getValue]
   let nmCell := r.getCell .hd
   have hsomenm : some nm = Cell.toOption nmCell := by
-    simp only [Cell.toOption, hnm]
+    simp only [nmCell, Cell.toOption, hnm]
   rw [hsomenm]
   have hcelleq : nmCell = r.getCell .hd := rfl
 
@@ -639,7 +641,7 @@ def pivotWider.foldProof
         (λ r' => r'.pick [⟨(c1, η), hc1⟩,
                           ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) $ r) :=
       rfl
-    rw [hcomp, List.map_comp]
+    rw [hcomp, ←List.map_map]
     apply List.memT_map_of_memT (f :=
       (λ (r : Row (Schema.fromCHeaders
         [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])) =>
@@ -651,7 +653,7 @@ def pivotWider.foldProof
     (λ r => Cell.toOption (Row.getCell r hc1)) =
     (λ r => (Cell.toOption ∘ (λ r' => Row.getCell r' hc1)) r) :=
     rfl
-  rw [hcomp, List.map_comp]
+  rw [hcomp, ←List.map_map]
   apply List.memT_map_of_memT
   apply hcell
 

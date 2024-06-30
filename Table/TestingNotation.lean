@@ -128,8 +128,8 @@ def instHint (α : Type _) (inst : DecidableEq α) (x : α) (y : α) :=
 macro "inst" : tactic =>
   `(tactic| repeat (first
     | apply instDecidableEqTable (inst := _)
-    | apply instDecidableEqRowConsHeaderMkType (it := _) (ic := _) (ir := _)
-    | apply instDecidableEqRowNilHeader
+    | apply instDecidableEqRowCons (it := _) (ic := _) (ir := _)
+    | apply instDecidableEqRowNil
     | apply instDecidableEqCell (inst := _)
     | infer_instance))
 

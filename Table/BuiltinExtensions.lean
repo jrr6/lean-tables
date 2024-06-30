@@ -42,26 +42,6 @@ instance (k : Nat) : OfNat (Fin k.succ) n :=
   then ⟨n, h⟩
   else ⟨0, Nat.zero_lt_succ k⟩
 
--- This goes the wrong way -- keep it around just in case...
-theorem Nat.lt_of_add_lt_add : ∀ (a m n : Nat), m + a < n + a → m < n
-| 0, m, n, h => h
-| 1, m, n, h => Nat.lt_of_succ_lt_succ h
-| succ (succ a'), m, n, h =>
-  -- Copied from `one_lt_succ_succ` in Lean 3's `basic.lean`
-  have term_help : 1 < succ (succ a') := succ_lt_succ $ succ_pos a'
-  have ih1 := lt_of_add_lt_add 1 (m + succ a') (n + succ a') h
-  have ih := lt_of_add_lt_add (succ a') m n ih1
-  ih
-
-theorem Nat.add_lt_add_of_lt : ∀ (a m n : Nat), m < n → m + a < n + a :=
-by intros a m n h
-   induction a with
-   | zero => exact h
-   | succ n' ih =>
-    rw [←Nat.add_one, ←Nat.add_assoc, ←Nat.add_assoc, Nat.add_one, Nat.add_one]
-    apply Nat.succ_lt_succ
-    exact ih
-
 def List.prod {α β} : List α → List β → List (α × β)
 | [], _ => []
 | _, [] => []
@@ -69,15 +49,15 @@ def List.prod {α β} : List α → List β → List (α × β)
 | x :: x' :: xs, ys =>
   have h₁ : Nat.succ 0 + length ys <
             Nat.succ (Nat.succ (length xs)) + length ys :=
-    by apply Nat.add_lt_add_of_lt
+    by apply Nat.add_lt_add_right
        apply Nat.succ_lt_succ $ Nat.succ_pos (length xs)
   have h₂ : Nat.succ (length xs) + length ys <
             Nat.succ (Nat.succ (length xs)) + length ys :=
-    by apply Nat.add_lt_add_of_lt
+    by apply Nat.add_lt_add_right
        apply Nat.succ_lt_succ
        apply Nat.lt.base
   prod [x] ys ++ prod (x' :: xs) ys
-termination_by List.prod xs ys => xs.length + ys.length
+termination_by xs ys => xs.length + ys.length
 
 def List.dropLastN {α} : Nat → List α → List α :=
   (λ n => reverse ∘ List.drop n ∘ reverse)
@@ -222,7 +202,7 @@ theorem List.split_length_fst {α} :
   by simp only [split, length]
      apply Or.intro_right
      apply Nat.succ_lt_succ
-     simp [length, Nat.add] at ih
+     simp only [length, Nat.add] at ih
      apply Nat.lt.step
      cases ih with
      | inl _ => contradiction
@@ -270,8 +250,7 @@ def List.mergeWith {α} : (α → α → Ordering) → List α × List α → Li
   match cmp x y with
   | Ordering.gt => y :: mergeWith cmp (ys, x :: xs)
   | _ => x :: mergeWith cmp (y :: ys, xs)
-termination_by mergeWith cmp prd => prd.fst.length + prd.snd.length
-decreasing_by assumption
+termination_by cmp prd => prd.fst.length + prd.snd.length
 
 def List.mergeSortWith {α} : (α → α → Ordering) → List α → List α
 | _, [] => []
@@ -306,8 +285,7 @@ def List.mergeSortWith {α} : (α → α → Ordering) → List α → List α
   let xs_split := split (x₁ :: x₂ :: xs)
   mergeWith cmp (mergeSortWith cmp (xs_split.fst),
                   mergeSortWith cmp (xs_split.snd))
-termination_by mergeSortWith cmp xs => xs.length
-decreasing_by assumption
+termination_by cmp xs => xs.length
 
 theorem List.zip_length_eq_of_length_eq :
   ∀ (xs : List α) (ys : List β) (h : xs.length = ys.length),
@@ -335,11 +313,11 @@ theorem List.length_prod : ∀ (xs : List α) (ys : List β),
 | x :: x' :: xs, y :: ys =>
   have h_term₁ : Nat.succ 0 + Nat.succ (length ys) <
                  Nat.succ (Nat.succ (length xs)) + Nat.succ (length ys) :=
-    by apply Nat.add_lt_add_of_lt
+    by apply Nat.add_lt_add_right
        apply Nat.succ_lt_succ $ Nat.succ_pos (length xs)
   have h_term₂ : Nat.succ (length xs) + Nat.succ (length ys) <
                  Nat.succ (Nat.succ (length xs)) + Nat.succ (length ys) :=
-    by apply Nat.add_lt_add_of_lt
+    by apply Nat.add_lt_add_right
        apply Nat.succ_lt_succ
        apply Nat.lt.base
   have ih₁ := length_prod [x] (y :: ys)
@@ -349,16 +327,7 @@ theorem List.length_prod : ∀ (xs : List α) (ys : List β),
      rw [List.length_append, ih₁, ih₂]
      simp only [length]
      rw [←Nat.add_mul, Nat.zero_add, Nat.add_comm 1]
-termination_by List.length_prod xs ys => xs.length + ys.length
-
-theorem List.length_drop : ∀ (n : Nat) (xs : List α),
-  n < xs.length → length (drop n xs) = length xs - n
-| 0, _, _ => by simp only [drop, Nat.sub_zero]
-| n + 1, x :: xs, h =>
-  have ih := length_drop n xs (Nat.lt_of_succ_lt_succ h)
-  by simp only [drop, Nat.add, length]
-     rw [Nat.succ_sub_succ_eq_sub]
-     exact ih
+termination_by xs ys => xs.length + ys.length
 
 theorem List.length_take :
   ∀ (n : Nat) (xs : List α) (h : n < xs.length),
@@ -373,38 +342,11 @@ theorem List.length_take :
 
 theorem List.reverse_singleton (x : α) : reverse [x] = [x] := rfl
 
-theorem List.singleton_append (x : α) (xs : List α) : [x] ++ xs = x :: xs := rfl
-
-theorem List.map_map {α β γ : Type _} :
-  ∀ (g : β → γ) (f : α → β) (xs : List α) ,
-  map g (map f xs) = map (g ∘ f) xs
-| _, _, [] => rfl
-| g, f, x :: xs => congrArg (g (f x) :: ·) (map_map g f xs)
-
-theorem List.map_append (f : α → β) : ∀ (xs ys : List α),
-  List.map f (xs ++ ys) = List.map f xs ++ List.map f ys
-| [], ys => rfl
-| x :: xs, ys =>
-  have ih := map_append f xs ys
-  congrArg (f x :: ·) ih
-
 theorem List.map_map_append {α β γ δ : Type _} :
   ∀ (xs : List α) (ys : List β) (f : γ → δ) (g : α → γ) (h : β → γ),
   map f (map g xs ++ map h ys) = map (f ∘ g) xs ++ map (f ∘ h) ys
 | [], ys, f, g, h => map_map f h ys
 | x :: xs, ys, f, g, h => congrArg (f (g x) :: ·) (map_map_append xs ys f g h)
-
-theorem List.map_comp (f : β → γ) (g : α → β) :
-  ∀ (xs : List α), List.map (f ∘ g) xs = List.map f (List.map g xs)
-| [] => rfl
-| x :: xs => congrArg _ $ List.map_comp f g xs
-
-theorem List.map_id : ∀ (xs : List α), List.map id xs = xs
-| [] => rfl
-| x :: xs => congrArg (x :: ·) (map_id xs)
-
-theorem List.not_mem_nil {α} (x : α) : ¬ (x ∈ []) :=
-λ h => nomatch h
 
 theorem List.sublist_self : ∀ (xs : List α), Sublist xs xs
 | [] => Sublist.nil
@@ -525,8 +467,6 @@ theorem List.removeAllEq_singleton_hd_eq [DecidableEq α] :
   ∀ (x: α) (xs : List α), removeAllEq (x :: xs) [x] = removeAllEq xs [x] := by
   intros x xs
   simp [removeAllEq, filter, notElem, elem] -- previous filterAux too
-  have hmem : x ∈ [x] := by constructor
-  simp only [hmem, decide_true, not]
 
 theorem List.removeAllEq_singleton_hd_neq {α : Type _} [DecidableEq α] :
   ∀ (x : α) (y : α) (xs : List α),
@@ -651,7 +591,7 @@ theorem List.length_mergeSortWith : ∀ (cmp : α → α → Ordering) (xs : Lis
          Nat.add_assoc (length xs)]
      apply congrArg (λ x => x + (1 + 1))
      apply length_split
-termination_by length_mergeSortWith cmp xs => xs.length
+termination_by cmp xs => xs.length
 
 -- Slightly over-generalized "loop invariant" (we could make the preservation
 -- portion more specific, e.g., by providing `x ∈ xs` as an extra hypothesis)
@@ -710,17 +650,6 @@ theorem Nat.lt_of_sub_add : ∀ (m k n : Nat),
     . exact Nat.zero_lt_sub_of_lt hkm
     . exact hn
 
-
-theorem Nat.lt_of_not_ge (x y : Nat) (h : ¬(x ≥ y)) : x < y :=
-by unfold LT.lt
-   unfold instLTNat
-   unfold Nat.lt
-   simp only
-   have h' : Nat.le (Nat.succ x) y = ((x + 1) ≤ y) := rfl
-   rw [h']
-   rw [←Nat.not_le_eq]
-   apply h
-
 def Int.abs : Int → Nat
 | Int.ofNat n => n
 | Int.negSucc n => n.succ
@@ -749,31 +678,14 @@ by intros h
    cases n with
    | ofNat n => contradiction
    | negSucc n =>
-     simp only [abs]
      unfold HSub.hSub
      unfold instHSub
      unfold Sub.sub
-     unfold Int.instSubInt
+     unfold Int.instSub
      unfold Int.sub
-     simp only
+     simp only [abs]
      rw [neg_succ_eq_neg_ofNat_succ]
-
-theorem Int.add_comm : ∀ (x y : Int), x + y = y + x :=
-by intros x y
-   unfold HAdd.hAdd
-   unfold instHAdd
-   unfold Add.add
-   unfold instAddInt
-   unfold Int.add
-   induction x with
-   | ofNat n =>
-     cases y with
-     | ofNat m => simp [Nat.add_comm]
-     | negSucc m => simp
-   | negSucc n =>
-     cases y with
-     | ofNat m => simp
-     | negSucc m => simp [Nat.add_comm]
+     simp only [Nat.succ_eq_add_one, ofNat_eq_coe, natCast_add, Nat.cast_ofNat_Int]
 
 -- BEGIN `groupByKey`
 -- (Contains infrastructure for `groupBy`, as well as some extra proofs that
@@ -916,9 +828,6 @@ theorem Or.assoc : (P ∨ Q) ∨ R ↔ P ∨ Q ∨ R :=
                            (Or.inr ∘ Or.inr))
             (λ h => h.elim (Or.inl ∘ Or.inl)
                            (λ hqr => hqr.elim (Or.inl ∘ Or.inr) Or.inr))
-theorem Or.comm : P ∨ Q ↔ Q ∨ P :=
-  let flip : ∀ {R S}, R ∨ S → S ∨ R := (λ h => h.elim Or.inr Or.inl)
-  Iff.intro flip flip
 
 -- Taken from Lean 3 mathlib lib/lean/library/init/data/list/lemmas.lean 112
 theorem List.mem_append : ∀ {xs ys : List α} {a : α}, a ∈ xs ++ ys ↔ a ∈ xs ∨ a ∈ ys
@@ -1002,32 +911,13 @@ theorem List.mem_reverse_iff (x : α) (xs : List α) :
 -- TODO: when switching to Lean 4.5, delete the first simp, then switch the
 -- `foldr` simps to `all` simps
 theorem List.all_pred {p : α → Prop} [DecidablePred p] {xs : List α} :
-  xs.all (λ x => decide (p x)) ↔ ∀ x, x ∈ xs → p x := by
-  simp only [all]
-  apply Iff.intro
-  . intros hforward x hx
-    induction hx with
-    | head as =>
-      simp [foldr] at hforward
-      apply And.left hforward
-    | tail a h ih =>
-      apply ih
-      simp [foldr] at hforward
-      apply And.right hforward
-  . intros hbackward
-    induction xs with
-    | nil => simp [foldr]
-    | cons x xs ih =>
-      simp [foldr]
-      apply And.intro
-      . apply hbackward x (List.Mem.head _)
-      . apply ih
-        intro x' hx'
-        apply hbackward _ $ List.Mem.tail _ hx'
+  xs.all (λ x => decide (p x)) ↔ ∀ x, x ∈ xs → p x :=
+  ⟨λ h x hx => of_decide_eq_true (List.all_eq_true.mp h x hx),
+   λ h => List.all_eq_true.mpr (λ x hx => decide_eq_true (h x hx))⟩
 
 @[instance] def List.forAllDecidable (xs : List α) (p : α → Prop)
   [DecidablePred p] : Decidable (∀x, x ∈ xs → p x) :=
-if h : xs.all (λ x => decide (p x))
+if h : xs.all p
 then Decidable.isTrue (List.all_pred.mp h)
 else Decidable.isFalse (h ∘ List.all_pred.mpr)
 
@@ -1077,7 +967,7 @@ theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
   uniqueAux xs acc = reverse acc ++ unique (xs.filter (· ∉ acc))
 | [], acc => by simp [uniqueAux, reverse, reverseAux, unique]
 | x :: xs, acc =>
-  have hterm : length (filter (λ a => decide ¬(a ∈ acc)) xs)
+  have hterm : length (filter (λ a => !decide (a ∈ acc)) xs)
                 < Nat.succ (length xs) :=
     Nat.lt_of_le_of_lt (m := length xs) (filter_length _ _) (Nat.lt.base _)
   have hterm' : length xs < (length xs).succ := Nat.le.refl
@@ -1130,8 +1020,7 @@ theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
       intros a
       apply Decidable.prop_eq_of_decide_eq
       rw [h_mem_iff_neg, not_or_distrib, And.comm]
-termination_by uniqueAux_acc_append_filter xs ac => xs.length
-decreasing_by assumption
+termination_by xs ac => xs.length
 
 theorem List.uniqueAux_acc_append {α} [DecidableEq α] (xs : List α)
   (acc : List α) (h : ∀ x, x ∈ xs → ¬ (x ∈ acc)) :
@@ -1186,8 +1075,7 @@ def List.memT_unique_of_memT {α} [DecidableEq α]
   apply MemT.hd _ _
 | x, y :: xs, .tl .(y) htl =>
   -- TODO: we keep using this...probably make it a separate simp lemma
-  have hterm : length (filter (λ a => !decide (a ∈ [y])) xs)
-                < Nat.succ (length xs) :=
+  have hterm : length (filter (λ a => !decide (a = y)) xs) < length xs + 1 :=
     Nat.lt_of_le_of_lt (m := length xs) (filter_length _ _) (Nat.lt.base _)
   by
   simp only [unique, uniqueAux, not_mem_nil, ite_false]
@@ -1207,7 +1095,7 @@ def List.memT_unique_of_memT {α} [DecidableEq α]
       cases hneg <;>
       contradiction
     simp only [hnin, not_false_eq_true, decide_True]
-termination_by List.memT_unique_of_memT x xs hmem => xs.length
+termination_by x xs hmem => xs.length
 
 theorem List.matchKey_fst_eq_filter_k_map_snd {κ ν} [inst : DecidableEq κ] :
   ∀ (xs : List (κ × ν)) (k : κ),
@@ -1237,7 +1125,7 @@ def List.groupByKey {κ} [DecidableEq κ] {ν} : List (κ × ν) → List (κ ×
 
   let fms := matchKey kvs k
   (k, v :: fms.1) :: groupByKey fms.2
-termination_by groupByKey xs => xs.length
+termination_by xs => xs.length
 decreasing_by assumption
 
 theorem List.groupByKey_matchKey_snd_length_cons [DecidableEq κ]
@@ -1312,7 +1200,7 @@ theorem List.length_groupByKey {κ} [DecidableEq κ] {ν} :
   have := not_mem_matchKey_self_map_snd x xs
   rw [←hneg] at hmem
   exact this hmem
-termination_by length_groupByKey xs => length xs
+termination_by xs => length xs
 decreasing_by assumption
 -- END `groupByKey` - `groupBy` spec 4
 -- BEGIN `groupByRetentive` spec 4 (this might simplify some stuff above?)
@@ -1365,15 +1253,14 @@ theorem List.fst_groupByKey_sublist [DecidableEq κ] : ∀ (kvs : List (κ × ν
   have hsubl := matchKey_snd_sublist k kvs
   Sublist.cons2 _ _ _ $
     Sublist.trans ih (sublist_of_map_sublist _ _ _ hsubl)
-termination_by fst_groupByKey_sublist kvs => kvs.length
-decreasing_by assumption
+termination_by kvs => kvs.length
 
 -- It would be nice to do this fully in tactic mode, but there doesn't seem to
 -- be a way to retain unused `have`s as termination hints in tactic mode
-theorem List.mem_fst_matchKey_key_or_snd [DecidableEq κ]
-  {ys : List (κ × ν)} {x : κ} :
+theorem List.mem_fst_matchKey_key_or_snd [DecidableEq κ] :
+  ∀ {ys : List (κ × ν)} {x : κ},
   x ∈ map Prod.fst ys → ∀ k, x = k ∨ x ∈ map Prod.fst (matchKey ys k).snd :=
-λ hx k =>
+λ {ys x} hx k =>
   if h : x = k
   then Or.inl h
   else Or.inr $
@@ -1414,15 +1301,14 @@ theorem List.mem_fst_matchKey_key_or_snd [DecidableEq κ]
           cases ih with
           | inl => contradiction
           | inr => assumption
-termination_by mem_fst_matchKey_key_or_snd ys x hx k => ys.length
-decreasing_by assumption
+termination_by ys x hx k => ys.length
 
 -- TODO: avoid copy/paste?
-theorem List.mem_fst_groupByKey_key_or_snd [DecidableEq κ]
-  {ys : List (κ × ν)} {x : κ} :
+theorem List.mem_fst_groupByKey_key_or_snd [DecidableEq κ] :
+  ∀ {ys : List (κ × ν)} {x : κ},
   x ∈ map Prod.fst ys →
     ∀ k, x = k ∨ x ∈ map Prod.fst (groupByKey (matchKey ys k).snd) :=
-λ hx k =>
+λ {ys x} hx k =>
   if h : x = k
   then Or.inl h
   else Or.inr $
@@ -1464,8 +1350,7 @@ theorem List.mem_fst_groupByKey_key_or_snd [DecidableEq κ]
           cases ih with
           | inl => contradiction
           | inr => assumption
-termination_by mem_fst_groupByKey_key_or_snd ys x hx k => ys.length
-decreasing_by assumption
+termination_by ys x hx k => ys.length
 
 /-
 Although tempting, the stronger claim
@@ -1479,11 +1364,11 @@ Also, the initial hypothesis is a bit stricter than it needs to be:
 `(∀ x, x ∈ xs → x ∈ ys)` would suffice.
 -/
 
-theorem List.all_in_map_fst_groupByKey_of_sublist [DecidableEq κ]
-  {xs ys : List (κ × ν)} :
+theorem List.all_in_map_fst_groupByKey_of_sublist [DecidableEq κ] :
+  ∀ {xs ys : List (κ × ν)},
   xs <+ ys →
     ∀ x, x ∈ map Prod.fst (groupByKey xs) → x ∈ map Prod.fst (groupByKey ys)
-| .cons xs ys (k, v) hsubl, x, hx =>
+| _, _, .cons xs ys (k, v) hsubl, x, hx =>
   if heq : x = k
   then heq ▸ Mem.head (map Prod.fst (groupByKey (matchKey ys k).snd))
   else
@@ -1496,7 +1381,7 @@ theorem List.all_in_map_fst_groupByKey_of_sublist [DecidableEq κ]
     match hor with
     | .inl hxeq => absurd hxeq heq
     | .inr hmem => hmem
-| .cons2 xs ys (k, v) hsubl, x, hx => by
+| _, _, .cons2 xs ys (k, v) hsubl, x, hx => by
     simp only [groupByKey]
     simp only [map]
     simp only [groupByKey] at hx
@@ -1510,9 +1395,7 @@ theorem List.all_in_map_fst_groupByKey_of_sublist [DecidableEq κ]
       have hterm := matchKey_length_lt k ys
       apply all_in_map_fst_groupByKey_of_sublist this
       assumption
-termination_by all_in_map_fst_groupByKey_of_sublist xs ys hsubl x hx =>
-  ys.length
-decreasing_by assumption
+termination_by xs ys hsubl x hx => ys.length
 
 -- #check @List.not_mem_matchKey_self_snd
 -- #check @List.matchKey_snd_sublist
@@ -1584,37 +1467,8 @@ theorem List.groupByKey_fsts_no_duplicates [DecidableEq κ] :
   NoDuplicates.cons k ((groupByKey (matchKey kvs k).2).map Prod.fst)
     (List.key_not_mem_fst_groupByKey_matchKey_snd _ _)
     (groupByKey_fsts_no_duplicates (matchKey kvs k).2)
-termination_by groupByKey_fsts_no_duplicates xs => xs.length
+termination_by xs => xs.length
 decreasing_by assumption
-
--- This is stated in Lean 3 mathlib's mathlib/src/data/list/basic.lean, line 114
-theorem List.mem_map {f : α → β} {b : β} : ∀ {l : List α},
-  b ∈ map f l ↔ ∃ a, a ∈ l ∧ f a = b
-| [] => Iff.intro (λ h => nomatch h) (λ h => h.elim (λ x hx => nomatch hx.left))
-| x :: xs => by
-  have ih := @mem_map α β f b xs
-  apply Iff.intro
-  . intro h
-    cases h with
-    | head =>
-      exact Exists.intro x (And.intro (List.Mem.head _) rfl)
-    | tail x h' =>
-      have ih_val := ih.mp h'
-      cases ih_val with | intro a ha =>
-      exact Exists.intro a (And.intro (Mem.tail _ ha.left) ha.right)
-  . intro h
-    cases h with | intro a ha =>
-    simp only [map]
-    cases ha.left with
-    | head => rw [ha.right]; constructor
-    | tail x h' =>
-      have h_in_tail := ih.mpr (Exists.intro a ⟨h', ha.right⟩)
-      exact Mem.tail _ h_in_tail
-
--- Stated in mathlib/src/data/list/basic.lean, line 129
-theorem List.mem_map_of_mem (f : α → β) {a : α} {l : List α} (h : a ∈ l) :
-  f a ∈ map f l :=
-mem_map.mpr (Exists.intro a (And.intro h rfl))
 
 theorem List.mem_of_mem_injective_map (f : α → β) (hf : f.injective) :
   ∀ (x : α) (xs : List α),
@@ -1726,8 +1580,7 @@ theorem List.length_uniqueAux_congr_append_cons_acc [DecidableEq α]
   induction xs generalizing cs with
   | nil =>
     simp [uniqueAux]
-    rw [←Nat.add_one,
-        Nat.add_assoc,
+    rw [Nat.add_assoc,
         Nat.add_comm (length cs),
         ←Nat.add_assoc]
   | cons z zs ih =>
@@ -1847,10 +1700,6 @@ theorem List.eq_or_mem_tail_of_mem {x x' : α} {xs : List α} :
 | .head _ => .inl rfl
 | .tail _ h => .inr h
 
-theorem List.get_mem : ∀ (xs : List α) (i : Fin (length xs)), xs.get i ∈ xs
-  | x :: xs, ⟨0, hn⟩ => Mem.head _
-  | x :: xs, ⟨.succ n, hn⟩ => Mem.tail _ $ get_mem xs ⟨n, _⟩
-
 theorem List.neq_of_mem_not_mem {x y : α} {xs : List α} :
   x ∈ xs → y ∉ xs → x ≠ y :=
   λ hxs => mt (λ heq => heq ▸ hxs)
@@ -1858,7 +1707,7 @@ theorem List.neq_of_mem_not_mem {x y : α} {xs : List α} :
 theorem List.get_mem_cons_of_head_not_mem_getee {y :α} {xs ys : List α} {i} :
   xs.get i ∈ y :: ys → y ∉ xs → xs.get i ∈ ys :=
   λ hget hnmem =>
-  have hget_lem := get_mem xs i
+  have hget_lem := get_mem xs i.val i.isLt
   have hneq_lem := neq_of_mem_not_mem hget_lem hnmem
   match eq_or_mem_tail_of_mem hget with
   | .inr htl => htl
