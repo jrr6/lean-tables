@@ -873,8 +873,7 @@ def pivotWider_spec2 {τ τ'} :
       (ActionList.cons (Schema.cNameOfCHead ⟨(c1, η), hc1⟩)
       (ActionList.cons (Schema.cNameOfCHead ⟨(c2, τ), hc2⟩) ActionList.nil)))],
   ∀ (c : η) (hc : sch.HasCol (c, τ')),
-  -- This is an unfortunate workaround for Prop/Type issues
-    (List.MemT c [c1, c2] → Empty) →
+    NotT (List.MemT c [c1, c2]) →
     Schema.HasCol (c, τ') (schema (pivotWider t c1 c2 hc1 hc2)) := by
   intro t c1 c2 hc1 hc2 inst c hc hnmem
   apply Schema.hasColOfAppend
@@ -1001,7 +1000,7 @@ theorem transformColumn_spec4 :
 -- `renameColumns`
 
 /-
-`renameColumns` specs 1 and 2 don't hold because we may rename the same column
+`renameColumns` spec 1 does not hold because we may rename the same column
 multiple times. If spec 1 held, we could state it thus:
 
 def renameColumns_spec1 {c c'} {hc : sch.HasName c} :
@@ -1010,8 +1009,19 @@ def renameColumns_spec1 {c c'} {hc : sch.HasName c} :
   ccs.MemT ⟨(c, c'), hc⟩ →
   (schema (renameColumns t ccs)).HasName c'
 
-We don't attempt to state spec 2.
+The first half of spec 2 also does not hold due to the possibility of repeated
+renamings (we don't attempt to state it here). However, the second half of spec
+2 does hold; we prove it below:
 -/
+def renameColumns_spec2_part2 :
+  ∀ (c : η)
+    (t : Table sch)
+    (ccs : ActionList Schema.renameColumnCN sch),
+    (hc : sch.HasCol (c, τ)) →
+    (∀ {sch' : @Schema η} c' (hc : sch'.HasName c),
+      NotT (ActionList.MemT ⟨(c, c'), hc⟩ ccs)) →
+    Schema.HasCol (c, τ) (schema (renameColumns t ccs)) :=
+  λ c t => Schema.hasColOfNotMemRenameColumns (sch := schema t) (c := c)
 
 theorem renameColumns_spec3 :
   ∀ (t : Table sch)

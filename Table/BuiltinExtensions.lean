@@ -3,6 +3,9 @@ def Option.orDefault {α} [Inhabited α] : Option α → α
 | some x => x
 | none => default
 
+-- Type-level negation for use with type-valued predicates
+def NotT (α : Type _) := α → Empty
+
 -- List utilities
 inductive List.All {α} (p : α → Prop) : List α → Prop
 | vac      : All p []

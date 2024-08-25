@@ -113,6 +113,15 @@ inductive BiActionList {η : Type u_η} [DecidableEq η]
                   BiActionList f (f (s₁, s₂) entry) →
                   BiActionList f (s₁, s₂)
 
+-- Membership predicate for action lists
+inductive ActionList.MemT {η : Type u_η} [DecidableEq η]
+  {κ : @Schema η → Type u}
+  {f : ∀ (s : @Schema η), κ s → @Schema η}
+  : ∀ {s s' : @Schema η}, κ s' → ActionList f s → Type _
+| head {x : κ s} (xs : ActionList f (f s x)) : MemT x (ActionList.cons x xs)
+| tail {x : κ s'} (y : κ s) (xs : ActionList f (f s y)) :
+  MemT x xs → MemT x (ActionList.cons y xs)
+
 variable {η : Type u_η} [dec_η : DecidableEq η] {schema : @Schema η}
 
 -- For ease of refactoring, make these products act like subtypes
@@ -467,6 +476,32 @@ def Schema.renameColumns {η : Type u_η} [DecidableEq η]
 | s, ActionList.nil => s
 | s, ActionList.cons c ccs => renameColumns (renameColumnCN s c) ccs
 
+def Schema.hasColOfNotMemRenameColumnCN :
+  ∀ {sch : @Schema η} {nm} {c : η}
+    (hc : sch.HasCol (c, τ))
+    (hnm : sch.HasName nm)
+    (hneq : c ≠ nm),
+    HasCol (c, τ) (renameColumnCN sch ⟨(nm, nm'), hnm⟩)
+| (_, _) :: _, nm, c, .tl hc, .hd, hneq => .tl hc
+| (_, _) :: _, nm, c, .hd, .tl hn, hneq => .hd
+| (_, _) :: _, nm, c, .tl hc, .tl hn, hneq =>
+  .tl $ hasColOfNotMemRenameColumnCN hc hn hneq
+
+def Schema.hasColOfNotMemRenameColumns {sch : @Schema η} {c : η}  :
+  ∀ (ccs : ActionList Schema.renameColumnCN sch)
+    (hc : sch.HasCol (c, τ)),
+    (∀ {sch' : @Schema η} c' (hc : sch'.HasName c),
+      NotT (ActionList.MemT ⟨(c, c'), hc⟩ ccs)) →
+    Schema.HasCol (c, τ) (sch.renameColumns ccs)
+| .nil, hc, hnmem => hc
+| .cons ⟨(nm, nm'), hnm⟩ ccs, hhc, hnmem =>
+  have hneq : c ≠ nm := (fun heq => Empty.elim $
+      hnmem nm' (heq.symm ▸ hnm) (by subst heq; apply ActionList.MemT.head)
+    )
+  hasColOfNotMemRenameColumns ccs
+    (hasColOfNotMemRenameColumnCN hhc hnm hneq)
+    (fun c' hhnc hneg => hnmem c' hhnc (.tail _ _ hneg))
+
 theorem Schema.removeName_sublist :
   ∀ (s : @Schema η) (c : η) (hc : HasName c s),
     List.Sublist (s.removeName hc) s
@@ -540,15 +575,6 @@ def Schema.homogenizeHC {nm τ} :
 
 /- ActionList helpers -/
 
--- Membership predicate for action lists
-inductive ActionList.MemT {η : Type u_η} [DecidableEq η]
-  {κ : @Schema η → Type u}
-  {f : ∀ (s : @Schema η), κ s → @Schema η}
-  : ∀ {s s' : @Schema η}, κ s' → ActionList f s → Type _
-| head {x : κ s} (xs : ActionList f (f s x)) : MemT x (ActionList.cons x xs)
-| tail {x : κ s'} (y : κ s) (xs : ActionList f (f s y)) :
-  MemT x xs → MemT x (ActionList.cons y xs)
-
 /--
 Takes an ActionList along with a "preservation" function that maps action list
 entries "in reverse" (i.e., enables them to be "lifted" to a schema prior to
@@ -560,11 +586,7 @@ def ActionList.toList {sch : @Schema η} {κ : @Schema η → Type u}
     (pres : ∀ (s : @Schema η) (k : κ s), κ (f s k) → κ s)
     : ActionList f sch → List (κ sch)
 | ActionList.nil => []
-| ActionList.cons hdr xs =>
-  have : sizeOf xs < 1 + sizeOf xs := by rw [Nat.add_comm]; exact Nat.lt.base _
-  hdr :: (toList pres xs).map (pres sch hdr)
--- The default tactic needlessly introduces classical reasoning
-decreasing_by assumption
+| ActionList.cons hdr xs => hdr :: (toList pres xs).map (pres sch hdr)
 
 def BiActionList.toList {schs : @Schema η × @Schema η}
     {κ : @Schema η × @Schema η → Type u}
