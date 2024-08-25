@@ -73,10 +73,6 @@ def List.flatten {α} : List (List α) → List α
 | [] :: ys => flatten ys
 | (x :: xs) :: ys => x :: flatten (xs :: ys)
 
-def List.flatMap {α β} (f : α → List β) : List α → List β
-| [] => []
-| x :: xs => f x ++ flatMap f xs
-
 def List.toSingletons : List α → List (List α)
 | [] => []
 | x :: xs => [x] :: toSingletons xs
@@ -391,15 +387,15 @@ theorem List.sieve_sublist : (bs : List Bool) → (xs : List α) →
 | true :: bs, x :: xs => Sublist.cons2 (sieve bs xs) xs x (sieve_sublist bs xs)
 | false :: bs, x :: xs => Sublist.cons (sieve bs xs) xs x (sieve_sublist bs xs)
 
-theorem List.sublist_of_map_sublist :
+theorem List.map_sublist_of_sublist :
   (xs : List α) → (ys : List α) → (f : α → β) → Sublist xs ys →
     Sublist (xs.map f) (ys.map f)
 | [], ys, f, h => nil_sublist (map f ys)
 | xs, x :: ys, f, Sublist.cons _ _ _ h =>
-  have ih := sublist_of_map_sublist xs ys f h
+  have ih := map_sublist_of_sublist xs ys f h
   Sublist.cons (map f xs) (map f ys) (f x) ih
 | x :: xs, _ :: ys, f, Sublist.cons2 _ _ _ h =>
-  have ih := sublist_of_map_sublist xs ys f h
+  have ih := map_sublist_of_sublist xs ys f h
   Sublist.cons2 (map f xs) (map f ys) (f x) ih
 
 def List.filterSpec (p : α → Bool) : List α → List α
@@ -921,11 +917,32 @@ if h : xs.all p
 then Decidable.isTrue (List.all_pred.mp h)
 else Decidable.isFalse (h ∘ List.all_pred.mpr)
 
+theorem List.filter_sublist {α} (p) :
+  ∀ (xs : List α), List.filter p xs <+ xs
+| [] => .nil
+| x :: xs =>
+  if h : p x
+  then by
+    simp only [filter, h]
+    apply Sublist.cons2 _ _ _ (filter_sublist _ _)
+  else by
+    simp only [filter, h]
+    apply Sublist.cons _ _ _ (filter_sublist _ _)
+
+theorem List.length_sublist_le {α} {xs ys : List α} :
+  xs <+ ys → xs.length ≤ ys.length
+  | .nil => .refl
+  | .cons _ _ _ hsubl => Nat.le_succ_of_le (length_sublist_le hsubl)
+  | .cons2 _ _ _ hsubl => Nat.succ_le_succ (length_sublist_le hsubl)
+
+
 def List.unique' {α} [DecidableEq α] : List α → List α
 | [] => []
 | x :: xs =>
-  let ys := unique' xs
-  if ∀ y, y ∈ ys → x ≠ y then x :: ys else ys
+  have : length (filter (fun x_1 => !decide (x_1 = x)) xs) < length xs + 1 :=
+    Nat.lt_succ_of_le (filter_length _ _)
+  x :: unique' (xs.filter (· ≠ x))
+termination_by xs => xs.length
 
 theorem List.mem_cons_iff_mem_singleton_or_tail (y : α) (ys : List α) (x : α) :
   x ∈ y :: ys ↔ x ∈ [y] ∨ x ∈ ys := by
@@ -1252,7 +1269,7 @@ theorem List.fst_groupByKey_sublist [DecidableEq κ] : ∀ (kvs : List (κ × ν
   have ih := fst_groupByKey_sublist (matchKey kvs k).snd
   have hsubl := matchKey_snd_sublist k kvs
   Sublist.cons2 _ _ _ $
-    Sublist.trans ih (sublist_of_map_sublist _ _ _ hsubl)
+    Sublist.trans ih (map_sublist_of_sublist _ _ _ hsubl)
 termination_by kvs => kvs.length
 
 -- It would be nice to do this fully in tactic mode, but there doesn't seem to

@@ -221,7 +221,7 @@ def Row.retypedSubschemaPres :
 | sch, retNm, τ, pf, ⟨(_, _), _⟩ :: _, Row.cons c cs =>
   have hterm : length cs < length (cons c cs) := Nat.lt_succ_self _
   Row.cons c $ retypedSubschemaPres cs
-termination_by _ _ _ _ rs => rs.length
+
 
 theorem Row.length_retypedSubschemaPres :
   ∀ {sch : @Schema η} {rs : RetypedSubschema sch}
@@ -232,8 +232,8 @@ theorem Row.length_retypedSubschemaPres :
 | _, [], _, _, _, Row.nil => rfl
 | _, ⟨(_, _), _⟩ :: _, _, _, _, Row.cons c r' =>
   have hterm : length r' < length (cons c r') := Nat.lt_succ_self _
+  by simp only [retypedSubschemaPres]; exact
   congrArg Nat.succ $ length_retypedSubschemaPres r'
-termination_by length_retypedSubschemaPres r => r.length
 
 -- Decidable equality
 instance instDecidableEqRowNil : DecidableEq (@Row η _ [])

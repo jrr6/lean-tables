@@ -310,7 +310,7 @@ theorem selectColumns1_spec1 :
     List.Sublist (header (selectColumns1 t bs)) (header t) := by
   intro t bs
   simp only [header, Schema.names, Schema.sieve_eq_List_sieve]
-  exact List.sublist_of_map_sublist _ _ Prod.fst $ List.sieve_sublist bs sch
+  exact List.map_sublist_of_sublist _ _ Prod.fst $ List.sieve_sublist bs sch
 
 -- Helper for `selectColumns1_spec2`
 theorem ncols_eq_header_length :

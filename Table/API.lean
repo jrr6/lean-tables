@@ -52,20 +52,16 @@ def leftJoin {schema₁ schema₂ : @Schema η}
              (cs : ActionList (Schema.removeOtherDecCH schema₁) schema₂)
 : Table (Schema.append schema₁ (Schema.removeOtherDecCHs schema₁ schema₂ cs)) :=
 {rows :=
-  t1.rows.flatMap (λ r₁ =>
+  t1.rows.bind (λ r₁ =>
     let rs2 := t2.rows.filter (λ r₂ =>
-      let mismatch := (cs.toList Schema.removeOtherCHPres).find? (λ c =>
+      (cs.toList Schema.removeOtherCHPres).all (λ c =>
         let _ : DecidableEq (Cell c.1.1 c.1.2) :=
           instDecidableEqCell (inst := c.2.1)
-        decide $ r₁.getCell c.2.2.2 ≠ r₂.getCell c.2.2.1)
-
-      match mismatch with
-      | none => true
-      | _    => false
+        decide $ r₁.getCell c.2.2.2 = r₂.getCell c.2.2.1)
     )
     match rs2 with
     | [] => [Row.append r₁ (Row.empty _)]
-    | _  =>
+    | _ :: _ =>
       rs2.map (λ r₂ =>
         let r₂' := r₂.removeOtherSchemaCols cs
         Row.append r₁ r₂')
@@ -155,19 +151,7 @@ def head (t : Table schema) (z : Int) : Table schema :=
   }
 
 def distinct [DecidableEq (Row schema)] : Table schema → Table schema
-| {rows := []} => {rows := []}
-| {rows := r :: rs} =>
-  -- Help the termination checker
-  have _ : List.length (List.filter (λ r' => !decide (r = r')) rs)
-           < Nat.succ (List.length rs) :=
-    Nat.lt_of_le_of_lt (List.filter_length (λ r' => !decide (r = r')) rs)
-                       (Nat.lt.base (List.length rs))
-  {rows := (
-    r :: Table.rows (distinct ({rows :=
-      (rs.filter (λ r' => r ≠ r'))
-    }))
-  )}
-termination_by t => t.rows.length
+| {rows := rs} => {rows := rs.unique}
 
 def dropColumn (t : Table schema) (c : η) (hc : schema.HasName c := by name)
     : Table (schema.removeName hc) :=
@@ -383,7 +367,7 @@ def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
                (result : Row schema → Row schema₂ → Row schema₃)
     : Table schema₃ :=
 {rows :=
-  t.rows.verifiedEnum.flatMap (λ (n, r) =>
+  t.rows.verifiedEnum.bind (λ (n, r) =>
     let projection := project r (nrows_eq_List_length t ▸ n)
     projection.rows.map (λ r' => result r r')
   )
