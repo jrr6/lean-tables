@@ -1218,10 +1218,27 @@ theorem update_spec2 :
 λ subsch t f =>
     Schema.retypedFromSubschema_preserves_names sch subsch
 
--- TODO: `update` spec 3
--- This one is difficult to approximate in Lean because `RetypedSubschema`ta may
--- repeat column names (`retypedFromSubschema` takes the last), so we can't
--- directly translate B2T2's spec
+-- The first half of `update` spec 3 does not hold because `RetypedSubschema`ta
+-- may repeat column names (`retypedFromSubschema` takes the last). The second
+-- half, which we formalize below, does hold:
+def update_spec3_part2 {c τ} :
+  ∀ (subsch : RetypedSubschema sch) (t : Table sch)
+    (f : Row sch → Row subsch.toSchema),
+    NotT (List.MemT c (header (update subsch t f))) →
+    sch.HasCol (c, τ) →
+    (schema (update subsch t f)).HasCol (c, τ) := by
+  intro subsch t f hmem hc
+  simp only [schema, update]
+  refine Schema.retypedFromSubschemaHasColOfNotMemT subsch ?_ hc
+  . intro _ hhn
+    simp only at hhn
+    intro hneg
+    apply hmem
+    simp only [header]
+    suffices Schema.HasName c (Schema.retypedFromSubschema subsch) by
+      apply Schema.memTNamesOfHasName this
+    apply Schema.retypedSubschemaHasSchemaName
+    exact hhn
 
 theorem update_spec4 :
   ∀ (subsch : RetypedSubschema sch) (t : Table sch)

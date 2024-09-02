@@ -199,6 +199,11 @@ def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
 def Schema.names {η : Type u_η} (sch : @Schema η) :=
   List.map (@Prod.fst η (Type u)) sch
 
+def Schema.memTNamesOfHasName :
+  {sch : @Schema η} → Schema.HasName c sch → List.MemT c sch.names
+| _, .hd => .hd _ _
+| _, .tl h => .tl _ (memTNamesOfHasName h)
+
 -- Doesn't work b/c we can't definitionally equate conditionals with their
 -- evaluation, even when the equality is tautological
 -- def Schema.removeName :
@@ -409,8 +414,8 @@ theorem Schema.retypeColumn_preserves_names :
 
 @[reducible]
 def Schema.hasRetypedName {τ : Type u} :
-  ∀ {retNm nm : η} {sch : @Schema η} {hretNm : sch.HasName retNm}
-    (c : sch.HasName nm),
+  ∀ {retNm nm : η} {sch : @Schema η} {hretNm : sch.HasName retNm},
+  sch.HasName nm →
   (retypeColumn sch hretNm τ).HasName nm
 | _, _, (_, _) :: hs, .hd, .hd => .hd
 | _, _, (_, _) :: hs, .hd, .tl h => .tl h
@@ -442,6 +447,47 @@ def Schema.schemaHasRetypedSubschemaName : {nm : η} →
     rw [Nat.add_comm]
     apply Nat.lt.base;
   schemaHasRetypedSubschemaName h
+
+def Schema.hasNameOfRetypedHasName :
+  ∀ {sch : @Schema η}
+    {hn : sch.HasName nm},
+    HasName c (retypeColumn sch hn τ') →
+    HasName c sch
+| (_, _) :: _, .hd, hn => by
+  cases hn with
+  | hd => exact .hd
+  | tl h => exact .tl h
+| (_, _) :: _, .tl h, hn => by
+  cases hn with
+  | hd => exact .hd
+  | tl h =>
+    exact .tl (hasNameOfRetypedHasName h)
+
+def Schema.hasNameOfRetypedHasName_hasRetypedName :
+  ∀ {sch : @Schema η}
+    {nm nm'}
+    {τ}
+    { h : sch.HasName nm }
+    {h' : sch.HasName nm'},
+  hasNameOfRetypedHasName (hasRetypedName (retNm := nm') (hretNm := h') (τ := τ) h) = h
+| _, _, _, _, .hd, .hd => rfl
+| _, _, _, _, .hd, .tl h => rfl
+| _, _, _, _, .tl h, .hd => rfl
+| _, _, _, _, .tl h, .tl h' => by
+  simp only [hasRetypedName, hasNameOfRetypedHasName]
+  rw [Schema.HasName.tl.injEq]
+  apply hasNameOfRetypedHasName_hasRetypedName
+
+def Schema.retypedHasOtherCol :
+  ∀ {sch : @Schema η}
+    {c : η} {τ : Type _} {c' : η}
+    (hn' : sch.HasName c'),
+    c' ≠ c →
+    sch.HasCol (c, τ) →
+    Schema.HasCol (c, τ) (retypeColumn sch hn' τ')
+| _, c, τ, c', .hd, hneq, .tl h => .tl h
+| _, c, τ, c', .tl hn', hneq, .tl hc => .tl (retypedHasOtherCol hn' hneq hc)
+| _, c, τ, c', .tl hn', hneq, .hd => .hd
 
 -- Could use `{xs : List τ // xs.length = n}` instead of `List τ` if needed
 @[reducible]

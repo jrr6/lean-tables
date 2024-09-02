@@ -233,6 +233,58 @@ theorem Schema.retypedFromSubschema_preserves_names :
     simp only [retypeColumn_preserves_names]
 termination_by sch rs => Schema.length rs
 
+
+def Schema.memTMapRetypedNameOfMemThasNameOfRetypedHasName
+  {nm nm' : η} {τ τ' : Type u} {hn' : sch.HasName nm'}
+  {hnm : HasName nm (retypeColumn sch hn' τ')} {rs : RetypedSubschema sch} :
+  List.MemT (⟨(nm, τ), hnm⟩ : (h : Header) ×
+                              HasName h.fst (retypeColumn sch hn' τ'))
+            (map (fun x => ⟨x.1, hasRetypedName x.2⟩) rs) →
+  List.MemT ⟨(nm, τ), hasNameOfRetypedHasName hnm⟩ rs := by
+  intro h
+  cases rs with
+  | nil => contradiction
+  | cons r rs =>
+    simp only [map] at h
+    rcases r with ⟨⟨rnm, rτ⟩, rpf⟩
+    cases h with
+    | hd =>
+      rw [hasNameOfRetypedHasName_hasRetypedName]
+      apply List.MemT.hd
+    | tl h =>
+      apply List.MemT.tl
+      apply memTMapRetypedNameOfMemThasNameOfRetypedHasName
+      assumption
+
+-- Note: an issue with Lean's pattern matcher requires us to specify the last
+-- two identical cases separately for the `.hd` and `.tl` cases of the `HasCol`
+-- proof
+def Schema.retypedFromSubschemaHasColOfNotMemT :
+  ∀ {sch : @Schema η} (subsch : RetypedSubschema sch),
+    (∀ τ' hn, NotT (List.MemT ⟨(c, τ'), hn⟩ subsch)) →
+    sch.HasCol (c, τ) →
+    Schema.HasCol (c, τ) (Schema.retypedFromSubschema subsch)
+| _, [], h, hc => hc
+| .((c, τ)) :: hs, ⟨(nm', τ'), hn'⟩ :: rs, hnmem, .hd =>
+  have hneq : nm' ≠ c := fun heq =>
+    Empty.elim $ hnmem τ' (heq ▸ hn') (by subst heq; apply List.MemT.hd)
+  retypedFromSubschemaHasColOfNotMemT
+    (map (fun x => ⟨x.fst, hasRetypedName x.snd⟩) rs)
+    (fun τ'' hn hneg =>
+      hnmem τ'' (hasNameOfRetypedHasName hn) (.tl _ $
+        memTMapRetypedNameOfMemThasNameOfRetypedHasName hneg))
+    (retypedHasOtherCol hn' hneq .hd)
+| _ :: hs, ⟨(nm', τ'), hn'⟩ :: rs, hnmem, .tl h =>
+  have hneq : nm' ≠ c := fun heq =>
+    Empty.elim $ hnmem τ' (heq ▸ hn') (by subst heq; apply List.MemT.hd)
+  retypedFromSubschemaHasColOfNotMemT
+    (map (fun x => ⟨x.fst, hasRetypedName x.snd⟩) rs)
+    (fun τ'' hn hneg =>
+      hnmem τ'' (hasNameOfRetypedHasName hn) (.tl _ $
+        memTMapRetypedNameOfMemThasNameOfRetypedHasName hneg))
+    (retypedHasOtherCol hn' hneq (.tl h))
+termination_by sch subsch => Schema.length subsch
+
 /- fromCHeaders -/
 @[reducible]
 def Schema.fromCHeaders {schema : @Schema η}
