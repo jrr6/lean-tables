@@ -1,4 +1,5 @@
 import Table.API
+import Init.Data.List.Lemmas
 
 universe u u_η
 
@@ -221,30 +222,121 @@ theorem leftJoin_spec2 {s₁ s₂ : @Schema η} :
 --     Schema.lookupType (schema (leftJoin t₁ t₂ cs)) cn = s₂.lookupType cn :=
 --       sorry
 
--- Spec 4 as stated in the B2T2 spec is wrong. Consider the following SQLite
--- queries:
-/-
-CREATE TABLE demo (
-  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  name VARCHAR(100) NOT NULL,
-  age INTEGER NOT NULL
-);
+-- This is a helper lemma for spec 4:
+theorem unique_rows_of_distinct [DecidableEq (Row sch)] {t : Table sch} :
+    distinct t = t → List.Unique t.rows := by
+  intro h
+  rcases t with ⟨rs⟩
+  simp only [distinct, Table.mk.injEq, List.unique_eq_unique'] at h
+  simp only
+  rw [←h]
+  apply List.unique'_Unique
 
-CREATE TABLE demo2 (
-  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-  name VARCHAR(100) NOT NULL,
-  location VARCHAR(100) NOT NULL
-);
+theorem leftJoin_spec4.pick_lemma {s₁ s₂ : @Schema η}
+  (t₂ : Table s₂) (r : Row s₁)
+  (xs : List ((hdr : Header) × DecidableEq hdr.snd × Schema.HasCol hdr s₂ ×
+              Schema.HasCol hdr s₁))
+  :
+  let pred :=
+      (fun r₂ : Row s₂ =>
+        xs.all fun c =>
+          @decide (r.getCell c.snd.snd.snd = r₂.getCell c.snd.snd.fst)
+            (@instDecidableEqCell η dec_η c.fst.fst c.fst.snd c.snd.fst
+              (r.getCell c.snd.snd.snd) (r₂.getCell c.snd.snd.fst)
+              : Decidable (r.getCell c.snd.snd.snd = r₂.getCell c.snd.snd.fst)))
+  ∀ r' ∈ t₂.rows.filter pred,
+  ∀ s' ∈ t₂.rows.filter pred,
+  r'.pick (List.map (fun x => ⟨x.fst, x.2.2.fst⟩) xs) =
+  s'.pick (List.map (fun x => ⟨x.fst, x.2.2.fst⟩) xs) := by
+  intro pred r' hr' s' hs'
+  cases xs with
+  | nil => simp [Row.pick]
+  | cons x xs =>
+    simp only [Row.pick]
+    have : r'.getCell x.2.2.1 = s'.getCell x.2.2.1 := by
+      have hr'_pred : pred r' := List.filter_mem_pred_true t₂.rows _ _ hr'
+      have hs'_pred : pred s' := List.filter_mem_pred_true t₂.rows _ _ hs'
+      simp only [pred] at hr'_pred hs'_pred
+      let inst (r' : Row s₂) : DecidablePred fun (x : (hdr : Header) ×
+                                          DecidableEq hdr.snd ×
+                                          Schema.HasCol hdr s₂ ×
+                                          Schema.HasCol hdr s₁) =>
+            r.getCell x.snd.snd.snd = r'.getCell x.snd.snd.fst :=
+          λ c => @instDecidableEqCell η dec_η c.fst.fst c.fst.snd c.snd.fst
+                    (r.getCell c.snd.snd.snd) (r'.getCell c.snd.snd.fst)
+      apply Eq.trans (b := r.getCell x.2.2.2)
+      · have hr_all := (@List.all_pred _ _ (inst r') _).mp hr'_pred
+        apply Eq.symm
+        apply hr_all
+        apply List.Mem.head
+      · have hs_all := (@List.all_pred _ _ (inst s') _).mp hs'_pred
+        apply hs_all
+        apply List.Mem.head
+    apply congr (congrArg _ this)
+    apply pick_lemma t₂ r
+    . apply List.mem_filter_of_mem_filter_imp _ hr'
+      intro x hx
+      simp only [pred, List.all, Bool.and_eq_true] at hx
+      exact hx.right
+    . apply List.mem_filter_of_mem_filter_imp _ hs'
+      intro x hx
+      simp only [pred, List.all, Bool.and_eq_true] at hx
+      exact hx.right
 
-INSERT INTO demo VALUES (NULL, "Bob", 18);
-INSERT INTO demo2 VALUES (NULL, "Bob", "USA");
-INSERT INTO demo2 VALUES (NULL, "Bob", "UK");
-
-SELECT *
-FROM demo
-LEFT JOIN demo2
-ON demo.name=demo2.name;
--/
+theorem leftJoin_spec4 {s₁ s₂ : @Schema η}
+    (t₁ : Table s₁) (t₂ : Table s₂)
+    (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
+    [DecidableEq (Row (Schema.fromCHeaders
+      (Schema.listCHOfActionListRemoveOtherDecCH cs)))] :
+    distinct (selectColumns3 t₂ (Schema.listCHOfActionListRemoveOtherDecCH cs))
+      = selectColumns3 t₂ (Schema.listCHOfActionListRemoveOtherDecCH cs) →
+    nrows (leftJoin t₁ t₂ cs) = nrows t₁ := by
+  intro hdistinct
+  simp only [nrows]
+  rw [Schema.length_eq_List_length, leftJoin, List.length_bind]
+  unfold Function.comp
+  rw [List.sum_map_const 1]
+  . apply Nat.one_mul
+  . intro r hr
+    let pred :=
+      (fun r₂ : Row s₂ =>
+        (ActionList.toList Schema.removeOtherCHPres cs).all fun c =>
+          @decide (r.getCell c.snd.snd.snd = r₂.getCell c.snd.snd.fst)
+            (@instDecidableEqCell η dec_η c.fst.fst c.fst.snd c.snd.fst
+              (r.getCell c.snd.snd.snd) (r₂.getCell c.snd.snd.fst)
+              : Decidable (r.getCell c.snd.snd.snd = r₂.getCell c.snd.snd.fst)))
+    match hmatch : t₂.rows.filter pred with
+    | [] => simp only [List.length, leftJoin.findMatchingRows, hmatch]
+    | f :: fs =>
+      simp only [hmatch, leftJoin.findMatchingRows]
+      suffices hnil : fs = [] by simp only [List.length_map, hnil, List.length]
+      have huniq : List.Unique (t₂.rows.map
+          (·.pick (Schema.listCHOfActionListRemoveOtherDecCH cs))) :=
+        unique_rows_of_distinct hdistinct
+      have h_filt_uniq : List.Unique $ (t₂.rows.filter pred).map
+          (·.pick (Schema.listCHOfActionListRemoveOtherDecCH cs)) :=
+        List.unique_sublist huniq (List.map_sublist_of_sublist _ _ _
+                                    (List.filter_sublist _ _))
+      have h_filt_eq :
+        ∀ r' ∈ (t₂.rows.filter pred).map
+          (·.pick (Schema.listCHOfActionListRemoveOtherDecCH cs)),
+        ∀ s' ∈ (t₂.rows.filter pred).map
+          (·.pick (Schema.listCHOfActionListRemoveOtherDecCH cs)),
+        r' = s' := by
+        simp only [List.mem_map, forall_exists_index, and_imp,
+                   forall_apply_eq_imp_iff₂]
+        intro r' hr' s' hs'
+        simp only [Schema.listCHOfActionListRemoveOtherDecCH]
+        apply leftJoin_spec4.pick_lemma _ _ _ _ hr' _ hs'
+      cases List.nil_singleton_of_all_eq_unique h_filt_eq h_filt_uniq with
+      | inl hnil => simp only [hmatch, List.map] at hnil
+      | inr hsing =>
+        rw [hmatch] at hsing
+        rcases hsing with ⟨x, hx⟩
+        unfold List.map at hx
+        cases fs with
+        | cons _ _ => simp only [List.map, List.cons.injEq, and_false] at hx
+        | nil => rfl
 
 -- The spec for `getValue` (as nearly as it can be approximated up to uniqueness
 -- issues) is enforced by types
@@ -922,18 +1014,6 @@ theorem flatten_spec1 :
     simp only [Schema.flattenList]
     apply Schema.retypeColumn_preserves_names
     exact Table.mk []
-
-syntax "A[" term,* "]" : term
-macro_rules
-  | `(A[ $elems,* ]) => do
-    let rec expandListLit (i : Nat) (skip : Bool) (result : Lean.TSyntax `term)
-        : Lean.MacroM Lean.Syntax := do
-      match i, skip with
-      | 0,   _     => pure result
-      | i+1, true  => expandListLit i false result
-      | i+1, false => expandListLit i true (← ``(ActionList.cons
-                        $(⟨elems.elemsAndSeps.get! i⟩) $result))
-    expandListLit elems.elemsAndSeps.size false (← ``(ActionList.nil))
 
 /-
 Spec 2 of `flatten` does not hold because we may flatten the same column

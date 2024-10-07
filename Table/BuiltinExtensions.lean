@@ -76,6 +76,10 @@ def List.flatten {α} : List (List α) → List α
 | [] :: ys => flatten ys
 | (x :: xs) :: ys => x :: flatten (xs :: ys)
 
+def List.sum : List Nat → Nat
+| [] => 0
+| x :: xs => x + sum xs
+
 def List.toSingletons : List α → List (List α)
 | [] => []
 | x :: xs => [x] :: toSingletons xs
@@ -347,6 +351,31 @@ theorem List.map_map_append {α β γ δ : Type _} :
 | [], ys, f, g, h => map_map f h ys
 | x :: xs, ys, f, g, h => congrArg (f (g x) :: ·) (map_map_append xs ys f g h)
 
+theorem List.sum_map_const {xs : List α} {f} (k : Nat) :
+  (∀ x ∈ xs, f x = k) → (xs.map f).sum = k * xs.length := by
+  intro heq
+  induction xs with
+  | nil => rfl
+  | cons x xs ih =>
+    simp only [List.sum, List.length]
+    specialize ih (λ y hy => heq y (.tail _ hy))
+    rw [heq x (.head _), ih, Nat.mul_add, Nat.add_comm, Nat.mul_one]
+
+theorem List.length_bind {α β} {f : α → List β} {xs : List α} :
+    List.length (xs.bind f) = (xs.map (List.length ∘ f)).sum := by
+  induction xs with
+  | nil => rfl
+  | cons x xs ih =>
+    simp only [List.bind, List.map, List.join]
+    cases h : f x with
+    | nil =>
+      rw [List.nil_append, Function.comp, h, List.length_nil, List.sum,
+          Nat.zero_add]
+      exact ih
+    | cons y ys =>
+      rw [List.length_append, Function.comp, h, List.sum]
+      exact congrArg _ ih
+
 theorem List.sublist_self : ∀ (xs : List α), Sublist xs xs
 | [] => Sublist.nil
 | x :: xs => Sublist.cons2 xs xs x (sublist_self xs)
@@ -461,6 +490,23 @@ theorem List.mem_singleton_iff (x y : α) : x ∈ [y] ↔ x = y := by
     constructor
 
 theorem decide_true : decide True = true := rfl
+
+theorem List.nil_singleton_of_all_eq_unique {xs : List α} :
+  (∀ x ∈ xs, ∀ y ∈ xs, x = y) →
+  Unique xs →
+  xs = [] ∨ ∃ x, xs = [x] := by
+  intro h hunique
+  cases hunique with
+  | nil => left; rfl
+  | @cons x xs hmem huniq =>
+    simp only [cons.injEq, exists_and_right, exists_eq', true_and, false_or]
+    cases xs with
+    | nil => rfl
+    | cons x' xs =>
+      have : x' ≠ x := λ heq => (heq ▸ hmem) (.head _)
+      have : x' = x := h x' (by simp only [mem_cons, or_true, true_or])
+                         x (by simp only [mem_cons, true_or])
+      contradiction
 
 theorem List.removeAllEq_singleton_hd_eq [DecidableEq α] :
   ∀ (x: α) (xs : List α), removeAllEq (x :: xs) [x] = removeAllEq xs [x] := by
@@ -803,6 +849,14 @@ def List.uniqueAux {α} [DecidableEq α] : List α → List α → List α
 
 def List.unique {α} [inst : DecidableEq α] (xs : List α) := uniqueAux xs []
 
+def List.unique' {α} [DecidableEq α] : List α → List α
+| [] => []
+| x :: xs =>
+  have : length (filter (fun x_1 => !decide (x_1 = x)) xs) < length xs + 1 :=
+    Nat.lt_succ_of_le (filter_length _ _)
+  x :: unique' (xs.filter (· ≠ x))
+termination_by xs => xs.length
+
 def List.no_duplicates [DecidableEq α] (xs : List α) := unique xs = xs
 
 inductive List.NoDuplicates {α} : List α → Prop
@@ -937,15 +991,6 @@ theorem List.length_sublist_le {α} {xs ys : List α} :
   | .nil => .refl
   | .cons _ _ _ hsubl => Nat.le_succ_of_le (length_sublist_le hsubl)
   | .cons2 _ _ _ hsubl => Nat.succ_le_succ (length_sublist_le hsubl)
-
-
-def List.unique' {α} [DecidableEq α] : List α → List α
-| [] => []
-| x :: xs =>
-  have : length (filter (fun x_1 => !decide (x_1 = x)) xs) < length xs + 1 :=
-    Nat.lt_succ_of_le (filter_length _ _)
-  x :: unique' (xs.filter (· ≠ x))
-termination_by xs => xs.length
 
 theorem List.mem_cons_iff_mem_singleton_or_tail (y : α) (ys : List α) (x : α) :
   x ∈ y :: ys ↔ x ∈ [y] ∨ x ∈ ys := by
@@ -1510,6 +1555,123 @@ theorem List.no_dups_map_injective
     (λ hneg => absurd ((mem_of_mem_injective_map f hf x xs).mp hneg) hxnin)
     (no_dups_map_injective f hf xs hndxs)
 -- END spec 4
+
+-- BEGIN `leftJoin` spec 4 helpers
+theorem List.mem_filter_of_mem_filter_imp {p q : α → Bool} {y : α}
+  {xs : List α} :
+  (∀ x, p x → q x) → y ∈ xs.filter p → y ∈ xs.filter q := by
+  intro hpq hp
+  induction xs with
+  | nil => contradiction
+  | cons x xs ih =>
+    cases Decidable.em (p x) with
+    | inl htrue =>
+      have hq := hpq x htrue
+      simp only [htrue, List.filter_cons_of_pos, List.mem_cons, hq] at hp ⊢
+      cases hp with
+      | inl heq => exact .inl heq
+      | inr htl => exact .inr (ih htl)
+    | inr hfalse =>
+      simp only [List.filter, hfalse] at hp
+      cases Decidable.em (q x) with
+      | inl hqtrue =>
+        simp only [List.filter, hqtrue]
+        apply List.Mem.tail
+        apply ih hp
+      | inr hqfalse =>
+        simp only [List.filter, hqfalse]
+        exact ih hp
+
+theorem List.not_mem_filter_neq [DecidableEq α] (y : α) : ∀ (xs : List α),
+  y ∉ filter (· ≠ y) xs
+  | x :: xs, h => by
+    simp only [filter] at h
+    cases hdec : decide (x = y) with
+    | true =>
+      simp only [ne_eq, decide_not, hdec, Bool.not_true] at h
+      simp only [←decide_not, ←ne_eq] at h
+      exact not_mem_filter_neq _ _ h
+    | false =>
+      simp only [ne_eq, decide_not, hdec, Bool.not_false, mem_cons] at h
+      cases h with
+      | inl heq => cases heq; simp only [decide_True, Bool.true_eq_false] at hdec
+      | inr hmem =>
+        simp only [←decide_not, ←ne_eq] at hmem
+        exact not_mem_filter_neq _ _ hmem
+
+theorem List.filter_mem_pred_true :
+  ∀ (xs : List α) (pred : α → Bool), ∀ r ∈ xs.filter pred, pred r = true
+  | [], pred => λ r hr => nomatch hr
+  | x :: xs, pred =>
+    if h : pred x
+    then by
+      intro r hr
+      simp only [filter, h] at hr
+      cases hr with
+      | head => exact h
+      | tail _ htl =>
+        apply filter_mem_pred_true _ _ _ htl
+    else λ r hr => by
+      simp only [filter, h] at hr
+      apply filter_mem_pred_true _ _ _ hr
+
+theorem List.unique_sublist {xs ys : List α} :
+    Unique ys → xs <+ ys → Unique xs := by
+  intro hunique hsubl
+  induction hsubl with
+  | nil => exact .nil
+  | cons xs' ys x hsubl' ih =>
+    apply ih
+    cases hunique
+    repeat assumption
+  | cons2 xs' ys x hsubl' ih =>
+    constructor
+    . cases hunique
+      intro hneg
+      have := mem_of_mem_sublist hsubl' hneg
+      contradiction
+    . apply ih
+      cases hunique
+      repeat assumption
+
+theorem List.unique_eq_unique' [DecidableEq α] : ∀ (xs : List α),
+  unique xs = unique' xs
+  | [] => rfl
+  | x :: xs =>
+  by
+    simp only [unique, unique', uniqueAux, not_mem_nil, ite_false]
+    rw [uniqueAux_acc_append_filter, reverse_singleton, singleton_append]
+    apply congrArg
+    simp only [mem_cons, not_mem_nil, or_false, decide_not, ne_eq]
+    have : length (filter (fun x_1 => !decide (x_1 = x)) xs) < 1 + length xs :=
+    by
+      apply Nat.lt_of_le_of_lt
+      apply filter_length
+      rw [Nat.add_comm]
+      apply Nat.lt.base
+    apply unique_eq_unique'
+termination_by xs => xs.length
+
+theorem List.unique'_sublist [DecidableEq α] : ∀ (xs : List α),
+  List.unique' xs <+ xs
+  | [] => .nil
+  | x :: xs =>
+    have : (filter (fun x_1 => !decide (x_1 = x)) xs).length < xs.length + 1 :=
+      Nat.lt_succ_of_le (filter_length _ _)
+    Sublist.cons2 _ _ _ $
+      Sublist.trans (List.unique'_sublist _) (List.filter_sublist _ _)
+termination_by xs => xs.length
+
+theorem List.unique'_Unique [DecidableEq α] : ∀ (xs : List α),
+  Unique xs.unique'
+  | [] => .nil
+  | x :: xs =>
+    have : (filter (fun x_1 => !decide (x_1 = x)) xs).length < xs.length + 1 :=
+      Nat.lt_succ_of_le (filter_length _ _)
+    .cons (mt (mem_of_mem_sublist (unique'_sublist _)) (not_mem_filter_neq x xs))
+          (unique'_Unique _)
+termination_by xs => xs.length
+-- END `leftJoin` spec 4 helpers
 
 -- `List.counts`, helper functions, and associated theorems
 -- TODO: these proofs could probably be cleaned up a lot.

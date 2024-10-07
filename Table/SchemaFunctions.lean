@@ -327,6 +327,13 @@ def Schema.fromCHHasFromCH :
 | _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .hd _ _ => .hd
 | _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .tl _ htl => .tl $ fromCHHasFromCH _ hs htl
 
+-- For `leftJoin_spec4`
+def Schema.listCHOfActionListRemoveOtherDecCH {s₁ s₂ : @Schema η}
+    (cs : ActionList (Schema.removeOtherDecCH s₁) s₂) :
+  List (CertifiedHeader s₂) :=
+  cs.toList Schema.removeOtherCHPres |>.map (λ | ⟨hdr, _, pf, _⟩ => ⟨hdr, pf⟩)
+
+
 -- For `selectColumns3_spec2`
 theorem Schema.lookupType_of_colImpliesName :
   ∀ {sch: @Schema η} (nm : η) (τ : Type u) (h : sch.HasCol (nm, τ)),

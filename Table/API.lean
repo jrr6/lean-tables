@@ -47,28 +47,30 @@ def crossJoin {schema₁ schema₂ : @Schema η}
                     (List.prod t1.rows t2.rows)}
 
 def leftJoin {schema₁ schema₂ : @Schema η}
-             (t1 : Table schema₁)
-             (t2 : Table schema₂)
+             (t₁ : Table schema₁)
+             (t₂ : Table schema₂)
              (cs : ActionList (Schema.removeOtherDecCH schema₁) schema₂)
 : Table (Schema.append schema₁ (Schema.removeOtherDecCHs schema₁ schema₂ cs)) :=
-{rows :=
-  t1.rows.bind (λ r₁ =>
-    let rs2 := t2.rows.filter (λ r₂ =>
-      (cs.toList Schema.removeOtherCHPres).all (λ c =>
-        let _ : DecidableEq (Cell c.1.1 c.1.2) :=
-          instDecidableEqCell (inst := c.2.1)
-        decide $ r₁.getCell c.2.2.2 = r₂.getCell c.2.2.1)
-    )
-    match rs2 with
+  {rows := t₁.rows.bind (λ r₁ =>
+    match findMatchingRows r₁ t₂ cs with
     | [] => [Row.append r₁ (Row.empty _)]
-    | _ :: _ =>
-      rs2.map (λ r₂ =>
-        let r₂' := r₂.removeOtherSchemaCols cs
-        Row.append r₁ r₂')
-  )
-}
+    | rs₂@(_ :: _) =>
+      rs₂.map (λ r₂ => Row.append r₁ (Row.removeOtherSchemaCols cs r₂))
+  )}
+where
+  findMatchingRows
+      (r₁ : Row schema₁) (t₂ : Table schema₂)
+      (cs : ActionList (Schema.removeOtherDecCH schema₁) schema₂) :=
+    t₂.rows.filter λ r₂ =>
+      (cs.toList Schema.removeOtherCHPres).all (λ c =>
+          let _ : DecidableEq (Cell c.1.1 c.1.2) :=
+            instDecidableEqCell (inst := c.2.1)
+          decide $ r₁.getCell c.2.2.2 = r₂.getCell c.2.2.1)
+
 
 -- # Properties
+-- We use `Schema.length` instead of `List.length` because we want this function
+-- to be reducible
 @[reducible]
 def nrows (t : Table schema) : Nat := Schema.length t.rows
 

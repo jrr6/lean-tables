@@ -621,6 +621,12 @@ def Schema.homogenizeHC {nm τ} :
 
 /- ActionList helpers -/
 
+def ActionList.length {sch : @Schema η} {κ : @Schema η → Type u}
+    {f : ∀ (s : @Schema η), κ s → @Schema η} :
+    ActionList f sch → Nat
+  | .nil => 0
+  | .cons _ tl => 1 + length tl
+
 /--
 Takes an ActionList along with a "preservation" function that maps action list
 entries "in reverse" (i.e., enables them to be "lifted" to a schema prior to
