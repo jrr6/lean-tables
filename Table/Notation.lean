@@ -32,8 +32,6 @@ macro_rules
           (← ``(Row.cons $(⟨elems.elemsAndSeps.get! i⟩) $result))
     expandRowLit elems.elemsAndSeps.size false (← ``(Row.nil))
 
-#check Lean.TSyntax.getNat
-
 syntax (name := namedRowLiteralParser) "/[" (term " := " cell),* "]" : term
 macro_rules
   | `(/[ $[$nms:term := $vals:cell],* ]) => do

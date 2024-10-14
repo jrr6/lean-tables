@@ -102,6 +102,12 @@ def List.memT_map_of_memT {α β} (f : α → β) {x : α} :
 | .(x) :: xs, .hd _ _ => .hd _ _
 | _ :: xs, .tl _ htl => .tl _ <| memT_map_of_memT _ htl
 
+-- Basic fact about equality used in `removeHeaderHasCol'`
+theorem Eq.cast_distrib_fun {α} {x y : α} {σ τ : α → Type _}
+    (h : x = y) (f : ∀ {z}, τ z → σ z) (t : τ x) :
+    h ▸ (f t) = f (h ▸ t) :=
+  h.rec (Eq.refl (f t))
+
 -- Based on `buffer.lt_aux_1` in Lean 3's `lib/lean/library/data/buffer.lean`
 theorem Nat.lt_of_lt_add_left {a b c : Nat} (h : a + c < b) : a < b :=
 Nat.lt_of_le_of_lt (Nat.le_add_right a c) h

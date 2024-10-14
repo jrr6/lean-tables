@@ -339,7 +339,7 @@ def Schema.removeOtherDecCHs (schema' : @Schema η) :
 | s, ActionList.cons c cs =>
   removeOtherDecCHs schema' (removeOtherDecCH schema' s c) cs
 
-def Schema.removeOtherCHPres :
+def Schema.removeOtherDecCHPres :
   (s : Schema) →
   (k : (hdr : Header) × DecidableEq hdr.snd ×
     HasCol hdr s × HasCol hdr schema₁) →
@@ -592,6 +592,70 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
     rw [Nat.add_comm]
     apply Nat.lt.base;
   schemaHasSubschema h
+
+-- `removeHeader` (and, for completeness, `removeName`) preservation
+-- for non-elements of the action list
+-- Used for `leftJoin` spec 3 and `pivotLonger` spec 2
+
+def Schema.removeNameHasName : ∀ {sch : @Schema η} {c c'},
+  c ≠ c' →
+  (h : sch.HasName c') →
+  HasName c sch →
+  HasName c (sch.removeName h)
+| _, _, _, _, .tl _, .hd => .hd
+| _, _, _, hneq, .tl h', .tl h => .tl <| removeNameHasName hneq h' h
+| _, _, _, _, .hd, .tl h => h
+
+def Schema.removeHeaderHasCol : ∀ {sch : @Schema η} {c τ c' τ'},
+  (c, τ) ≠ (c', τ') →
+  (h : sch.HasCol (c', τ')) →
+  HasCol (c, τ) sch →
+  HasCol (c, τ) (sch.removeHeader h)
+| _, _, _, _, _, _, .tl _, .hd => .hd
+| _, _, _, _, _, hneq, .tl h', .tl h => .tl <| removeHeaderHasCol hneq h' h
+| _, _, _, _, _, _, .hd, .tl h => h
+
+-- A more granular specification for `removeHeader` not used in the B2T2 specs
+def Schema.removeHeaderHasCol' : ∀ {sch : @Schema η} {c τ c' τ'},
+  (h' : sch.HasCol (c', τ')) →
+  (h : HasCol (c, τ) sch) →
+  (∀ heq : (c, τ) = (c', τ'), h ≠ heq ▸ h') →
+  HasCol (c, τ) (sch.removeHeader h')
+| _, _, _, _, _, .tl _, .hd, _ => .hd
+| s :: ss, c, τ, c', τ', .tl h', .tl h, hneq =>
+  .tl <| removeHeaderHasCol' h' h (fun hneg heq =>
+    (heq ▸ hneq hneg)
+      (Eq.cast_distrib_fun (τ := (Schema.HasCol · ss))
+        hneg.symm HasCol.tl h').symm
+  )
+| _, _, _, _, _, .hd, .tl h, _ => h
+| _, _, _, _, _, .hd, .hd, hneq => nomatch hneq rfl
+
+-- For `pivotLonger_spec2`, using `removeHeaderHasCol`
+def Schema.removeTypedNamesHasCol {sch : @Schema η} {c τ} :
+  ∀ (cs : ActionList (Schema.removeTypedName τ) sch)
+    (hc : sch.HasCol (c, τ)),
+    (∀ {sch' : @Schema η} (hc : sch'.HasCol (c, τ)),
+      NotT (ActionList.MemT ⟨c, hc⟩ cs)) →
+    (sch.removeTypedNames cs).HasCol (c, τ)
+| .nil, hc, hnmem => hc
+| .cons ⟨nm, hnm⟩ cs, hc, hnmem => by
+  unfold removeTypedNames
+  unfold removeTypedName
+  simp only
+  apply Schema.removeTypedNamesHasCol (sch := sch.removeHeader hnm) cs
+  case hc =>
+    apply removeHeaderHasCol _ _ hc
+    intro hneg
+    cases hneg
+    apply Empty.elim
+    apply hnmem hnm
+    exact .head _
+  case a =>
+    intro sch' hc' hneg
+    apply hnmem hc'
+    apply ActionList.MemT.tail
+    exact hneg
 
 -- `pivotWider` stuff
 def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs

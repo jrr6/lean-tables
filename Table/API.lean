@@ -62,7 +62,7 @@ where
       (r₁ : Row schema₁) (t₂ : Table schema₂)
       (cs : ActionList (Schema.removeOtherDecCH schema₁) schema₂) :=
     t₂.rows.filter λ r₂ =>
-      (cs.toList Schema.removeOtherCHPres).all (λ c =>
+      (cs.toList Schema.removeOtherDecCHPres).all (λ c =>
           let _ : DecidableEq (Cell c.1.1 c.1.2) :=
             instDecidableEqCell (inst := c.2.1)
           decide $ r₁.getCell c.2.2.2 = r₂.getCell c.2.2.1)
@@ -152,7 +152,7 @@ def head (t : Table schema) (z : Int) : Table schema :=
     else let n := z.toNat; t.rows.take n
   }
 
-def distinct [DecidableEq (Row schema)] : Table schema → Table schema
+def distinct [inst : DecidableEq (Row schema)] : Table schema → Table schema
 | {rows := rs} => {rows := rs.unique}
 
 def dropColumn (t : Table schema) (c : η) (hc : schema.HasName c := by name)

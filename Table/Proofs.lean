@@ -211,16 +211,14 @@ theorem leftJoin_spec2 {s₁ s₂ : @Schema η} :
       (schema (leftJoin t₁ t₂ cs)).lookup ⟨c, Schema.hasNameOfAppend h⟩ :=
 λ _ _ _ _ _ => Schema.lookup_eq_lookup_append _ _ _ _
 
--- TODO: leftJoin spec 3 cannot be stated as written in the spec; a suitably
--- modified version of it that accounts for the disparity between lists and
--- action lists should, however, hold
--- theorem leftJoin_spec3 {s₁ s₂ : @Schema η} :
---   ∀ (t₁ : Table s₁) (t₂ : Table s₂)
---     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
---     (cn : CertifiedName s₂),
---     (h : sorry) → --require that it not be in cs
---     Schema.lookupType (schema (leftJoin t₁ t₂ cs)) cn = s₂.lookupType cn :=
---       sorry
+def leftJoin_spec3 {s₁ s₂ : @Schema η}
+  (t₁ : Table s₁) (t₂ : Table s₂)
+  (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
+  (c : η) (hc : s₂.HasCol (c, τ))
+  (hnmem : ∀ {sch' : @Schema η} hdec hpf (hc : sch'.HasCol (c, τ)),
+    NotT (ActionList.MemT ⟨(c, τ), hdec, hc, hpf⟩ cs)) :
+  (schema (leftJoin t₁ t₂ cs)).HasCol (c, τ) :=
+  Schema.hasColOfPrepend (Schema.removeOtherDecCHsHasCol cs hc hnmem)
 
 -- This is a helper lemma for spec 4:
 theorem unique_rows_of_distinct [DecidableEq (Row sch)] {t : Table sch} :
@@ -283,6 +281,12 @@ theorem leftJoin_spec4.pick_lemma {s₁ s₂ : @Schema η}
       simp only [pred, List.all, Bool.and_eq_true] at hx
       exact hx.right
 
+-- TODO: investigate why applications of `distinct` cannot resolve the necessary
+-- decidable-equality instance when actually evaluating the expressions in the
+-- antecedent below, even if `listCHOfActionListRemoveOtherDecCH` is rewritten
+-- to use exclusively reducible functions (indeed, even unfolding that
+-- definition and `ActionList.toList` in place -- so that the only remaining
+-- definition is `Schema.map` -- gives the same error)
 theorem leftJoin_spec4 {s₁ s₂ : @Schema η}
     (t₁ : Table s₁) (t₂ : Table s₂)
     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
@@ -300,7 +304,7 @@ theorem leftJoin_spec4 {s₁ s₂ : @Schema η}
   . intro r hr
     let pred :=
       (fun r₂ : Row s₂ =>
-        (ActionList.toList Schema.removeOtherCHPres cs).all fun c =>
+        (ActionList.toList Schema.removeOtherDecCHPres cs).all fun c =>
           @decide (r.getCell c.snd.snd.snd = r₂.getCell c.snd.snd.fst)
             (@instDecidableEqCell η dec_η c.fst.fst c.fst.snd c.snd.fst
               (r.getCell c.snd.snd.snd) (r₂.getCell c.snd.snd.fst)
@@ -904,9 +908,16 @@ theorem pivotLonger_spec1 :
   rw [this]
   rfl
 
--- TODO: pivotLonger spec 2
--- Analogously to leftJoin spec 3, we can't state this as it's stated in B2T2,
--- but a suitable reformulation of should hold
+def pivotLonger_spec2 {c τ}
+    (t : Table sch)
+    (cs : ActionList (Schema.removeTypedName τ) sch)
+    (c₁ c₂ : η)
+    (hc : sch.HasCol (c, τ))
+    (hnmem : ∀ {sch' : @Schema η} (hc : sch'.HasCol (c, τ)),
+      NotT (ActionList.MemT ⟨c, hc⟩ cs)) :
+    (schema (pivotLonger t cs c₁ c₂)).HasCol (c, τ) :=
+  Schema.hasColOfAppend (Schema.removeTypedNamesHasCol cs hc hnmem)
+
 
 -- Approximation without using `lookupType`
 def pivotLonger_spec3 {τ : Type u_η} :

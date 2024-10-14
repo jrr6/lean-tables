@@ -327,12 +327,47 @@ def Schema.fromCHHasFromCH :
 | _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .hd _ _ => .hd
 | _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .tl _ htl => .tl $ fromCHHasFromCH _ hs htl
 
+-- For `leftJoin_spec3`
+def Schema.removeOtherDecCHHasCol {s₁ s₂ : @Schema η} :
+  ∀ (x : (hdr : @Header η) × DecidableEq hdr.2 × s₂.HasCol hdr × s₁.HasCol hdr)
+    (hc : s₂.HasCol (c, τ)),
+    (c, τ) ≠ x.1 →
+    Schema.HasCol (c, τ) (s₁.removeOtherDecCH s₂ x) :=
+  λ x hc hneq => Schema.removeHeaderHasCol hneq _ hc
+
+def Schema.removeOtherDecCHsHasCol {s₁ s₂ : @Schema η} :
+  ∀ (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
+    (hc : s₂.HasCol (c, τ)),
+    (∀ {sch' : @Schema η} hdec hpf (hc : sch'.HasCol (c, τ)),
+      NotT (ActionList.MemT ⟨(c, τ), hdec, hc, hpf⟩ cs)) →
+    Schema.HasCol (c, τ) (s₁.removeOtherDecCHs s₂ cs)
+| .nil, hc, hnmem => hc
+| .cons x xs, hc, hnmem =>
+  by
+  unfold removeOtherDecCHs
+  apply removeOtherDecCHsHasCol
+  case hc =>
+    apply removeOtherDecCHHasCol _ hc
+    intro hneg
+    cases x with | mk hdr rest =>
+    cases rest with | mk x1 rest =>
+    cases rest with | mk x2 x3 =>
+    cases hdr with | mk nm τ' =>
+    cases hneg
+    apply Empty.elim
+    apply hnmem x1 x3 x2
+    apply ActionList.MemT.head
+  . intro sch' hdec hpf hotherpf hneg
+    apply hnmem hdec hpf hotherpf
+    apply ActionList.MemT.tail
+    exact hneg
+
 -- For `leftJoin_spec4`
 def Schema.listCHOfActionListRemoveOtherDecCH {s₁ s₂ : @Schema η}
     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂) :
   List (CertifiedHeader s₂) :=
-  cs.toList Schema.removeOtherCHPres |>.map (λ | ⟨hdr, _, pf, _⟩ => ⟨hdr, pf⟩)
-
+  cs.toList Schema.removeOtherDecCHPres
+  |>.map (λ | ⟨hdr, _, pf, _⟩ => ⟨hdr, pf⟩)
 
 -- For `selectColumns3_spec2`
 theorem Schema.lookupType_of_colImpliesName :
