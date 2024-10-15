@@ -829,10 +829,15 @@ Table.mk [
   /[ "Eve"      , 13  , "red"           ]
 ]
 
--- This test fails because our action list behavior doesn't match the
--- "simultaneity" of renaming B2T2 expects
+-- This test fails using convenience notation because our action list behavior
+-- doesn't match the "simultaneity" of renaming B2T2 expects; we must instead
+-- manually specify the correct index in the schema with an explicit proof
+-- renameColumns gradebook A[("midterm", "final"), ("final", "midterm")]
 #test
-renameColumns gradebook A[("midterm", "final"), ("final", "midterm")]
+renameColumns gradebook
+  (.cons ⟨("midterm", "final"), by name⟩
+  (.cons ⟨("final", "midterm"), by repeat apply Schema.HasName.tl; constructor⟩
+   .nil))
 =
 Table.mk [
   /[ "name" := "Bob", "age" := 12, "quiz1" := 8, "quiz2" := 9, "final" := 77, "quiz3" := 7, "quiz4" := 9, "midterm" := 87],
