@@ -21,9 +21,9 @@ inductive Schema.HasName {η : Type u_η} : η → @Schema η → Type (max (u +
 section
 open Lean Lean.Meta Lean.Elab.Tactic
 
-def doNaiveSearch (pfTp : Name) (tacNm : String) (argNm : String)
-  : TacticM Unit := do
-    withMainContext do
+private def doNaiveSearch (pfTp : Name) (tacNm : String) (argNm : String) :
+    TacticM Unit :=
+  withMainContext do
     let tgtNF ← whnfD (← getMainTarget)
     if tgtNF.isAppOf pfTp then
       let (arg, sch) := (tgtNF.getAppArgs[1]!, tgtNF.getAppArgs[2]!)
@@ -444,8 +444,6 @@ def Schema.schemaHasRetypedSubschemaName : {nm : η} →
 | nm, schema₁, schema₂@(⟨hdr, pf⟩ :: ss), Schema.HasName.tl h =>
   have term_helper : sizeOf h < sizeOf (@Schema.HasName.tl η hdr _ _ h) := by
     simp
-    rw [Nat.add_comm]
-    apply Nat.lt.base;
   schemaHasRetypedSubschemaName h
 
 def Schema.hasNameOfRetypedHasName :
@@ -548,11 +546,11 @@ def Schema.hasColOfNotMemRenameColumns {sch : @Schema η} {c : η}  :
     (hasColOfNotMemRenameColumnCN hhc hnm hneq)
     (fun c' hhnc hneg => hnmem c' hhnc (.tail _ _ hneg))
 
+omit dec_η in
 theorem Schema.removeName_sublist :
-  ∀ (s : @Schema η) (c : η) (hc : HasName c s),
-    List.Sublist (s.removeName hc) s
-| _, _, HasName.hd => List.Sublist.cons _ _ _ (List.sublist_self _)
-| _, _, HasName.tl h => List.Sublist.cons2 _ _ _ (removeName_sublist _ _ h)
+  ∀ (s : @Schema η) (c : η) (hc : HasName c s), List.Sublist (s.removeName hc) s
+| _, _, HasName.hd => List.Sublist.cons _ (List.sublist_self _)
+| _, _, HasName.tl h => List.Sublist.cons₂ _ (removeName_sublist _ _ h)
 
 theorem Schema.removeNames_sublist :
   ∀ (s : @Schema η) (cs : ActionList Schema.removeCertifiedName s),
@@ -589,8 +587,6 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
 | nm, τ, schema₁, schema₂@(⟨hdr, pf⟩ :: ss), Schema.HasCol.tl h =>
   have term_helper : sizeOf h < sizeOf (@Schema.HasCol.tl η hdr _ _ _ h) := by
     simp
-    rw [Nat.add_comm]
-    apply Nat.lt.base;
   schemaHasSubschema h
 
 -- `removeHeader` (and, for completeness, `removeName`) preservation
@@ -711,6 +707,5 @@ def BiActionList.toList {schs : @Schema η × @Schema η}
     : BiActionList f schs → List (κ schs)
 | BiActionList.nil => []
 | BiActionList.cons x xs =>
-  have hterm : sizeOf xs < sizeOf (cons x xs) :=
-    by simp; rw [Nat.add_comm, Nat.add_one]; apply Nat.lt.base
+  have hterm : sizeOf xs < sizeOf (cons x xs) := by simp
   x :: (toList pres xs).map (pres schs x)

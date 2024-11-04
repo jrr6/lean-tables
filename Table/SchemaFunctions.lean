@@ -83,8 +83,8 @@ def Schema.sieve {α} : List Bool → List α → List α
 theorem Schema.sieve_eq_List_sieve : @Schema.sieve = @List.sieve :=
 funext λ τ => funext λ bs => funext λ xs =>
   let rec pf : ∀ bs xs, sieve bs xs = List.sieve bs xs := λ
-    | [], xs => by simp only [sieve, List.sieve]
-    | _ :: _, [] => by simp only [sieve, List.sieve]
+    | [], xs => by rw [sieve]; simp only [List.sieve]
+    | _ :: _, [] => by rw [sieve] <;> simp [List.sieve]
     | true :: bs, x :: xs => congrArg (x :: ·) (pf bs xs)
     | false :: bs, _ :: xs => pf bs xs
   pf bs xs
@@ -168,6 +168,7 @@ by intros s t c h
      exact ih
 
 -- Used in `dropColumn_spec2` proof
+omit dec_η in
 theorem Schema.mem_map_of_HasName : ∀ (sch : @Schema η) (nm : η),
   Schema.HasName nm sch → nm ∈ Schema.map Prod.fst sch := by
   intro sch nm h
@@ -226,7 +227,7 @@ theorem Schema.retypedFromSubschema_preserves_names :
 | ss, [] => rfl
 | (_, _) :: ss, ⟨(nm, τ), pf⟩ :: rs =>
   by
-    simp only [retypedFromSubschema]
+    rw [retypedFromSubschema.eq_2]
     have := retypedFromSubschema_preserves_names (Schema.retypeColumn _ pf τ)
       (Schema.map (fun ⟨h, pf⟩ => ⟨h, hasRetypedName pf⟩) rs)
     rw [this]

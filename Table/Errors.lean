@@ -2,6 +2,9 @@ import Table.API
 import Table.Notation
 import Table.ExampleTables
 
+namespace Table.Examples.Errors
+open Tables
+
 -- # Malformed Tables
 
 -- ## missingSchema

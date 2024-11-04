@@ -8,6 +8,9 @@ import Table.Widgets
 set_option synthInstance.maxSize 120000
 set_option synthInstance.maxHeartbeats 0
 
+namespace Table.Examples.Programs
+open Tables
+
 universe u_η
 variable {η : Type u_η} [DecidableEq η] {sch : @Schema η}
 
@@ -26,11 +29,9 @@ def dotProduct (t : Table sch) (c1 : η) (c2 : η)
 
 -- `sampleRows`
 -- This is very inefficiently implemented to avoid an unwieldy termination proof
-def sampleRows (t : Table sch) (n : Fin (nrows t).succ) : Table sch :=
-  -- Bare-bones PRNG
+def sampleRows (t : Table sch) (n : Fin (nrows t + 1)) : Table sch :=
+  -- Simple LCG; seeds from cs.cmu.edu/~15122/handouts/lectures/12-hashing.pdf
   let randFinSucc (n : Nat) (seed : Nat) : Fin n.succ × Nat :=
-    -- Seeds taken from
-    -- https://www.cs.cmu.edu/~15122/handouts/lectures/12-hashing.pdf
     let newSeed := seed * 1664525 + 1013904223
     (⟨newSeed % n.succ, Nat.mod_lt _ (Nat.zero_lt_succ n)⟩, newSeed)
 
@@ -42,18 +43,19 @@ def sampleRows (t : Table sch) (n : Fin (nrows t).succ) : Table sch :=
     go ⟨n, Nat.lt.base n⟩
 
   let indices : List (Fin (nrows t)) :=
-    Prod.fst $
-      n.val.fold
+    Prod.fst $ n.val.fold
       (λ k acc =>
-        let (acc, indices, seed) := acc
-        match hni : List.length indices with
+        let (acc, remainingIndices, seed) := acc
+        dbg_trace acc.length + remainingIndices.length
+        match hni : List.length remainingIndices with
         | 0 =>
-          -- TODO: This case should not exist because it will never be reached
-          (acc, indices, seed)
+          -- Note: this case will never be reached; it could be eliminated by
+          -- maintaining proofs of suitable invariants in the accumulator
+          (acc, remainingIndices, seed)
         | .succ ni =>
           let (idx, newSeed) := randFinSucc ni seed
-          (List.get indices (hni ▸ idx) :: acc,
-           List.eraseIdx indices idx,
+          (List.get remainingIndices (hni ▸ idx) :: acc,
+           List.eraseIdx remainingIndices idx,
            newSeed)
       ) ([], allFins (nrows t), 42)
   selectRows1 t indices
@@ -138,8 +140,8 @@ inductive IsQuizSchema : @Schema String → Prop
     IsQuizSchema ((nm, τ) :: hs)
 
 theorem gradebook_schema_is_quiz_schema : IsQuizSchema (schema gradebook) := by
-  repeat (first | apply IsQuizSchema.consQuiz (by decide)
-                | apply IsQuizSchema.consNonQuiz (by decide)
+  repeat (first | apply IsQuizSchema.consQuiz (by with_unfolding_all decide)
+                | apply IsQuizSchema.consNonQuiz (by with_unfolding_all decide)
                 | apply IsQuizSchema.nil)
 
 -- TODO: figure out why elaboration is taking so long here
@@ -192,6 +194,7 @@ def quizNatCH (i : Fin 4) :
   (schema gradebook).HasCol ("quiz" ++ toString (i.val + 1), Nat) := by
   -- Tools like `aesop` could probably make shorter work of this
   cases i with | mk _ isLt =>
+  simp only [schema]
   repeat (
     rename_i val
     cases val

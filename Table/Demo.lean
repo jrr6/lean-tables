@@ -43,6 +43,8 @@ The main types in the table encoding:
 Basically, we're just adding names and empty cells to our HW 4 setup.
 -/
 
+open Table
+
 #reduce @Header
 #print Schema
 #check Table
@@ -64,7 +66,7 @@ Table.mk [
 ]
 
 -- List (CertifiedName (schema myTable))
-def myTableDropped := dropColumns myTable A[⟨"Number", by name⟩]
+def myTableDropped := dropColumns myTable A["Number"]
 
 #table myTableDropped
 

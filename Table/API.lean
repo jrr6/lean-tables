@@ -3,9 +3,12 @@ import Table.Schema
 import Table.SchemaFunctions
 import Table.Row
 import Table.Table
+import Table.BuiltinExtensions
 
 universe u_η
 universe u
+
+namespace Table
 
 -- # Assumptions
 @[reducible]
@@ -148,7 +151,7 @@ def selectColumns3 (t : Table schema) (cs : List (CertifiedHeader schema))
 def head (t : Table schema) (z : Int) : Table schema :=
   {rows :=
     if z < 0
-    then let n := z.abs; t.rows.dropLastN n
+    then let n := z.natAbs; t.rows.dropLastN n
     else let n := z.toNat; t.rows.take n
   }
 

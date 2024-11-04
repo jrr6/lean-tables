@@ -229,7 +229,8 @@ theorem Row.length_retypedSubschemaPres :
   (r : Row rs.toSchema),
   length (retypedSubschemaPres (retNm := retNm) (τ := τ) (hretNm := hretNm) r) =
   length r
-| _, [], _, _, _, Row.nil => rfl
+| _, [], _, _, _, Row.nil =>
+  retypedSubschemaPres.eq_1 (η := η) _ _ _ _ |>.symm ▸ rfl
 | _, ⟨(_, _), _⟩ :: _, _, _, _, Row.cons c r' =>
   have hterm : length r' < length (cons c r') := Nat.lt_succ_self _
   by simp only [retypedSubschemaPres]; exact

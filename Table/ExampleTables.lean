@@ -1,6 +1,8 @@
 import Table.API
 import Table.Notation
 
+namespace Table.Examples.Tables
+
 def students :
   Table [("name", String), ("age", Nat), ("favorite color", String)] :=
 Table.mk [

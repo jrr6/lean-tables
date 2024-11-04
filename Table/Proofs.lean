@@ -1,6 +1,8 @@
 import Table.API
 import Init.Data.List.Lemmas
 
+namespace Table
+
 universe u u_η
 
 variable {η : Type u_η} [dec_η : DecidableEq η] {sch : @Schema η}
@@ -320,7 +322,7 @@ theorem leftJoin_spec4 {s₁ s₂ : @Schema η}
       have h_filt_uniq : List.Unique $ (t₂.rows.filter pred).map
           (·.pick (Schema.listCHOfActionListRemoveOtherDecCH cs)) :=
         List.unique_sublist huniq (List.map_sublist_of_sublist _ _ _
-                                    (List.filter_sublist _ _))
+                                    (List.filter_sublist _))
       have h_filt_eq :
         ∀ r' ∈ (t₂.rows.filter pred).map
           (·.pick (Schema.listCHOfActionListRemoveOtherDecCH cs)),
@@ -333,13 +335,13 @@ theorem leftJoin_spec4 {s₁ s₂ : @Schema η}
         simp only [Schema.listCHOfActionListRemoveOtherDecCH]
         apply leftJoin_spec4.pick_lemma _ _ _ _ hr' _ hs'
       cases List.nil_singleton_of_all_eq_unique h_filt_eq h_filt_uniq with
-      | inl hnil => simp only [hmatch, List.map] at hnil
+      | inl hnil => simp [hmatch] at hnil
       | inr hsing =>
         rw [hmatch] at hsing
         rcases hsing with ⟨x, hx⟩
         unfold List.map at hx
         cases fs with
-        | cons _ _ => simp only [List.map, List.cons.injEq, and_false] at hx
+        | cons _ _ => simp at hx
         | nil => rfl
 
 -- The spec for `getValue` (as nearly as it can be approximated up to uniqueness
@@ -522,11 +524,11 @@ theorem selectColumns3_spec3 :
 
 -- `head`
 
-theorem head_spec1 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
+theorem head_spec1 : ∀ (t : Table sch) (z : {z : Int // z.natAbs < nrows t}),
   schema (head t z) = schema t :=
 λ _ _ => rfl
 
-theorem head_spec2 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
+theorem head_spec2 : ∀ (t : Table sch) (z : {z : Int // z.natAbs < nrows t}),
   z.val ≥ 0 → nrows (head t z) = z.val :=
 by intros t z h
    cases z with | mk z prop =>
@@ -538,18 +540,18 @@ by intros t z h
      | negSucc n => contradiction
    simp only [ite_false, h_not_neg]
    simp only [List.take, nrows, Schema.length_eq_List_length]
-   rw [List.length_take]
-   . exact Int.toNat_of_ofNat_inj z h
+   rw [List.length_take_of_lt]
+   . exact Int.toNat_of_nonneg h
    . unfold nrows at prop
-     rw [Int.abs_of_nonneg_eq_toNat] at prop
+     rw [Int.natAbs_of_nonneg_eq_toNat] at prop
      . exact Schema.length_eq_List_length ▸ prop
      . exact h
 
 -- This is changed slightly from B2T2 to avoid casting. The exact statement
 -- would be:
 -- z.val < 0 → nrows (head t z) = nrows t + z.val
-theorem head_spec3 : ∀ (t : Table sch) (z : {z : Int // z.abs < nrows t}),
-  z.val < 0 → nrows (head t z) = nrows t - z.val.abs := by
+theorem head_spec3 : ∀ (t : Table sch) (z : {z : Int // z.natAbs < nrows t}),
+  z.val < 0 → nrows (head t z) = nrows t - z.val.natAbs := by
   intros t z h
   cases z with | mk z prop =>
   simp only at h
@@ -590,7 +592,7 @@ theorem dropColumn_spec2_unique :
     cases hsch with | cons hnmem hu =>
     simp only at hnmem
     have : (decide (nm ∉ [nm])) = false :=
-      by simp only [decide_not, List.mem_singleton_iff, decide_True,
+      by simp only [decide_not, List.mem_singleton, decide_True,
                     decide_False, not]
     rw [this]
     simp only [Schema.names, List.map]
@@ -1155,7 +1157,7 @@ deriving instance DecidableEq for ULift
 
 theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
-  (getColumn2 (groupByRetentive t c hc) "key" Schema.HasCol.hd).NoDuplicates
+  (getColumn2 (groupByRetentive t c hc) "key" Schema.HasCol.hd).Unique
     := by
   intros t c hc
   simp only [groupByRetentive, groupBy, getColumn2]
@@ -1175,7 +1177,7 @@ theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
     apply (λ x => Option.map ULift.up ∘ Prod.fst)
     apply (λ x => rfl)
   rw [←List.map_map]
-  apply List.no_dups_map_injective
+  apply List.unique_of_map_injective_unique
   -- Show `Option.map ULift.up` is injective
   . intros x y hxy
     cases x
@@ -1235,7 +1237,7 @@ theorem groupBySubtractive_spec3
 -- There may be a way to consolidate this with `groupByRetentive_spec4`
 theorem groupBySubtractive_spec4 [inst : DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),
-  (getColumn2 (groupBySubtractive t c hc) "key" Schema.HasCol.hd).NoDuplicates
+  (getColumn2 (groupBySubtractive t c hc) "key" Schema.HasCol.hd).Unique
   := by
   intros t c hc
   simp only [groupBySubtractive, groupBy, getColumn2]
@@ -1255,7 +1257,7 @@ theorem groupBySubtractive_spec4 [inst : DecidableEq τ] :
     apply (λ x => Option.map ULift.up ∘ Prod.fst)
     apply (λ x => rfl)
   rw [←List.map_map]
-  apply List.no_dups_map_injective
+  apply List.unique_of_map_injective_unique
   -- Show `Option.map ULift.up` is injective
   . intros x y hxy
     cases x

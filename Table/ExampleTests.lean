@@ -8,6 +8,9 @@ import Table.TestingNotation
 set_option synthInstance.maxSize 12000000
 set_option synthInstance.maxHeartbeats 0
 
+namespace Table.Examples.Tests
+open Tables
+
 -- `addRows`
 #test
 addRows students [/["Colton", 19, "blue"]]
