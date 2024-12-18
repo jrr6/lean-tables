@@ -10,34 +10,6 @@ This file contains a modified version of `#eval` (pulled from
 `Lean.Elab.BuiltinCommand`) to facilitate our `#test` command.
 -/
 
-private def mkEvalInstCore (evalClassName : Name) (e : Expr) : MetaM Expr := do
-  let α    ← inferType e
-  let u    ← getDecLevel α
-  let inst := mkApp (Lean.mkConst evalClassName [u]) α
-  try
-    synthInstance inst
-  catch _ =>
-    -- Put `α` in WHNF and try again
-    try
-      let α ← whnf α
-      synthInstance (mkApp (Lean.mkConst evalClassName [u]) α)
-    catch _ =>
-      -- Fully reduce `α` and try again
-      try
-        let α ← reduce (skipTypes := false) α
-        synthInstance (mkApp (Lean.mkConst evalClassName [u]) α)
-      catch _ =>
-        throwError "expression{indentExpr e}\nhas type{indentExpr α}\nbut instance{indentExpr inst}\nfailed to be synthesized, this instance instructs Lean on how to display the resulting value, recall that any type implementing the `Repr` class also implements the `{evalClassName}` class"
-
-private def mkRunMetaEval (e : Expr) : Lean.MetaM Expr :=
-  Lean.Meta.withLocalDeclD `env (mkConst ``Lean.Environment) fun env =>
-  Lean.Meta.withLocalDeclD `opts (mkConst ``Lean.Options) fun opts => do
-    let α ← Lean.Meta.inferType e
-    let u ← Lean.Meta.getDecLevel α
-    let instVal ← mkEvalInstCore ``Lean.MetaEval e
-    let e := mkAppN (mkConst ``Lean.runMetaEval [u]) #[α, instVal, env, opts, e]
-    instantiateMVars (← mkLambdaFVars #[env, opts] e)
-
 -- Modified version of `elabEvalUnsafe` (src/lean/lean/elab/builtincommand.lean)
 syntax (name := test) "#test" term : command
 @[command_elab test]
@@ -84,29 +56,6 @@ unsafe def elabTest : Lean.Elab.Command.CommandElab
         return e
       else
         throwError m!"Tests must be of type Bool or Prop, but got '{e_type}'"
-    let elabMetaEval : Lean.Elab.Command.CommandElabM Unit := do
-      -- act? is `some act` if elaborated `term` has type `CommandElabM α`
-      let act? ← Lean.Elab.Command.runTermElabM fun _ => Lean.Elab.Term.withDeclName n do
-        let e ← elabEvalTerm
-        let eType ← Lean.instantiateMVars (← Lean.Meta.inferType e)
-        if eType.isAppOfArity ``Lean.Elab.Command.CommandElabM 1 then
-          let mut stx ← Lean.Elab.Term.exprToSyntax e
-          unless (← Lean.Meta.isDefEq eType.appArg! (Lean.mkConst ``Unit)) do
-            stx ← `($stx >>= fun v => IO.println (repr v))
-          let act ← Lean.Elab.Term.evalTerm (Lean.Elab.Command.CommandElabM Unit) (Lean.mkApp (mkConst ``CommandElabM) (mkConst ``Unit)) stx
-          pure <| some act
-        else
-          let e ← mkRunMetaEval e
-          let env ← getEnv
-          let opts ← getOptions
-          let act ← try addAndCompile e; evalConst (Environment → Options → IO (String × Except IO.Error Environment)) n finally setEnv env
-          let (out, res) ← act env opts -- we execute `act` using the environment
-          logInfoAt tk out
-          match res with
-          | Except.error e => throwError e.toString
-          | Except.ok env  => do setEnv env; pure none
-      let some act := act? | return ()
-      act
     let elabEval : Lean.Elab.Command.CommandElabM Unit :=
     Lean.Elab.Command.runTermElabM (λ _ => Lean.Elab.Term.withDeclName n do
       let e ← elabEvalTerm

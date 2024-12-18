@@ -54,7 +54,7 @@ def leftJoin {schema₁ schema₂ : @Schema η}
              (t₂ : Table schema₂)
              (cs : ActionList (Schema.removeOtherDecCH schema₁) schema₂)
 : Table (Schema.append schema₁ (Schema.removeOtherDecCHs schema₁ schema₂ cs)) :=
-  {rows := t₁.rows.bind (λ r₁ =>
+  {rows := t₁.rows.flatMap (λ r₁ =>
     match findMatchingRows r₁ t₂ cs with
     | [] => [Row.append r₁ (Row.empty _)]
     | rs₂@(_ :: _) =>
@@ -372,7 +372,7 @@ def selectMany {ζ θ} [DecidableEq ζ] [DecidableEq θ]
                (result : Row schema → Row schema₂ → Row schema₃)
     : Table schema₃ :=
 {rows :=
-  t.rows.verifiedEnum.bind (λ (n, r) =>
+  t.rows.verifiedEnum.flatMap (λ (n, r) =>
     let projection := project r (nrows_eq_List_length t ▸ n)
     projection.rows.map (λ r' => result r r')
   )
@@ -426,7 +426,7 @@ def groupBy {η'} [DecidableEq η']
             (aggregate : κ → List ν → Row schema')
     : Table schema' :=
   let projected := t.rows.map (λ r => (key r, project r))
-  let grouped := projected.groupByKey
+  let grouped := projected.groupPairsByKey
 {rows := grouped.map (λ klv => aggregate klv.1 klv.2)}
 
 def groupBy_certified {η'} [DecidableEq η']
@@ -438,7 +438,7 @@ def groupBy_certified {η'} [DecidableEq η']
             (aggregate : κ → List ν → Row schema')
     : Table schema' :=
   let projected := t.rows.certifiedMap (λ r pf => (key r pf, project r pf))
-  let grouped := projected.groupByKey
+  let grouped := projected.groupPairsByKey
 {rows := grouped.map (λ klv => aggregate klv.1 klv.2)}
 
 /--

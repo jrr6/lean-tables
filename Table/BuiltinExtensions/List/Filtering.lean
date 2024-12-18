@@ -110,7 +110,7 @@ theorem List.removeAllEq_singleton_nonelem_eq {α} [DecidableEq α] :
       apply hnmem
       apply Mem.head
 
--- BEGIN theorems originally used as helpers for `groupByKey`
+-- BEGIN theorems originally used as helpers for `groupPairsByKey`
 theorem List.uniqueAux_acc_append_filter {α} [DecidableEq α] :
   ∀ (xs acc : List α),
   uniqueAux xs acc = reverse acc ++ unique (xs.filter (· ∉ acc))
@@ -219,7 +219,7 @@ def List.memT_unique_of_memT {α} [DecidableEq α]
       contradiction
     simp only [hnin, not_false_eq_true, decide_True]
 termination_by x xs hmem => xs.length
--- END `groupByKey
+-- END `groupPairsByKey`
 
 -- BEGIN `leftJoin` spec 4 helpers
 theorem List.mem_filter_of_mem_filter_imp {p q : α → Bool} {y : α}

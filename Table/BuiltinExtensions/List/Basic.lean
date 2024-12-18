@@ -31,15 +31,6 @@ termination_by xs ys => xs.length + ys.length
 def List.dropLastN {α} : Nat → List α → List α :=
   (λ n => reverse ∘ List.drop n ∘ reverse)
 
-def List.flatten {α} : List (List α) → List α
-| [] => []
-| [] :: ys => flatten ys
-| (x :: xs) :: ys => x :: flatten (xs :: ys)
-
-def List.sum : List Nat → Nat
-| [] => 0
-| x :: xs => x + sum xs
-
 def List.toSingletons : List α → List (List α)
 | [] => []
 | x :: xs => [x] :: toSingletons xs
@@ -159,19 +150,20 @@ theorem List.sum_map_const {xs : List α} {f} (k : Nat) :
   induction xs with
   | nil => rfl
   | cons x xs ih =>
+    rw [map, List.sum_cons]
     simp only [List.sum, List.length]
     specialize ih (λ y hy => heq y (.tail _ hy))
-    rw [heq x (.head _), ih, Nat.mul_add, Nat.add_comm, Nat.mul_one]
+    rw [heq x (.head _), ← sum, ih, Nat.mul_add, Nat.add_comm, Nat.mul_one]
 
-theorem List.length_bind {α β} {f : α → List β} {xs : List α} :
-    List.length (xs.bind f) = (xs.map (List.length ∘ f)).sum := by
+theorem List.length_flatMap {α β} {f : α → List β} {xs : List α} :
+    List.length (xs.flatMap f) = (xs.map (List.length ∘ f)).sum := by
   induction xs with
   | nil => rfl
   | cons x xs ih =>
-    simp only [List.bind, List.map, List.join]
+    simp only [List.flatMap, List.map, List.flatten]
     cases h : f x with
     | nil =>
-      rw [List.nil_append, Function.comp, h, List.length_nil, List.sum,
+      rw [List.nil_append, Function.comp, h, List.length_nil, List.sum, foldr,
           Nat.zero_add]
       exact ih
     | cons y ys =>

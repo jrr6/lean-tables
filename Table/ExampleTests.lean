@@ -1001,7 +1001,6 @@ Table.mk [
 ]
 
 -- `selectMany`
--- TODO: type class resolution fails if we annotate `r : Row $ schema students`
 #test
 selectMany students
 (λ r n =>

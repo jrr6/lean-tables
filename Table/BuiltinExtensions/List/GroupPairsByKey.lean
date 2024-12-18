@@ -3,7 +3,7 @@ import Table.BuiltinExtensions.List.Filtering
 import Table.BuiltinExtensions.List.Predicates
 
 /-!
-Implementation of and lemmas about `groupByKey`, used in the `groupBy` function.
+Implementation of and lemmas about `groupPairsByKey`, used in the `groupBy` function.
 Contains infrastructure for `groupBy`, as well as some extra proofs that
 aren't used but might be useful in the future.
 -/
@@ -159,29 +159,29 @@ theorem List.matchKey_length_lt {κ} [DecidableEq κ] {ν}
   (matchKey kvs k).2.length < kvs.length.succ :=
   Nat.lt_of_succ_le $ Nat.succ_le_succ $ matchKey_snd_length kvs k
 
-def List.groupByKey {κ} [DecidableEq κ] {ν} : List (κ × ν) → List (κ × List ν)
+def List.groupPairsByKey {κ} [DecidableEq κ] {ν} : List (κ × ν) → List (κ × List ν)
 | [] => []
 | (k, v) :: kvs =>
   have h_help : (matchKey kvs k).2.length < kvs.length.succ :=
     matchKey_length_lt k kvs
 
   let fms := matchKey kvs k
-  (k, v :: fms.1) :: groupByKey fms.2
+  (k, v :: fms.1) :: groupPairsByKey fms.2
 termination_by xs => xs.length
 decreasing_by assumption
 
-theorem List.groupByKey_matchKey_snd_length_cons [DecidableEq κ]
+theorem List.groupPairsByKey_matchKey_snd_length_cons [DecidableEq κ]
   (k : κ) (v : ν) (xs : List (κ × ν)) :
-  1 + length (groupByKey (matchKey ((k, v) :: xs) k).snd)
-    = (groupByKey ((k, v) :: xs)).length :=
+  1 + length (groupPairsByKey (matchKey ((k, v) :: xs) k).snd)
+    = (groupPairsByKey ((k, v) :: xs)).length :=
 calc
-  1 + length (groupByKey (matchKey ((k, v) :: xs) k).2)
-  = 1 + length (groupByKey (matchKey xs k).2) :=
+  1 + length (groupPairsByKey (matchKey ((k, v) :: xs) k).2)
+  = 1 + length (groupPairsByKey (matchKey xs k).2) :=
     by simp only [matchKey, length, ite_true]
-  _ = length (groupByKey (matchKey xs k).2) + 1 := Nat.add_comm _ _
-  _ = length ((k, v :: (matchKey xs k).1) :: groupByKey (matchKey xs k).2) :=
+  _ = length (groupPairsByKey (matchKey xs k).2) + 1 := Nat.add_comm _ _
+  _ = length ((k, v :: (matchKey xs k).1) :: groupPairsByKey (matchKey xs k).2) :=
     rfl
-  _ = length (groupByKey ((k, v) :: xs)) := by simp only [matchKey, groupByKey]
+  _ = length (groupPairsByKey ((k, v) :: xs)) := by simp only [matchKey, groupPairsByKey]
 
 theorem List.length_uniqueAux_matchKey {κ ν} [DecidableEq κ]
   (xs : List (κ × ν)) (k : κ) :
@@ -221,15 +221,15 @@ instance (y : Nat) : Decidable (∀ x : Nat, x - y = x) :=
     apply absurd h1
     apply Nat.ne_of_lt this)
 
-theorem List.length_groupByKey {κ} [DecidableEq κ] {ν} :
+theorem List.length_groupPairsByKey {κ} [DecidableEq κ] {ν} :
   ∀ (xs : List (κ × ν)),
-  length (groupByKey xs) = (xs.map Prod.fst).unique.length
-| [] => by simp only [groupByKey, unique, uniqueAux, length]
+  length (groupPairsByKey xs) = (xs.map Prod.fst).unique.length
+| [] => by simp only [groupPairsByKey, unique, uniqueAux, length]
 | (k, v) :: xs => by
   have hterm : length (matchKey xs k).snd < Nat.succ (length xs) :=
     Nat.lt_of_succ_le $ Nat.succ_le_succ $ matchKey_snd_length xs k
-  have ih := length_groupByKey (matchKey xs k).2
-  simp only [map, unique, uniqueAux, List.not_mem_nil, ite_false, groupByKey]
+  have ih := length_groupPairsByKey (matchKey xs k).2
+  simp only [map, unique, uniqueAux, List.not_mem_nil, ite_false, groupPairsByKey]
   -- This needs to be a separate `simp` to ensure proper ordering
   simp only [length]
   rw [length_uniqueAux_matchKey _ k _ $ List.Mem.head _]
@@ -244,7 +244,7 @@ theorem List.length_groupByKey {κ} [DecidableEq κ] {ν} :
   exact this hmem
 termination_by xs => length xs
 decreasing_by assumption
--- END `groupByKey` - `groupBy` spec 4
+-- END `groupPairsByKey` - `groupBy` spec 4
 
 -- BEGIN `groupByRetentive` spec 4 (this might simplify some stuff above?)
 
@@ -276,15 +276,15 @@ theorem List.matchKey_snd_sublist_of_sublist [DecidableEq κ] :
       simp only [hneq, ite_false]
       apply Sublist.cons₂ _ ih
 
-theorem List.fst_groupByKey_sublist [DecidableEq κ] : ∀ (kvs : List (κ × ν)),
-  map Prod.fst (groupByKey kvs) <+ map Prod.fst kvs
-| [] => groupByKey.eq_1 (κ := κ) ▸ Sublist.slnil
+theorem List.fst_groupPairsByKey_sublist [DecidableEq κ] : ∀ (kvs : List (κ × ν)),
+  map Prod.fst (groupPairsByKey kvs) <+ map Prod.fst kvs
+| [] => groupPairsByKey.eq_1 (κ := κ) ▸ Sublist.slnil
 | (k, v) :: kvs =>
   have hterm := matchKey_length_lt k kvs
-  have ih := fst_groupByKey_sublist (matchKey kvs k).snd
+  have ih := fst_groupPairsByKey_sublist (matchKey kvs k).snd
   have hsubl := matchKey_snd_sublist k kvs
   by
-    simp only [groupByKey]
+    simp only [groupPairsByKey]
     exact Sublist.cons₂ _ $
     Sublist.trans ih (map_sublist_of_sublist _ _ _ hsubl)
 termination_by kvs => kvs.length
@@ -338,10 +338,10 @@ theorem List.mem_fst_matchKey_key_or_snd [DecidableEq κ] :
 termination_by ys x hx k => ys.length
 
 -- TODO: avoid copy/paste?
-theorem List.mem_fst_groupByKey_key_or_snd [DecidableEq κ] :
+theorem List.mem_fst_groupPairsByKey_key_or_snd [DecidableEq κ] :
   ∀ {ys : List (κ × ν)} {x : κ},
   x ∈ map Prod.fst ys →
-    ∀ k, x = k ∨ x ∈ map Prod.fst (groupByKey (matchKey ys k).snd) :=
+    ∀ k, x = k ∨ x ∈ map Prod.fst (groupPairsByKey (matchKey ys k).snd) :=
 λ {ys x} hx k =>
   if h : x = k
   then Or.inl h
@@ -360,13 +360,13 @@ theorem List.mem_fst_groupByKey_key_or_snd [DecidableEq κ] :
           cases hx with
           | head => contradiction
           | tail => assumption
-        have ih := mem_fst_groupByKey_key_or_snd this k
+        have ih := mem_fst_groupPairsByKey_key_or_snd this k
         cases ih with
         | inl => contradiction
         | inr hmem => exact hmem
       | inr hkneq =>
         simp only [hkneq, ite_false]
-        simp only [groupByKey]
+        simp only [groupPairsByKey]
         simp only [map]
         cases Decidable.em (x = k') with
         | inl hxeq => rw [hxeq]; apply Mem.head
@@ -380,7 +380,7 @@ theorem List.mem_fst_groupByKey_key_or_snd [DecidableEq κ] :
               cases this with
               | inl => contradiction
               | inr => assumption
-          have ih := mem_fst_groupByKey_key_or_snd this k'
+          have ih := mem_fst_groupPairsByKey_key_or_snd this k'
           cases ih with
           | inl => contradiction
           | inr => assumption
@@ -388,37 +388,37 @@ termination_by ys x hx k => ys.length
 
 /-
 Although tempting, the stronger claim
-  `xs <+ ys → map Prod.fst (groupByKey xs) <+ map Prod.fst (groupByKey ys)`
+  `xs <+ ys → map Prod.fst (groupPairsByKey xs) <+ map Prod.fst (groupPairsByKey ys)`
 does not hold, as the following counterexample illustrates:
 
-* `List.groupByKey [("a", 1), ("b", 2), ("a", 3)]`
-* `List.groupByKey [("b", 2), ("a", 3)]`
+* `List.groupPairsByKey [("a", 1), ("b", 2), ("a", 3)]`
+* `List.groupPairsByKey [("b", 2), ("a", 3)]`
 
 Also, the initial hypothesis is a bit stricter than it needs to be:
 `(∀ x, x ∈ xs → x ∈ ys)` would suffice.
 -/
-unseal List.groupByKey in
-theorem List.all_in_map_fst_groupByKey_of_sublist [DecidableEq κ] :
+unseal List.groupPairsByKey in
+theorem List.all_in_map_fst_groupPairsByKey_of_sublist [DecidableEq κ] :
   ∀ {xs ys : List (κ × ν)},
   xs <+ ys →
-    ∀ x, x ∈ map Prod.fst (groupByKey xs) → x ∈ map Prod.fst (groupByKey ys)
+    ∀ x, x ∈ map Prod.fst (groupPairsByKey xs) → x ∈ map Prod.fst (groupPairsByKey ys)
 | _, _, @Sublist.cons _ xs ys (k, v) hsubl, x, hx =>
   if heq : x = k
   then heq ▸ Mem.head _
   else
     have hterm : ys.length < Nat.succ ys.length := Nat.le.refl
-    have ih := all_in_map_fst_groupByKey_of_sublist hsubl x hx
-    have hor : x = k ∨ x ∈ map Prod.fst (groupByKey (matchKey ys k).snd) :=
-      mem_fst_groupByKey_key_or_snd
-        (Sublist.mem ih (fst_groupByKey_sublist ys)) k
+    have ih := all_in_map_fst_groupPairsByKey_of_sublist hsubl x hx
+    have hor : x = k ∨ x ∈ map Prod.fst (groupPairsByKey (matchKey ys k).snd) :=
+      mem_fst_groupPairsByKey_key_or_snd
+        (Sublist.mem ih (fst_groupPairsByKey_sublist ys)) k
     Mem.tail k $
     match hor with
     | .inl hxeq => absurd hxeq heq
     | .inr hmem => hmem
 | _, _, @Sublist.cons₂ _ xs ys (k, v) hsubl, x, hx => by
-    simp only [groupByKey]
+    simp only [groupPairsByKey]
     simp only [map]
-    simp only [groupByKey] at hx
+    simp only [groupPairsByKey] at hx
     simp only [map] at hx
     cases hx with
     | head => constructor
@@ -427,22 +427,22 @@ theorem List.all_in_map_fst_groupByKey_of_sublist [DecidableEq κ] :
       have : (matchKey xs k).snd <+ (matchKey ys k).snd :=
         matchKey_snd_sublist_of_sublist _ _ _ hsubl
       have hterm := matchKey_length_lt k ys
-      apply all_in_map_fst_groupByKey_of_sublist this
+      apply all_in_map_fst_groupPairsByKey_of_sublist this
       assumption
 termination_by xs ys hsubl x hx => ys.length
 
 -- #check @List.not_mem_matchKey_self_snd
 -- #check @List.matchKey_snd_sublist
 -- #check @List.matchKey_snd_sublist_of_sublist
--- theorem List.map_groupByKey_matchKey_wip [DecidableEq κ] {k : κ} {kvs : List (κ × ν)} :
---   ∀ x, x ∈ map Prod.fst (groupByKey (matchKey kvs k).snd) → x ∈ map Prod.fst (groupByKey kvs) := by
+-- theorem List.map_groupPairsByKey_matchKey_wip [DecidableEq κ] {k : κ} {kvs : List (κ × ν)} :
+--   ∀ x, x ∈ map Prod.fst (groupPairsByKey (matchKey kvs k).snd) → x ∈ map Prod.fst (groupPairsByKey kvs) := by
 --   intro x hx
 --   induction kvs with
---   | nil => simp only [groupByKey, map] at hx; contradiction
+--   | nil => simp only [groupPairsByKey, map] at hx; contradiction
 --   | cons kv kvs ih =>
 --     cases kv with | mk k' v =>
 --     -- simp only [matchKey] at hx
---     simp only [groupByKey]
+--     simp only [groupPairsByKey]
 --     simp only [map]
 --     cases Decidable.em (x = k') with
 --     | inl heq =>
@@ -458,21 +458,21 @@ termination_by xs ys hsubl x hx => ys.length
 --         apply hx
 --       | inr hneq' =>
 --         simp only [hneq', ite_false] at hx
---         simp only [groupByKey] at hx
+--         simp only [groupPairsByKey] at hx
 --         simp only [map] at hx
 --         have := matchKey_snd_sublist k' (matchKey kvs k).snd
 --         sorry
 
 -- The converse is also true, but we don't need it here
-unseal List.groupByKey in
-theorem List.mem_fsts_of_mem_fsts_groupByKey [DecidableEq κ] (kvs : List (κ × ν)) :
-  k ∈ map Prod.fst (groupByKey kvs) → k ∈ map Prod.fst kvs := by
+unseal List.groupPairsByKey in
+theorem List.mem_fsts_of_mem_fsts_groupPairsByKey [DecidableEq κ] (kvs : List (κ × ν)) :
+  k ∈ map Prod.fst (groupPairsByKey kvs) → k ∈ map Prod.fst kvs := by
   intro h
   induction kvs with
   | nil => contradiction
   | cons kv kvs ih =>
     cases kv with | mk k₀ v₀ =>
-    simp only [groupByKey] at h
+    simp only [groupPairsByKey] at h
     simp only [map] at h
     simp only [map]
     cases h with
@@ -480,28 +480,28 @@ theorem List.mem_fsts_of_mem_fsts_groupByKey [DecidableEq κ] (kvs : List (κ ×
     | tail _ htail =>
       apply Mem.tail
       apply ih
-      apply all_in_map_fst_groupByKey_of_sublist (matchKey_snd_sublist k₀ kvs)
+      apply all_in_map_fst_groupPairsByKey_of_sublist (matchKey_snd_sublist k₀ kvs)
       assumption
 
 -- Instead of being separate, this could just be folded into
--- `groupByKey_fsts_no_duplicates`
-theorem List.key_not_mem_fst_groupByKey_matchKey_snd [DecidableEq κ]
+-- `groupPairsByKey_fsts_no_duplicates`
+theorem List.key_not_mem_fst_groupPairsByKey_matchKey_snd [DecidableEq κ]
   (kvs : List (κ × ν)) (k : κ) :
-  k ∉ map Prod.fst (groupByKey (matchKey kvs k).snd) :=
-  mt (List.mem_fsts_of_mem_fsts_groupByKey (matchKey kvs k).snd)
+  k ∉ map Prod.fst (groupPairsByKey (matchKey kvs k).snd) :=
+  mt (List.mem_fsts_of_mem_fsts_groupPairsByKey (matchKey kvs k).snd)
     (List.not_mem_matchKey_self_map_snd _ _)
 
 -- TODO: almost certainly need something more general for the induction
-unseal List.groupByKey in
-theorem List.groupByKey_fsts_no_duplicates [DecidableEq κ] :
-  ∀ (kvs : List (κ × ν)), Unique $ (groupByKey kvs).map Prod.fst
+unseal List.groupPairsByKey in
+theorem List.groupPairsByKey_fsts_no_duplicates [DecidableEq κ] :
+  ∀ (kvs : List (κ × ν)), Unique $ (groupPairsByKey kvs).map Prod.fst
 | [] => Unique.nil
 | (k, v) :: kvs =>
   have h_help : (matchKey kvs k).2.length < kvs.length.succ :=
     matchKey_length_lt k kvs
   Unique.cons
-    (List.key_not_mem_fst_groupByKey_matchKey_snd _ _)
-    (groupByKey_fsts_no_duplicates (matchKey kvs k).2)
+    (List.key_not_mem_fst_groupPairsByKey_matchKey_snd _ _)
+    (groupPairsByKey_fsts_no_duplicates (matchKey kvs k).2)
 termination_by xs => xs.length
 decreasing_by assumption
 

@@ -299,7 +299,7 @@ theorem leftJoin_spec4 {s₁ s₂ : @Schema η}
     nrows (leftJoin t₁ t₂ cs) = nrows t₁ := by
   intro hdistinct
   simp only [nrows]
-  rw [Schema.length_eq_List_length, leftJoin, List.length_bind]
+  rw [Schema.length_eq_List_length, leftJoin, List.length_flatMap]
   unfold Function.comp
   rw [List.sum_map_const 1]
   . apply Nat.one_mul
@@ -588,7 +588,7 @@ theorem dropColumn_spec2_unique :
   unfold Schema.Unique at hsch
   induction hc with
   | @hd nm s' τ =>
-    simp only [List.filter, List.notElem, List.elem]
+    simp only [List.filter, List.elem]
     cases hsch with | cons hnmem hu =>
     simp only at hnmem
     have : (decide (nm ∉ [nm])) = false :=
@@ -851,7 +851,7 @@ theorem groupBy_spec4 {η'} [DecidableEq η'] {sch' : @Schema η'}
   nrows (groupBy t key project aggregate) = (t.rows.map key).unique.length :=
 by intros t key proj agg
    simp only [nrows, groupBy, Schema.length_eq_List_length]
-   rw [List.length_map, List.length_groupByKey]
+   rw [List.length_map, List.length_groupPairsByKey]
    apply congrArg
    apply congrArg
    rw [List.map_map]
@@ -1187,7 +1187,7 @@ theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
     . cases y
       . contradiction
       . cases hxy; rfl
-  . apply List.groupByKey_fsts_no_duplicates
+  . apply List.groupPairsByKey_fsts_no_duplicates
 
 theorem groupByRetentive_spec5
   {η : Type u_η} {τ : Type u} [dec_η : DecidableEq η]
@@ -1267,7 +1267,7 @@ theorem groupBySubtractive_spec4 [inst : DecidableEq τ] :
     . cases y
       . contradiction
       . cases hxy; rfl
-  . apply List.groupByKey_fsts_no_duplicates
+  . apply List.groupPairsByKey_fsts_no_duplicates
 
 -- Closest approximation possible given uniqueness issues
 theorem groupBySubtractive_spec5

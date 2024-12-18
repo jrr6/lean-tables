@@ -308,6 +308,7 @@ def Schema.hasNameOfFromCHeaders :
   Schema.colImpliesName (τ := τ) hpf
 | _ :: _, ⟨hdr, hpf⟩ :: cs, nm, .tl h => hasNameOfFromCHeaders h
 
+omit dec_η in
 theorem Schema.hasNameOfFromCHeaders_eq_1 :
   @hasNameOfFromCHeaders η sch (⟨(nm, τ), hpf⟩ :: cs) nm HasName.hd =
   colImpliesName hpf := by
@@ -315,6 +316,7 @@ theorem Schema.hasNameOfFromCHeaders_eq_1 :
   | nil => contradiction
   | cons s ss => simp [hasNameOfFromCHeaders]
 
+omit dec_η in
 theorem Schema.hasNameOfFromCHeaders_eq_2 :
   @hasNameOfFromCHeaders η sch (⟨hdr, hpf⟩ :: cs) nm (HasName.tl h) =
   hasNameOfFromCHeaders h := by
