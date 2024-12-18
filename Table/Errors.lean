@@ -10,6 +10,12 @@ open Tables
 -- ## missingSchema
 -- Error is suboptimal: the first thing to fail is resolving `[DecidableEq η]`,
 -- hence the relatively unreadable message
+
+/--
+error: typeclass instance problem is stuck, it is often due to metavariables
+  DecidableEq ?m.1951
+-/
+#guard_msgs in
 def missingSchema :=
 Table.mk [
   /[ "Bob"   , 12 , "blue"  ],
@@ -18,6 +24,24 @@ Table.mk [
 ]
 
 -- ## missingRow
+
+/--
+error: overloaded, errors
+   type mismatch
+    Row.nil
+  has type
+    Row [] : Type 1
+  but is expected to have type
+    Row [("name", String), ("age", Nat), ("favorite color", String)] : Type 1
+
+    type mismatch
+    Row.nil
+  has type
+    Row [] : Type 1
+  but is expected to have type
+    Row [("name", String), ("age", Nat), ("favorite color", String)] : Type 1
+-/
+#guard_msgs in
 def missingRow :
   Table [("name", String), ("age", Nat), ("favorite color", String)] :=
 Table.mk [
@@ -27,6 +51,18 @@ Table.mk [
 ]
 
 -- ## missingCell
+
+/--
+error: application type mismatch
+  Row.cons (Cell.val "blue")
+argument
+  Cell.val "blue"
+has type
+  Cell "age" String : Type
+but is expected to have type
+  Cell "age" Nat : Type
+-/
+#guard_msgs in
 def missingCell :
   Table [("name", String), ("age", Nat), ("favorite color", String)] :=
 Table.mk [
@@ -36,6 +72,56 @@ Table.mk [
 ]
 
 -- ## swappedColumns
+/--
+error: application type mismatch
+  Row.cons (Cell.val "Bob")
+argument
+  Cell.val "Bob"
+has type
+  Cell "age" String : Type
+but is expected to have type
+  Cell "age" Nat : Type
+---
+error: application type mismatch
+  Row.cons (Cell.val "Alice")
+argument
+  Cell.val "Alice"
+has type
+  Cell "age" String : Type
+but is expected to have type
+  Cell "age" Nat : Type
+---
+error: application type mismatch
+  Row.cons (Cell.val "Eve")
+argument
+  Cell.val "Eve"
+has type
+  Cell "age" String : Type
+but is expected to have type
+  Cell "age" Nat : Type
+---
+error: failed to synthesize
+  OfNat String 12
+numerals are polymorphic in Lean, but the numeral `12` cannot be used in a context where the expected type is
+  String
+due to the absence of the instance above
+Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+error: failed to synthesize
+  OfNat String 17
+numerals are polymorphic in Lean, but the numeral `17` cannot be used in a context where the expected type is
+  String
+due to the absence of the instance above
+Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+error: failed to synthesize
+  OfNat String 13
+numerals are polymorphic in Lean, but the numeral `13` cannot be used in a context where the expected type is
+  String
+due to the absence of the instance above
+Additional diagnostic information may be available using the `set_option diagnostics true` command.
+-/
+#guard_msgs in
 def swappedColumns :
   Table [("name", String), ("age", Nat), ("favorite color", String)] :=
 Table.mk [
@@ -47,6 +133,36 @@ Table.mk [
 -- ## schemaTooShort
 -- Error is somewhat unreadable, but at least conveys a general sense of "there
 -- are data present where an absence of data was expected"
+
+/--
+error: application type mismatch
+  Row.cons (Cell.val 12) (Row.cons (Cell.val "blue") Row.nil)
+argument
+  Row.cons (Cell.val "blue") Row.nil
+has type
+  Row [(?m.13657, String)] : Type 1
+but is expected to have type
+  Row [] : Type 1
+---
+error: application type mismatch
+  Row.cons (Cell.val 17) (Row.cons (Cell.val "green") Row.nil)
+argument
+  Row.cons (Cell.val "green") Row.nil
+has type
+  Row [(?m.14359, String)] : Type 1
+but is expected to have type
+  Row [] : Type 1
+---
+error: application type mismatch
+  Row.cons (Cell.val 13) (Row.cons (Cell.val "red") Row.nil)
+argument
+  Row.cons (Cell.val "red") Row.nil
+has type
+  Row [(?m.15030, String)] : Type 1
+but is expected to have type
+  Row [] : Type 1
+-/
+#guard_msgs in
 def schemaTooShort : Table [("name", String), ("age", Nat)] :=
 Table.mk [
   /[ "Bob"   , 12     , "blue"         ],
@@ -59,6 +175,36 @@ Table.mk [
 -- type mismatch. Changing the type of the "favorite number" column to `String`
 -- reveals a reasonably informative error message regarding the absence of a
 -- fourth column.
+
+/--
+error: application type mismatch
+  Row.cons (Cell.val "blue")
+argument
+  Cell.val "blue"
+has type
+  Cell "favorite number" String : Type
+but is expected to have type
+  Cell "favorite number" Nat : Type
+---
+error: application type mismatch
+  Row.cons (Cell.val "green")
+argument
+  Cell.val "green"
+has type
+  Cell "favorite number" String : Type
+but is expected to have type
+  Cell "favorite number" Nat : Type
+---
+error: application type mismatch
+  Row.cons (Cell.val "red")
+argument
+  Cell.val "red"
+has type
+  Cell "favorite number" String : Type
+but is expected to have type
+  Cell "favorite number" Nat : Type
+-/
+#guard_msgs in
 def schemaTooLong :
   Table [("name", String), ("age", Nat),
          ("favorite number", Nat), ("favorite color", String)] :=
@@ -89,7 +235,18 @@ opaque pieChart (t : Table sch)
 
 
 -- ## midFinal
--- We generate this error message, so it's fairly helpful by design
+-- We generate this error message, so it's fairly helpful by design. Recent
+-- Lean updates have inserted the unavoidable "could not synthesize using
+-- tactics" error message, which may create some confusion.
+
+/--
+error: could not synthesize default value for parameter 'hc1' using tactics
+---
+error: Could not prove that header ("mid",
+  Nat) is in schema [("name", String), ("age", Nat), ("quiz1", Nat), ("quiz2", Nat), ("midterm", Nat), ("quiz3", Nat),
+  ("quiz4", Nat), ("final", Nat)]
+-/
+#guard_msgs in
 def midFinal :=
   scatterPlot gradebook "mid" "final"
 
@@ -97,6 +254,13 @@ def midFinalCorrected :=
   scatterPlot gradebook "midterm" "final"
 
 -- ## blackAndWhite
+
+/--
+error: could not synthesize default value for parameter 'h' using tactics
+---
+error: Could not prove that header ("black and white", Bool) is in schema jellyAnon.schema
+-/
+#guard_msgs in
 def eatBlackAndWhite (r : Row (schema jellyAnon)) : Option Bool :=
   getValue r "black and white" == some true
 def blackAndWhite :=
@@ -112,6 +276,17 @@ def blackAndWhiteCorrected :=
 -- ## pieCount
 -- This is a hard case to mimic with our setup because it's unlikely one would
 -- jump through so many hoops to contrive this particular circumstance.
+
+/--
+error: could not synthesize default value for parameter 'hc1' using tactics
+---
+error: Could not prove that header ("true", Bool) is in schema [("value", Bool), ("count", Nat)]
+---
+error: could not synthesize default value for parameter 'hc2' using tactics
+---
+error: Could not prove that header ("get acne", Nat) is in schema [("value", Bool), ("count", Nat)]
+-/
+#guard_msgs in
 def showAcneProportions {sch : @Schema String}
   (t : Table sch)
   (hacne : sch.HasCol ("get acne", Bool)) :=
@@ -134,6 +309,16 @@ def brownAndGetAcne {sch: @Schema String}
   | _         , _          => some false
 def brownAndGetAcneTable :=
   buildColumn jellyNamed "part2" brownAndGetAcne
+/--
+error: could not synthesize default value for parameter 'hc' using tactics
+---
+error: Could not prove that header ("brown and get acne",
+  ?m.23340) is in schema Schema.append
+  [("name", String), ("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool),
+    ("yellow", Bool), ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
+  [("part2", Bool)]
+-/
+#guard_msgs in
 def brownGetAcne :=
   count brownAndGetAcneTable "brown and get acne"
 
@@ -143,8 +328,17 @@ def brownGetAcneCorrected :=
   count brownAndGetAcneTableCorrected "brown and get acne"
 
 -- ## getOnlyRow
--- Proof error is not at all enlightening, but locality should at least make it
--- somewhat evident where things are going wrong.
+-- In recent versions of Lean, `decide` gives better error messages, making this
+-- more readable
+
+/--
+error: could not synthesize default value for parameter 'h' using tactics
+---
+error: tactic 'decide' proved that the proposition
+  1 < (students.tfilter fun r => decide (getValue r "name" Schema.HasCol.hd = some "Alice")).nrows
+is false
+-/
+#guard_msgs in
 def getOnlyRow :=
   getValue (
     getRow
@@ -162,6 +356,16 @@ def getOnlyRowCorrected :=
   "favorite color"
 
 -- ## favoriteColor
+
+/--
+error: type mismatch
+  getValue r "favorite color" ?m.29131
+has type
+  Option ?m.29065 : Type
+but is expected to have type
+  Bool : Type
+-/
+#guard_msgs in
 def participantsLikeGreen {sch : @Schema String} (t : Table sch)
   (hcolor: sch.HasCol ("favorite color", String) := by header) :=
       tfilter t (λ r => getValue r "favorite color")
@@ -181,6 +385,14 @@ def countParticipants {sch : @Schema String}
   (t : Table sch) (color : String)
   (hcolor : sch.HasCol ("color", Bool) := by header) :=
   nrows (tfilter t keep)
+/--
+error: could not synthesize default value for parameter 'hcolor' using tactics
+---
+error: Could not prove that header ("color",
+  Bool) is in schema [("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool),
+  ("yellow", Bool), ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
+-/
+#guard_msgs in
 def brownJellyBeans := countParticipants jellyAnon "brown"
 
 def keepCorrected1 {sch : Schema}
@@ -229,6 +441,12 @@ def employeeToDept {emplSch deptSch : @Schema String}
   (hid : deptSch.HasCol ("Department ID", Nat) := by header) :=
   buildColumn emplTab "Department Name" (λ r =>
     lastNameToDeptId deptTab (getValue r "Last Name"))
+/--
+error: could not synthesize default value for parameter 'hdln' using tactics
+---
+error: Could not prove that header ("Last Name", String) is in schema [("Department ID", Nat), ("Department Name", String)]
+-/
+#guard_msgs in
 def employeeToDepartment :=
   employeeToDept "Rafferty" employees departments
 
