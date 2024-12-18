@@ -194,7 +194,7 @@ def Row.removeColumnsHeaders {s : @Schema η} :
 | .cons c cs, r => removeColumnsHeaders cs $
                     removeColumn (Schema.colImpliesName c.2) r
 
-def Row.removeTypedColumns {s : @Schema η} {τ : Type u} :
+@[semireducible] def Row.removeTypedColumns {s : @Schema η} {τ : Type u} :
     (cs : ActionList (Schema.removeTypedName τ) s) →
     Row s →
     Row (s.removeTypedNames cs)

@@ -693,7 +693,7 @@ entries "in reverse" (i.e., enables them to be "lifted" to a schema prior to
 the ActionList's associated transformation) and generates a list of action list
 entries at the top-level (original, pre-transformation) schema.
 -/
-def ActionList.toList {sch : @Schema η} {κ : @Schema η → Type u}
+@[semireducible] def ActionList.toList {sch : @Schema η} {κ : @Schema η → Type u}
     {f : ∀ (s : @Schema η), κ s → @Schema η}
     (pres : ∀ (s : @Schema η) (k : κ s), κ (f s k) → κ s)
     : ActionList f sch → List (κ sch)
