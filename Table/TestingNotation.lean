@@ -87,3 +87,58 @@ notation lhs "=(" tp ")" rhs => instHint tp inferInstance lhs rhs
 notation lhs "=[" inst "]" rhs => instHint _ inst lhs rhs
 
 notation lhs "=(" tp ")[" inst "]" rhs => instHint tp inst lhs rhs
+
+section CheckReduce
+
+open Lean Meta Elab Command
+
+/-- `#check_reduce` command -/
+syntax (name := checkReduce) "#check_reduce " term : command
+syntax (name := checkReduceNontransparent) "#check_reduce! " term : command
+
+partial def reduceApps (e : Expr) (transparency : TransparencyMode) : TermElabM Expr := do
+  unless e.isApp do
+    return e
+  let fn ← reduceApps e.getAppFn transparency
+  let mut args := e.getAppArgs
+  args ← args.mapM (fun x => do reduceApps (← doTransparentReduction x) transparency)
+  let eReduced := mkAppN fn args
+  return eReduced
+where
+  doTransparentReduction (e : Expr) : TermElabM Expr := do
+    let e ← Term.levelMVarToParam (← instantiateMVars e)
+    withTheReader Core.Context (fun ctx => { ctx with options := ctx.options.setBool `smartUnfolding false }) do
+      withTransparency (mode := transparency) <| reduce e (skipProofs := true) (skipTypes := true)
+
+/--
+Variant of `#check` that reduces outermost arguments to type constructors.
+-/
+def elabCheckReduceCore (tk : Syntax) (term : Term) (transparency := TransparencyMode.reducible) : CommandElabM Unit := do
+    withoutModifyingEnv <| runTermElabM fun _ => Term.withDeclName `_check do
+    let e ← Term.elabTerm term none
+    Term.synthesizeSyntheticMVarsNoPostponing (ignoreStuckTC := true)
+    withRef tk <| Meta.check e
+    let e ← Term.levelMVarToParam (← instantiateMVars e)
+    if e.isSyntheticSorry then
+      return
+    let type ← inferType e
+    -- let fn := type.getAppFn
+    -- let mut args := type.getAppArgs
+    -- args ← args.mapM fun a => do
+    --   let e ← Term.levelMVarToParam (← instantiateMVars a)
+    --   withTheReader Core.Context (fun ctx => { ctx with options := ctx.options.setBool `smartUnfolding false }) do
+    --     withTransparency (mode := TransparencyMode.reducible) <| reduce e (skipProofs := true) (skipTypes := true)
+
+    -- let reducedTypeAndArgs := mkAppN fn args
+    let reducedTypeAndArgs ← reduceApps type transparency
+    logInfoAt tk m!"{e} : {reducedTypeAndArgs}"
+
+@[command_elab checkReduce] def elabCheckReduce : CommandElab
+  | `(#check_reduce%$tk $term) => elabCheckReduceCore tk term
+  | _ => throwUnsupportedSyntax
+
+@[command_elab checkReduceNontransparent] def elabCheckReduceNontransparent : CommandElab
+  | `(#check_reduce!%$tk $term) => elabCheckReduceCore tk term (transparency := .default)
+  | _ => throwUnsupportedSyntax
+
+end CheckReduce
