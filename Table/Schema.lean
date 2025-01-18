@@ -104,6 +104,19 @@ inductive ActionList {η : Type u_η} [DecidableEq η]
                   ActionList f (f schema entry) →
                   ActionList f schema
 
+inductive ProofList (f : α → Type _) : (xs : List α) → Type _
+  | nil : ProofList f []
+  | cons : f x → ProofList f xs → ProofList f (x :: xs)
+
+inductive IsActionList {η : Type u_η} [DecidableEq η]
+                       {κ : η → @Schema η → Type u}
+                       (f : ∀ (nm : η) (s : @Schema η), κ nm s → @Schema η) :
+    @Schema η → List η → Type _
+| nil {schema} : IsActionList f schema []
+| cons {schema} {nm nms} : (entry : κ nm schema) →
+                        IsActionList f (f nm schema entry) nms →
+                        IsActionList f schema (nm :: nms)
+
 inductive BiActionList {η : Type u_η} [DecidableEq η]
                        {κ : @Schema η × @Schema η → Type u}
   (f : ∀ (ss : @Schema η × @Schema η), κ ss → @Schema η × @Schema η)
@@ -154,16 +167,6 @@ def Schema.HasCol.size : {schema : @Schema η} →
 | _, _, Schema.HasCol.hd => 0
 | _, _, Schema.HasCol.tl h => 1 + size h
 
--- Schema proof generation/manipulation functions
-def Schema.certify (schema : @Schema η) : List (CertifiedHeader schema) :=
-  let rec certify_elts : (subschm : @Schema η) → List (CertifiedHeader subschm)
-    | [] => []
-    | (c, τ) :: hs =>
-      let map_subproof :=
-        λ (⟨hdr, h⟩ : CertifiedHeader hs) => ⟨hdr, Schema.HasCol.tl h⟩;
-      ⟨(c, τ), Schema.HasCol.hd⟩ :: (certify_elts hs).map map_subproof;
-  certify_elts schema
-
 @[reducible]
 def Schema.colImpliesName :
       {schema : @Schema η} →
@@ -176,10 +179,12 @@ def Schema.colImpliesName :
 -- There occasionally seem to be some issues with this function, too -- not sure
 -- if it's the same issue as `removeName` and `lookup`, but will leave these
 -- here for the time being just in case
-def Schema.colImpliesName_eq_1 {sch' : @Schema η} {hdr : @Header η} :
+omit dec_η in
+theorem Schema.colImpliesName_eq_1 {sch' : @Schema η} {hdr : @Header η} :
   colImpliesName (schema := hdr :: sch') HasCol.hd = HasName.hd := rfl
 
-def Schema.colImpliesName_eq_2 {sch' : @Schema η} {s hdr : @Header η}
+omit dec_η in
+theorem Schema.colImpliesName_eq_2 {sch' : @Schema η} {s hdr : @Header η}
                                {h : sch'.HasCol hdr}:
   colImpliesName (schema := s :: sch') (HasCol.tl h) =
   HasName.tl (colImpliesName h) := rfl
@@ -189,16 +194,13 @@ def Schema.cNameOfCHead {schema : @Schema η} :
       CertifiedHeader schema → CertifiedName schema
 | ⟨(nm, τ), pf⟩ => ⟨nm, Schema.colImpliesName pf⟩
 
-def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
-  schema.certify.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) =>
-                        ⟨c, colImpliesName h⟩)
-
 -- Schema functions
 -- Note: if written point-free, dot notation fails
 @[reducible]
 def Schema.names {η : Type u_η} (sch : @Schema η) :=
   List.map (@Prod.fst η (Type u)) sch
 
+@[reducible]
 def Schema.memTNamesOfHasName :
   {sch : @Schema η} → Schema.HasName c sch → List.MemT c sch.names
 | _, .hd => .hd _ _
@@ -248,6 +250,7 @@ def Schema.removeHeader {c : η} {τ : Type u}
 def Schema.removeCertifiedName (s : @Schema η) (cn : CertifiedName s) :=
   removeName s cn.2
 
+@[reducible]
 def Schema.removeCertifiedHeader (s : @Schema η) (ch : CertifiedHeader s) :=
   removeHeader s ch.2
 
@@ -258,6 +261,7 @@ def Schema.removeTypedName (τ : Type u)
     : @Schema η :=
   removeHeader s c.2
 
+@[reducible]
 def Schema.removeNamePres : {schema : @Schema η} →
                               {nm : η} →
                               {n : schema.HasName nm} →
@@ -271,11 +275,13 @@ def Schema.removeNamePres : {schema : @Schema η} →
   let ih := @removeNamePres _ nm h nm' h'
   Schema.HasName.tl ih
 
+@[reducible]
 def Schema.removeCNPres {schema : @Schema η} {nm} {n : schema.HasName nm}
                         (cn : CertifiedName $ schema.removeName n)
     : CertifiedName schema
   := ⟨cn.1, removeNamePres cn.2⟩
 
+@[reducible]
 def Schema.removeHeaderPres :
     {hdr : @Header η} → {schema : @Schema η} →
     {h : schema.HasCol hdr} →
@@ -286,6 +292,7 @@ def Schema.removeHeaderPres :
 | hdr, .(hdr') :: ss, HasCol.tl h, hdr', HasCol.hd => HasCol.hd
 | hdr, s :: ss, HasCol.tl h, _, HasCol.tl h' => HasCol.tl (removeHeaderPres h')
 
+@[reducible]
 def Schema.hasColOfRemoveName :
   ∀ {sch : @Schema η} {nm} (c : η) (hneq : c ≠ nm),
   (hnm : sch.HasName nm) → sch.HasCol (c, τ) →
@@ -295,6 +302,7 @@ def Schema.hasColOfRemoveName :
 | _ :: sch', nm, c, hneq, .tl h, .tl h' =>
   .tl $ hasColOfRemoveName c hneq h h'
 
+@[reducible]
 def Schema.removeTNPres
   (s : Schema)
   (k : (c : η) × Schema.HasCol (c, τ) s)
@@ -308,6 +316,7 @@ def Schema.removeNames {η : Type u_η} [DecidableEq η] :
 | ss, ActionList.nil => ss
 | ss, ActionList.cons cn rest => removeNames (removeName ss cn.2) rest
 
+@[reducible]
 def Schema.removeHeaders {η : Type u_η} [DecidableEq η] :
     (s : @Schema η) → ActionList removeCertifiedHeader s → @Schema η
 | ss, ActionList.nil => ss
@@ -339,6 +348,7 @@ def Schema.removeOtherDecCHs (schema' : @Schema η) :
 | s, ActionList.cons c cs =>
   removeOtherDecCHs schema' (removeOtherDecCH schema' s c) cs
 
+@[reducible]
 def Schema.removeOtherDecCHPres :
   (s : Schema) →
   (k : (hdr : Header) × DecidableEq hdr.snd ×
@@ -349,6 +359,7 @@ def Schema.removeOtherDecCHPres :
 λ _ _ c => ⟨c.1, c.2.1, removeHeaderPres c.2.2.1, c.2.2.2⟩
 
 -- Returns the schema entry with the specified name
+@[reducible]
 def Schema.lookup {η : Type u_η} [DecidableEq η]
     : (s : @Schema η) → CertifiedName s → @Header η
 | hdr :: _, ⟨_, Schema.HasName.hd⟩ => hdr
@@ -377,6 +388,7 @@ theorem Schema.lookup_of_colImpliesName :
 -- Returns the type associated with the given name.
 -- Note: don't use this function to specify the return type of a function.
 -- Instead, take the type implicitly and make that variable the return type.
+@[reducible]
 def Schema.lookupType {η : Type u_η} [DecidableEq η]
     : (s : @Schema η) → CertifiedName s → Type u
 | (_, τ) :: _, ⟨_, Schema.HasName.hd⟩ => τ
@@ -388,12 +400,12 @@ theorem Schema.lookupType_eq_snd_lookup (s : @Schema η) (cn : CertifiedName s) 
   induction pf with
   | hd =>
     simp only [lookupType]
-    rw [lookup_eq_1]
   | tl h ih =>
     simp only [lookupType]
     rw [lookup_eq_2]
     apply ih
 
+@[reducible]
 def Schema.pick {η : Type u_η} [DecidableEq η] (s : @Schema η)
     : List (CertifiedName s) → @Schema η
 | [] => []
@@ -422,6 +434,7 @@ def Schema.hasRetypedName {τ : Type u} :
 | _, _, (_, _) :: hs, .tl h, .hd => .hd
 | _, _, (_, _) :: hs, .tl h, .tl h' => .tl $ hasRetypedName h'
 
+@[reducible]
 def Schema.hasRetypedCol {τ₁ τ₂} : ∀ {sch : @Schema η}
   (c : (c : η) × sch.HasCol (c, τ₁)),
   HasCol (c.1, τ₂) (retypeColumn sch (colImpliesName c.snd) τ₂)
@@ -446,6 +459,7 @@ def Schema.schemaHasRetypedSubschemaName : {nm : η} →
     simp
   schemaHasRetypedSubschemaName h
 
+@[reducible]
 def Schema.hasNameOfRetypedHasName :
   ∀ {sch : @Schema η}
     {hn : sch.HasName nm},
@@ -461,6 +475,7 @@ def Schema.hasNameOfRetypedHasName :
   | tl h =>
     exact .tl (hasNameOfRetypedHasName h)
 
+@[reducible]
 def Schema.hasNameOfRetypedHasName_hasRetypedName :
   ∀ {sch : @Schema η}
     {nm nm'}
@@ -476,6 +491,7 @@ def Schema.hasNameOfRetypedHasName_hasRetypedName :
   rw [Schema.HasName.tl.injEq]
   apply hasNameOfRetypedHasName_hasRetypedName
 
+@[reducible]
 def Schema.retypedHasOtherCol :
   ∀ {sch : @Schema η}
     {c : η} {τ : Type _} {c' : η}
@@ -520,6 +536,7 @@ def Schema.renameColumns {η : Type u_η} [DecidableEq η]
 | s, ActionList.nil => s
 | s, ActionList.cons c ccs => renameColumns (renameColumnCN s c) ccs
 
+@[reducible]
 def Schema.hasColOfNotMemRenameColumnCN :
   ∀ {sch : @Schema η} {nm} {c : η}
     (hc : sch.HasCol (c, τ))
@@ -531,6 +548,7 @@ def Schema.hasColOfNotMemRenameColumnCN :
 | (_, _) :: _, nm, c, .tl hc, .tl hn, hneq =>
   .tl $ hasColOfNotMemRenameColumnCN hc hn hneq
 
+@[reducible]
 def Schema.hasColOfNotMemRenameColumns {sch : @Schema η} {c : η}  :
   ∀ (ccs : ActionList Schema.renameColumnCN sch)
     (hc : sch.HasCol (c, τ)),
@@ -566,18 +584,21 @@ theorem Schema.lookup_fst_eq_nm :
 | s :: ss, ⟨_, HasName.hd⟩ => rfl
 | s :: ss, ⟨c, HasName.tl h⟩ => lookup_fst_eq_nm ss ⟨c, h⟩
 
+@[reducible]
 def Schema.schemaHasLookup : (schema : @Schema η) → (c : CertifiedName schema)
     → schema.HasCol (schema.lookup c)
 | _, ⟨_, Schema.HasName.hd⟩ => Schema.HasCol.hd
 | _ :: s', ⟨c, Schema.HasName.tl h⟩ =>
   Schema.HasCol.tl (schemaHasLookup s' ⟨c, h⟩)
 
+@[reducible]
 def Schema.schemaHasLookupType :
   (schema : @Schema η) → (nm : η) → (hnm : schema.HasName nm) →
   schema.HasCol (nm, schema.lookupType ⟨nm, hnm⟩)
 | _, _, .hd => .hd
 | _, _, .tl h => .tl (schemaHasLookupType _ _ h)
 
+@[reducible]
 def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
                                 {schema : @Schema η} →
                                 {subschema : Subschema schema} →
@@ -593,6 +614,7 @@ def Schema.schemaHasSubschema : {nm : η} → {τ : Type u} →
 -- for non-elements of the action list
 -- Used for `leftJoin` spec 3 and `pivotLonger` spec 2
 
+@[reducible]
 def Schema.removeNameHasName : ∀ {sch : @Schema η} {c c'},
   c ≠ c' →
   (h : sch.HasName c') →
@@ -602,6 +624,7 @@ def Schema.removeNameHasName : ∀ {sch : @Schema η} {c c'},
 | _, _, _, hneq, .tl h', .tl h => .tl <| removeNameHasName hneq h' h
 | _, _, _, _, .hd, .tl h => h
 
+@[reducible]
 def Schema.removeHeaderHasCol : ∀ {sch : @Schema η} {c τ c' τ'},
   (c, τ) ≠ (c', τ') →
   (h : sch.HasCol (c', τ')) →
@@ -612,6 +635,7 @@ def Schema.removeHeaderHasCol : ∀ {sch : @Schema η} {c τ c' τ'},
 | _, _, _, _, _, _, .hd, .tl h => h
 
 -- A more granular specification for `removeHeader` not used in the B2T2 specs
+@[reducible]
 def Schema.removeHeaderHasCol' : ∀ {sch : @Schema η} {c τ c' τ'},
   (h' : sch.HasCol (c', τ')) →
   (h : HasCol (c, τ) sch) →
@@ -628,6 +652,7 @@ def Schema.removeHeaderHasCol' : ∀ {sch : @Schema η} {c τ c' τ'},
 | _, _, _, _, _, .hd, .hd, hneq => nomatch hneq rfl
 
 -- For `pivotLonger_spec2`, using `removeHeaderHasCol`
+@[reducible]
 def Schema.removeTypedNamesHasCol {sch : @Schema η} {c τ} :
   ∀ (cs : ActionList (Schema.removeTypedName τ) sch)
     (hc : sch.HasCol (c, τ)),
@@ -654,6 +679,7 @@ def Schema.removeTypedNamesHasCol {sch : @Schema η} {c τ} :
     exact hneg
 
 -- `pivotWider` stuff
+@[reducible]
 def Schema.hasColOfMemT : List.MemT (x, τ) xs → Schema.HasCol (x, τ) xs
   | .hd _ _ => .hd
   | .tl _ htl => .tl $ hasColOfMemT htl
@@ -671,6 +697,7 @@ inductive Schema.Homogeneous (τ : Type _) : @Schema η → Type _
 
 -- Turn an arbitrarily-typed header proof for a homogeneous schema into a
 -- homogeneously-typed one
+@[reducible]
 def Schema.homogenizeHC {nm τ} :
     {σ : Type _} → {sch : @Schema η} →
     sch.Homogeneous τ →

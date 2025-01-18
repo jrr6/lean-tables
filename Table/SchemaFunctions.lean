@@ -89,6 +89,21 @@ funext λ τ => funext λ bs => funext λ xs =>
     | false :: bs, _ :: xs => pf bs xs
   pf bs xs
 
+-- Schema proof generation/manipulation functions
+@[reducible]
+def Schema.certify : (schema : @Schema η) → List (CertifiedHeader schema)
+  | [] => []
+  | (c, τ) :: hs =>
+    let mapSubproof :=
+      λ (⟨hdr, h⟩ : CertifiedHeader hs) => ⟨hdr, Schema.HasCol.tl h⟩
+    ⟨(c, τ), Schema.HasCol.hd⟩ :: Schema.map mapSubproof (certify hs)
+
+@[reducible]
+def Schema.certifyNames (schema : @Schema η) : List (CertifiedName schema) :=
+  schema.certify
+    |> Schema.map (λ (⟨(c, _), h⟩ : CertifiedHeader schema) =>
+                    ⟨c, colImpliesName h⟩)
+
 /- -------------------- -/
 
 theorem List.length_rw {T : α → Type _} {s t : α} :
@@ -127,6 +142,7 @@ def Schema.hasAppendedHead :
 | [], _, _, _ => .hd
 | s :: ss, c, τ, _ => .tl (hasAppendedHead ss c τ _)
 
+@[reducible]
 def Schema.hasNameOfAppend : {sch : @Schema η} →
                                  {nm : η} →
                                  {hs : @Schema η} →
@@ -136,6 +152,7 @@ def Schema.hasNameOfAppend : {sch : @Schema η} →
 | _, _, _, Schema.HasName.hd => Schema.HasName.hd
 | _, _, _, Schema.HasName.tl h => Schema.HasName.tl $ hasNameOfAppend h
 
+@[reducible]
 def Schema.hasColOfAppend : {sch : @Schema η} →
                                  {nm : η} →
                                  {τ : Type u} →
@@ -145,6 +162,7 @@ def Schema.hasColOfAppend : {sch : @Schema η} →
 | _, _, _, _, Schema.HasCol.hd => Schema.HasCol.hd
 | _, _, _, _, Schema.HasCol.tl h => Schema.HasCol.tl $ hasColOfAppend h
 
+@[reducible]
 def Schema.hasColOfPrepend : {sch : @Schema η} →
                                  {nm : η} →
                                  {τ : Type u} →
@@ -161,7 +179,6 @@ by intros s t c h
    induction h with
    | hd =>
      simp only [Schema.hasNameOfAppend]
-     rw [Schema.lookup_eq_1, Schema.lookup_eq_1]
    | tl h' ih =>
      simp only [Schema.hasNameOfAppend]
      rw [Schema.lookup_eq_2, Schema.lookup_eq_2]
@@ -234,7 +251,7 @@ theorem Schema.retypedFromSubschema_preserves_names :
     simp only [retypeColumn_preserves_names]
 termination_by sch rs => Schema.length rs
 
-
+@[reducible]
 def Schema.memTMapRetypedNameOfMemThasNameOfRetypedHasName
   {nm nm' : η} {τ τ' : Type u} {hn' : sch.HasName nm'}
   {hnm : HasName nm (retypeColumn sch hn' τ')} {rs : RetypedSubschema sch} :
@@ -260,6 +277,7 @@ def Schema.memTMapRetypedNameOfMemThasNameOfRetypedHasName
 -- Note: an issue with Lean's pattern matcher requires us to specify the last
 -- two identical cases separately for the `.hd` and `.tl` cases of the `HasCol`
 -- proof
+@[reducible]
 def Schema.retypedFromSubschemaHasColOfNotMemT :
   ∀ {sch : @Schema η} (subsch : RetypedSubschema sch),
     (∀ τ' hn, NotT (List.MemT ⟨(c, τ'), hn⟩ subsch)) →
@@ -300,6 +318,7 @@ def Schema.fromCHeaders {schema : @Schema η}
 --   (Schema.fromCHeaders cs).HasCol (c, τ)
 -- | .head, c :: cs, .hd => .hd
 
+@[reducible]
 def Schema.hasNameOfFromCHeaders :
   ∀ {sch : @Schema η} {cs : List $ CertifiedHeader sch} {nm : η},
   Schema.HasName nm (Schema.fromCHeaders cs) → Schema.HasName nm sch
@@ -314,7 +333,7 @@ theorem Schema.hasNameOfFromCHeaders_eq_1 :
   colImpliesName hpf := by
   cases sch with
   | nil => contradiction
-  | cons s ss => simp [hasNameOfFromCHeaders]
+  | cons s ss => rw [hasNameOfFromCHeaders]
 
 omit dec_η in
 theorem Schema.hasNameOfFromCHeaders_eq_2 :
@@ -322,8 +341,9 @@ theorem Schema.hasNameOfFromCHeaders_eq_2 :
   hasNameOfFromCHeaders h := by
   cases sch with
   | nil => contradiction
-  | cons s ss => simp [hasNameOfFromCHeaders]
+  | cons s ss => rw [hasNameOfFromCHeaders]
 
+@[reducible]
 def Schema.fromCHHasFromCH :
   ∀ {sch : @Schema η} (h : CertifiedHeader sch) (hs : List (CertifiedHeader sch)),
   List.MemT h hs → Schema.HasCol h.1 (Schema.fromCHeaders hs)
@@ -331,6 +351,7 @@ def Schema.fromCHHasFromCH :
 | _ :: _, ⟨(n, σ), pf⟩, _ :: hs, .tl _ htl => .tl $ fromCHHasFromCH _ hs htl
 
 -- For `leftJoin_spec3`
+@[reducible]
 def Schema.removeOtherDecCHHasCol {s₁ s₂ : @Schema η} :
   ∀ (x : (hdr : @Header η) × DecidableEq hdr.2 × s₂.HasCol hdr × s₁.HasCol hdr)
     (hc : s₂.HasCol (c, τ)),
@@ -338,6 +359,7 @@ def Schema.removeOtherDecCHHasCol {s₁ s₂ : @Schema η} :
     Schema.HasCol (c, τ) (s₁.removeOtherDecCH s₂ x) :=
   λ x hc hneq => Schema.removeHeaderHasCol hneq _ hc
 
+@[reducible]
 def Schema.removeOtherDecCHsHasCol {s₁ s₂ : @Schema η} :
   ∀ (cs : ActionList (Schema.removeOtherDecCH s₁) s₂)
     (hc : s₂.HasCol (c, τ)),
@@ -366,6 +388,7 @@ def Schema.removeOtherDecCHsHasCol {s₁ s₂ : @Schema η} :
     exact hneg
 
 -- For `leftJoin_spec4`
+@[reducible]
 def Schema.listCHOfActionListRemoveOtherDecCH {s₁ s₂ : @Schema η}
     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂) :
   List (CertifiedHeader s₂) :=
@@ -388,8 +411,6 @@ theorem Schema.lookupTypeFromCHeadersUnique :
 | (nm, τ) :: hs, ⟨_, .hd⟩ :: cs, ⟨_, .hd⟩ => by
   simp only [lookupType]
   simp only [hasNameOfFromCHeaders_eq_1]
-  rw [@colImpliesName_eq_1 η hs (nm, τ)]
-  simp only [lookupType]
 | (nm, τ) :: hs, ⟨(ch_nm, ch_τ), .tl h⟩ :: cs, ⟨.(ch_nm), .hd⟩ =>
   by
   simp only [lookupType]
@@ -402,24 +423,28 @@ theorem Schema.lookupTypeFromCHeadersUnique :
   simp only [hasNameOfFromCHeaders_eq_2]
   exact lookupTypeFromCHeadersUnique cs ⟨s_nm, hn⟩
 
+@[reducible]
 def Schema.hasNthCol :
   ∀ {schema : @Schema η} (n : Fin $ Schema.length schema),
   schema.HasCol (Schema.nth schema n.val n.isLt)
 | h :: hs, ⟨0, hlt⟩ => .hd
 | h :: hs, ⟨.succ n, hlt⟩ => .tl (hasNthCol ⟨n, Nat.lt_of_succ_lt_succ hlt⟩)
 
+@[reducible]
 def Schema.hasNthName :
   ∀ {schema : @Schema η} (n : Fin $ Schema.length schema),
   schema.HasName (Schema.nth schema n.val n.isLt).1
 | h :: hs, ⟨0, hlt⟩ => .hd
 | h :: hs, ⟨.succ n, hlt⟩ => .tl (hasNthName ⟨n, Nat.lt_of_succ_lt_succ hlt⟩)
 
+@[reducible]
 def Schema.hasNameEqHeadOrTail :
   ∀ {nm : η} {hs : Schema},
   Schema.HasName nm ((nm', τ) :: hs) → nm' ≡ nm ⊕ HasName nm hs
 | _, _, .hd => .inl (.refl _)
 | _, _, .tl htl => .inr htl
 
+@[reducible]
 def Schema.hasNameOfNthsHasName :
   ∀ {schema : @Schema η} {ns : List (Fin $ Schema.length schema)} {nm : η},
     Schema.HasName nm (Schema.nths schema ns) →

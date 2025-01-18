@@ -29,15 +29,13 @@ theorem addRows_spec2 :
 
 -- `addColumn`
 
--- We must enforce decidable equality of τ to state this theorem
 -- We omit the precondition because it is not required for this portion of the
 -- spec
 theorem addColumn_spec1 :
-  ∀ {τ : Type u} [DecidableEq τ]
-    (t : Table sch) (c : η) (vs : List $ Option τ),
+  ∀ {τ : Type u} (t : Table sch) (c : η) (vs : List (Option τ)),
     header (addColumn t c vs) = List.append (header t) [c]
 := by
-  intros τ inst t c vs
+  intros τ t c vs
   simp [header, addColumn, Schema.names]
   induction sch with
   | nil => simp [List.map, List.append]
@@ -63,7 +61,7 @@ theorem addColumn_spec2 :
       (schema (addColumn t c vs)).lookup ⟨c', Schema.hasNameOfAppend h'⟩ :=
 λ t c vs c' h' => Schema.lookup_eq_lookup_append _ _ _ _
 
-theorem addColumn_spec3 {τ : Type u} [DecidableEq τ] :
+theorem addColumn_spec3 {τ : Type u} :
   ∀ (t : Table sch) (c : η) (vs : List $ Option τ),
     (schema (addColumn t c vs)).lookupType
       ⟨c, Schema.colImpliesName $ sch.hasAppendedHead c τ []⟩ = τ := by
@@ -78,14 +76,13 @@ theorem addColumn_spec3 {τ : Type u} [DecidableEq τ] :
     apply ih (dropColumn t _)
 
 theorem addColumn_spec4 :
-  ∀ {τ : Type u} [DecidableEq τ] (t : Table sch) (c : η) (vs : List $ Option τ),
+  ∀ {τ : Type u} (t : Table sch) (c : η) (vs : List $ Option τ),
     vs.length = nrows t →
     nrows (addColumn t c vs) = nrows t := by
-  intros τ inst t c vs h
+  intros τ t c vs h
   simp only [nrows, addColumn, Schema.length_eq_List_length] at *
   simp only [List.length_map]
-  rw [List.zip_length_eq_of_length_eq]
-  exact Eq.symm h
+  rw [List.length_zipExtendingNone]
 
 -- `buildColumn`
 
@@ -133,10 +130,10 @@ theorem buildColumn_spec5 :
   ∀ {τ : Type u} (t : Table sch) (c : η) (f : Row sch → Option τ),
     nrows (buildColumn t c f) = nrows t :=
 by intros τ t c f
-   simp only [nrows, buildColumn, addColumn, Schema.length_eq_List_length]
-   rw [List.length_map, List.zip_length_eq_of_length_eq]
-   apply Eq.symm
-   apply List.length_map
+   simp only [buildColumn]
+   rw [addColumn_spec4]
+   rw [List.length_map]
+   simp only [nrows, Schema.length_eq_List_length]
 
 -- `vcat`
 
@@ -652,17 +649,17 @@ theorem tfilter_spec2 : ∀ (t : Table sch) (f : Row sch → Bool),
 
 -- `tsort`
 
-theorem tsort_spec1 : ∀ {τ : Type u} [inst : Ord τ]
+theorem tsort_spec1 : ∀ {τ : Type u} [LE τ] [DecidableLE τ]
                         (t : Table sch)
                         (b : Bool)
                         (c : η)
                         (hc : sch.HasCol (c, τ)),
   nrows (tsort t c b hc) = nrows t := by
-  intro τ _ t b c hc
+  intro τ _ _ t b c hc
   simp only [nrows, Schema.length_eq_List_length]
-  exact List.length_mergeSortWith _ t.rows
+  exact List.length_mergeSort t.rows
 
-theorem tsort_spec2 : ∀ {τ : Type u} [inst : Ord τ]
+theorem tsort_spec2 : ∀ {τ : Type u} [LE τ] [DecidableLE τ]
                         (t : Table sch)
                         (b : Bool)
                         (c : η)
@@ -673,7 +670,8 @@ theorem tsort_spec2 : ∀ {τ : Type u} [inst : Ord τ]
 -- `sortByColumns`
 
 theorem sortByColumns_spec1 :
-  ∀ (t : Table sch) (hs : List ((h : Header) × sch.HasCol h × Ord h.snd)),
+  ∀ (t : Table sch)
+    (hs : List ((h : Header) × sch.HasCol h × (_ : LE h.2) × DecidableLE h.2)),
     nrows (sortByColumns t hs) = nrows t :=
 by intros t hs
    simp only [nrows, sortByColumns]
@@ -683,10 +681,12 @@ by intros t hs
    -- Preservation
    . intros x acc h
      rw [←h]
-     apply tsort_spec1 (inst := x.snd.snd)
+     rcases x with ⟨_, _, _, _⟩
+     apply tsort_spec1
 
 theorem sortByColumns_spec2 :
-  ∀ (t : Table sch) (hs : List ((h : Header) × sch.HasCol h × Ord h.snd)),
+  ∀ (t : Table sch)
+    (hs : List ((h : Header) × sch.HasCol h × (_ : LE h.2) × DecidableLE h.2)),
     schema (sortByColumns t hs) = schema t :=
 λ t hs => rfl
 
@@ -705,7 +705,7 @@ theorem orderBy_spec3 :
     nrows (orderBy t cmps) = nrows t := by
   intro t _
   simp only [nrows, orderBy, Schema.length_eq_List_length]
-  exact List.length_mergeSortWith _ t.rows
+  exact List.length_mergeSort t.rows
 
 -- `count`
 

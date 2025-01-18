@@ -10,39 +10,32 @@ elab_rules : term
   Lean.Elab.Term.elabByTactic (← `(tactic| header)) none
 
 -- # Table Notation
+declare_syntax_cat cell_value
+syntax (name := emptyCellValue) "EMP" : cell_value
+syntax (name := valueCellValue) term : cell_value
+
 declare_syntax_cat cell
-syntax (name := emptyCell) "EMP" : cell
-syntax (name := valueCell) term : cell
+syntax (name := unnamedCell) cell_value : cell
+syntax (name := namedCell) term " := " cell_value : cell
 
 elab_rules : term
-| `(emptyCell| EMP) => do Lean.Elab.Term.elabTerm (← `(Cell.emp)) none
-| `(valueCell| $x) => do Lean.Elab.Term.elabTerm (← `(Cell.val $x)) none
+| `(emptyCellValue| EMP) => do Lean.Elab.Term.elabTerm (← `(Cell.emp)) none
+| `(valueCellValue| $x) => do Lean.Elab.Term.elabTerm (← `(Cell.val $x)) none
 
 syntax (name := rowLiteralParser) "/[" cell,* "]" : term
 
 macro_rules
-  | `(/[ $elems,* ]) => do
-    let rec expandRowLit (i : Nat) (skip : Bool) (result : Lean.TSyntax `term)
-        : Lean.MacroM Lean.Syntax := do
-      match i, skip, result with
-      | 0,   _,     _     => pure result
-      | i+1, true,  _  => expandRowLit i false result
-      | i+1, false, _ =>
-        expandRowLit i true
-          (← ``(Row.cons $(⟨elems.elemsAndSeps.get! i⟩) $result))
-    expandRowLit elems.elemsAndSeps.size false (← ``(Row.nil))
-
-syntax (name := namedRowLiteralParser) "/[" (term " := " cell),* "]" : term
-macro_rules
-  | `(/[ $[$nms:term := $vals:cell],* ]) => do
-    let accCell : (Lean.TSyntax `term × Lean.TSyntax `cell) → Lean.TSyntax `term
-                    → Lean.MacroM (Lean.TSyntax `term)
-    | (nm, val), acc => do
-        let cell ← `(($(⟨val.raw⟩) : Cell $nm _))
-        `(Row.cons $cell $acc)
-      let nil ← `(Row.nil)
-      let ts_res ← Array.foldrM accCell nil (Array.zip nms vals)
-      return ts_res
+  | `(/[ $tkns,* ]) => do
+    let elems := tkns.getElems
+    let termOfCell : TSyntax `cell → MacroM Term
+      | `(namedCell| $nm := $val) => `(($(⟨val⟩) : Cell $nm _))
+      | `(unnamedCell| $val) => `($(⟨val⟩))
+      | stx => Macro.throwErrorAt stx <|
+          "Invalid syntax encountered where a value or `EMP` was expected"
+    let cellStxList ← elems.mapM termOfCell
+    let rowStx ← cellStxList.foldrM (fun cell acc => `(Row.cons $cell $acc))
+                                    (← `(Row.nil))
+    pure rowStx.raw
 
 -- # ActionList Notation
 syntax (name := autocomp_actionlist) "A[" term,* "]" : term
@@ -61,6 +54,7 @@ elab "cycle_goals" : tactic => do
     | g :: gs => setGoals (gs ++ [g])
 -- We can't just throw `cycle_goals` into the list of repeatable tactics and
 -- call it a day b/c if there are multiple unsolvable goals, `cycle_goals` loops
+
 macro "action_list_tactic_no_cycle" : tactic =>
 `(tactic|
   repeat (first | apply Sigma.mk
@@ -95,6 +89,9 @@ elab "action_list_tactic" : tactic => do
     evalTactic (← `(tactic| rotate_left))
     numIters := numIters + 1
     curGoals ← getGoals
+  if curGoals.length > 0 then
+    let goalsMsg := MessageData.joinSep (curGoals.map MessageData.ofGoal) m!"\n\n"
+    throwError "Unable to synthesize value in action list:\n{goalsMsg}"
 
 -- Detects whether an argument type for an (Action)List requires tuple insertion
 -- Note: this can also be done using `isDefEq`, though that breaks if `e`

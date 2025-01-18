@@ -28,7 +28,7 @@ def addRows (t : Table schema) (r : List (Row schema)) : Table schema :=
 def addColumn {τ} (t : Table schema) (c : η) (vs : List (Option τ)) :
     Table (Schema.append schema [(c, τ)]) :=
   {rows := (List.map (λ (olds, new) => olds.addColumn c new)
-                     (List.zip t.rows vs))}
+                     (List.zipExtendingNone t.rows vs))}
 
 def buildColumn {τ} (t : Table schema) (c : η) (f : Row schema → Option τ) :=
   addColumn t c (List.map f t.rows)
@@ -171,43 +171,43 @@ def tfilter (t : Table schema) (f : Row schema → Bool) : Table schema :=
 {rows := t.rows.filter f}
 
 -- # Ordering
-def tsort {τ} [Ord τ]
+def tsort {τ} [LE τ] [DecidableLE τ]
           (t : Table schema)
           (c : η)
           (asc : Bool)
           (hc : schema.HasCol (c, τ) := by header)
     : Table schema :=
-  let ascDesc
-  | false, Ordering.lt => Ordering.gt
-  | false, Ordering.gt => Ordering.lt
-  | _    , ordering    => ordering
 {rows :=
-  t.rows.mergeSortWith (λ r₁ r₂ =>
+  t.rows.mergeSort (λ r₁ r₂ =>
     let ov₁ := getValue r₁ c hc
     let ov₂ := getValue r₂ c hc
     match (ov₁, ov₂) with
-    | (none, none) => Ordering.eq
-    | (_, none) => ascDesc asc Ordering.gt
-    | (none, _) => ascDesc asc Ordering.lt
-    | (some v₁, some v₂) => ascDesc asc $ compare v₁ v₂
+    | (none, none) => true
+    | (_, none) => asc
+    | (none, _) => !asc
+    | (some v₁, some v₂) => (v₁ ≤ v₂) = asc
   )
 }
 
 def sortByColumns (t : Table schema)
-                  (cs : List ((h : Header) × Schema.HasCol h schema × Ord h.2))
+                  (cs : List ((h : Header) ×
+                              Schema.HasCol h schema ×
+                              (_ : LE h.2) ×
+                              DecidableLE h.2))
     : Table schema :=
-cs.foldr (λ ohdr acc => @tsort _ _ _ _ ohdr.2.2 acc ohdr.1.1 true ohdr.2.1) t
+cs.foldr (λ ⟨hdr, hc, _, _⟩ acc => tsort acc hdr.1 true hc) t
 
--- TODO: with the flexibility afforded by ADTs, it might be worth modifying this
--- to allow for a more expressive ordering function
 def orderBy (t : Table schema)
             (cmps : List ((κ : Type u) × (Row schema → κ) × (κ → κ → Bool)))
     : Table schema :=
 {rows :=
-  t.rows.mergeSortWith (λ r₁ r₂ =>
-    match cmps.find? (λ | ⟨κ, key, ord⟩ => !ord (key r₁) (key r₂)) with
-    | none => Ordering.lt
-    | _    => Ordering.gt
+  t.rows.mergeSort (λ r₁ r₂ =>
+    cmps.firstM (λ ⟨_, key, isLE⟩ =>
+      if isLE (key r₁) (key r₂) then
+        if isLE (key r₂) (key r₁) then none
+        else some true
+      else some false)
+    |> (Option.getD · true)
   )
 }
 
@@ -248,8 +248,8 @@ def bin [ToString η]
         (hn : n > 0 := by decide)
     : Table [("group", String), ("count", Nat)] :=
   let col := getColumn2 t c hc
-  let sorted := col |> List.filterMap id  -- get rid of empty cells
-                    |> List.mergeSortWith compare
+  let sorted := col |> List.somes  -- get rid of empty cells
+                    |> List.mergeSort
   match sorted with
 | [] => Table.mk []
 | s :: ss =>
@@ -279,12 +279,7 @@ def bin [ToString η]
 
   let bins := kthBin (n * (s / n + 1)) (s :: ss)
   {rows := bins.map (λ (k, cnt) =>
-    Row.cons (Cell.val $
-      toString (k - n) ++ " <= "
-                        ++ toString c
-                        ++ " < "
-                        ++ toString k)
-      (Row.singleValue cnt))}
+    Row.cons (Cell.val s!"{k - n} <= {c} < {k}") (Row.singleValue cnt))}
 end BinTypeScope
 
 -- # Mising Values
@@ -296,15 +291,9 @@ def completeCases {τ} (t : Table schema)
 def dropna (t : Table schema) : Table schema :=
   {rows := t.rows.filter (λ r => !r.hasEmpty)}
 
--- `fillna` is in the "Missing Values" section in B2T2, but it depends on
--- `update`, which is in "Utilties," so we `fillna` instead appears in that
--- section of this file
-
--- # Utilities
-
 -- This is a simpler version of `update` that doesn't require all the machinery
 -- of the full version; the tradeoff is that this version doesn't allow retyping
--- of columns
+-- of columns (but this is sufficient for `fillna`, where we use this)
 def updateWithoutRetyping {schema₁ : @Schema η}
            (schema₂ : Subschema schema₁)
            (t : Table schema₁)
@@ -319,6 +308,19 @@ def updateWithoutRetyping {schema₁ : @Schema η}
           Row.setCell acc (Schema.schemaHasSubschema h) cell)
       r
   )}
+
+def fillna {τ}
+           (t : Table schema)
+           (c : η)
+           (v : τ)
+           (hc : schema.HasCol (c, τ) := by header)
+    : Table schema :=
+  updateWithoutRetyping [⟨(c, τ), hc⟩] t
+    (λ r => match Row.getCell r hc with
+                | Cell.emp => Row.singleValue v
+                | Cell.val vOld => Row.singleValue vOld)
+
+-- # Utilities
 
 -- The `RetypedSubschema` is essentially an `ActionList` in disguise, but since
 -- the notion of a valid entry never changes between elements, we can avoid the
@@ -342,21 +344,10 @@ def update {schema₁ : @Schema η}
       updateCells (schema := schema.retypeColumn _ _)
         (r.retypeCellByName hsch c)
         (Row.retypedSubschemaPres rest)
-    termination_by _ _ r rs => rs.length
+    termination_by _ _ _ rs => rs.length
 
     updateCells r newCells
   )}
-
-def fillna {τ}
-           (t : Table schema)
-           (c : η)
-           (v : τ)
-           (hc : schema.HasCol (c, τ) := by header)
-    : Table schema :=
-  updateWithoutRetyping [⟨(c, τ), hc⟩] t
-    (λ r => match Row.getCell r hc with
-                | Cell.emp => Row.singleValue v
-                | Cell.val vOld => Row.singleValue vOld)
 
 def select {η'} [DecidableEq η'] {schema' : @Schema η'}
            (t : Table schema)
@@ -429,7 +420,7 @@ def groupBy {η'} [DecidableEq η']
   let grouped := projected.groupPairsByKey
 {rows := grouped.map (λ klv => aggregate klv.1 klv.2)}
 
-def groupBy_certified {η'} [DecidableEq η']
+def groupByCertified {η'} [DecidableEq η']
             {schema' : @Schema η'}
             {κ ν} [DecidableEq κ]
             (t : Table schema)
@@ -646,6 +637,10 @@ def pivotWider.foldProof
   apply List.memT_map_of_memT
   apply hcell
 
+-- Note: type-class resolution and other reducibility-dependent operations are
+-- difficult when working with `pivotWider`, since the non-reducible function
+-- `getColumns2` and likely non-reducible table `t` itself both appear in the
+-- function's type
 def pivotWider {τ} (t : Table schema)
                (c1 : η)
                (c2 : η)
@@ -666,7 +661,7 @@ let gather := (λ r pf => ⟨r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.re
         r'.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])
       pf
 )⟩)
-groupBy_certified t
+groupByCertified t
   (ν :=
     ((r : Row (Schema.fromCHeaders [⟨(c1, η), hc1⟩,
                                     ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]))

@@ -26,20 +26,14 @@ Table.mk [
 -- ## missingRow
 
 /--
-error: overloaded, errors
-   type mismatch
-    Row.nil
-  has type
-    Row [] : Type 1
-  but is expected to have type
-    Row [("name", String), ("age", Nat), ("favorite color", String)] : Type 1
-
-    type mismatch
-    Row.nil
-  has type
-    Row [] : Type 1
-  but is expected to have type
-    Row [("name", String), ("age", Nat), ("favorite color", String)] : Type 1
+error: application type mismatch
+  List.cons Row.nil
+argument
+  Row.nil
+has type
+  Row [] : Type 1
+but is expected to have type
+  Row [("name", String), ("age", Nat), ("favorite color", String)] : Type 1
 -/
 #guard_msgs in
 def missingRow :
@@ -140,7 +134,7 @@ error: application type mismatch
 argument
   Row.cons (Cell.val "blue") Row.nil
 has type
-  Row [(?m.13657, String)] : Type 1
+  Row [(?m.13553, String)] : Type 1
 but is expected to have type
   Row [] : Type 1
 ---
@@ -149,7 +143,7 @@ error: application type mismatch
 argument
   Row.cons (Cell.val "green") Row.nil
 has type
-  Row [(?m.14359, String)] : Type 1
+  Row [(?m.14255, String)] : Type 1
 but is expected to have type
   Row [] : Type 1
 ---
@@ -158,7 +152,7 @@ error: application type mismatch
 argument
   Row.cons (Cell.val "red") Row.nil
 has type
-  Row [(?m.15030, String)] : Type 1
+  Row [(?m.14926, String)] : Type 1
 but is expected to have type
   Row [] : Type 1
 -/
@@ -313,7 +307,7 @@ def brownAndGetAcneTable :=
 error: could not synthesize default value for parameter 'hc' using tactics
 ---
 error: Could not prove that header ("brown and get acne",
-  ?m.23340) is in schema Schema.append
+  ?m.23236) is in schema Schema.append
   [("name", String), ("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool),
     ("yellow", Bool), ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
   [("part2", Bool)]
@@ -359,9 +353,9 @@ def getOnlyRowCorrected :=
 
 /--
 error: type mismatch
-  getValue r "favorite color" ?m.29131
+  getValue r "favorite color" ?m.29027
 has type
-  Option ?m.29065 : Type
+  Option ?m.28961 : Type
 but is expected to have type
   Bool : Type
 -/

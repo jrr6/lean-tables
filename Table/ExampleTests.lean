@@ -1018,17 +1018,12 @@ def repeatRow {sch : @Schema String} : Row sch → Nat → Table sch
 | r, 0 => Table.mk [r]
 | r, n+1 => addRows (repeatRow r n) [r]
 
-def decertify {sch : @Schema String}
-              (f : Row sch → Nat → Table sch)
-              (r : Row sch)
-              (nhn : Fin (nrows gradebook)) :=
-  f r nhn.1
-
 #test
-selectMany gradebook (decertify repeatRow)
-(λ r₁ r₂ =>
-  Row.cons (Cell.fromOption (nm := "midterm") $ getValue r₂ "midterm")
-  Row.nil)
+selectMany gradebook
+  (λ r ⟨n, _⟩ => repeatRow r n)
+  (λ r₁ r₂ =>
+    Row.cons (Cell.fromOption (nm := "midterm") $ getValue r₂ "midterm")
+    Row.nil)
 =
 Table.mk [
   /[ 77      ],

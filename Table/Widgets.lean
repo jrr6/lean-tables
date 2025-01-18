@@ -7,12 +7,12 @@ open Lean Widget
 
 class ToHTML (α : Type u) where toHTML : α → String
 
-instance (α : Type u) [ToString α] : ToHTML α := ⟨ToString.toString⟩
+instance instToHTMLOfToString (α : Type u) [ToString α] : ToHTML α := ⟨ToString.toString⟩
 
-instance : ToHTML (@Row η dec_η []) where
+instance instToHTMLRowNil : ToHTML (@Row η dec_η []) where
   toHTML := λ_ => "<tr></tr>"
 
-instance {η nm τ} {xs : @Schema η}
+instance instToHTMLRowCons {η nm τ} {xs : @Schema η}
          [τInst : ToHTML τ] [DecidableEq η] [rowInst : ToHTML (Row xs)]
     : ToHTML (Row ((nm, τ) :: xs)) where
   toHTML := λ (Row.cons cell d) =>
@@ -24,7 +24,7 @@ instance {η nm τ} {xs : @Schema η}
       ToHTML.toHTML d |> String.drop (n := 4) |> String.dropRight (n := 5)
     "<tr>" ++ curCell ++ restOfRow ++ "</tr>"
 
-instance {η} {schema : @Schema η}
+instance instToHTMLTable {η} {schema : @Schema η}
          [ToHTML η] [DecidableEq η] [rowInst : ToHTML (Row schema)]
     : ToHTML (Table schema) where
   toHTML := λ t =>
@@ -52,9 +52,9 @@ macro "html_inst" : tactic =>
 -- The order matters because we don't want to use a row/table's ToString impl
   `(tactic| repeat (first
     | apply instToHTMLTable (rowInst := _)
-    | apply instToHTMLRowConsHeaderMkType (τInst := _) (rowInst := _)
-    | apply instToHTMLRowNilHeader
-    | apply instToHTML
+    | apply instToHTMLRowCons (τInst := _) (rowInst := _)
+    | apply instToHTMLRowNil
+    | apply instToHTMLOfToString
     | infer_instance))
 
 syntax (name := tableWidgetCommand) "#table" term : command

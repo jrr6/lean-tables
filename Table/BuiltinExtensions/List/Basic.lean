@@ -18,13 +18,10 @@ def List.prod {α β} : List α → List β → List (α × β)
 | x :: x' :: xs, ys =>
   have h₁ : Nat.succ 0 + length ys <
             Nat.succ (Nat.succ (length xs)) + length ys :=
-    by apply Nat.add_lt_add_right
-       apply Nat.succ_lt_succ $ Nat.succ_pos (length xs)
+    Nat.add_lt_add_right (Nat.succ_lt_succ $ Nat.succ_pos _) _
   have h₂ : Nat.succ (length xs) + length ys <
             Nat.succ (Nat.succ (length xs)) + length ys :=
-    by apply Nat.add_lt_add_right
-       apply Nat.succ_lt_succ
-       apply Nat.lt.base
+    Nat.add_lt_add_right (Nat.succ_lt_succ (Nat.lt.base _)) _
   prod [x] ys ++ prod (x' :: xs) ys
 termination_by xs ys => xs.length + ys.length
 
@@ -48,6 +45,11 @@ def List.depFoldr {κ : List α → Type _} :
   κ xs
 | [], f, z => z
 | x :: xs, f, z => f x (depFoldr xs f z)
+
+def List.zipExtendingNone : List α → List (Option β) → List (α × Option β)
+  | [], _ => []
+  | xs, [] => xs.map (·, none)
+  | x :: xs, y :: ys => (x, y) :: zipExtendingNone xs ys
 
 def List.memT_somes_of_memT {α} : ∀ {x : α} {xs : List (Option α)},
   List.MemT (some x) xs → List.MemT x xs.somes
@@ -169,6 +171,16 @@ theorem List.length_flatMap {α β} {f : α → List β} {xs : List α} :
     | cons y ys =>
       rw [List.length_append, Function.comp, h, List.sum]
       exact congrArg _ ih
+
+theorem List.length_zipExtendingNone :
+  ∀ (xs : List α) (ys : List (Option β)),
+    (List.zipExtendingNone xs ys).length = xs.length
+| [], [] => rfl
+| [], _ :: _ => rfl
+| x :: xs, [] => List.length_map (x :: xs) (·, none)
+| (_ :: xs), (_ :: ys) =>
+  have ih := length_zipExtendingNone xs ys
+  congrArg (· + 1) ih
 
 theorem List.sublist_self : ∀ (xs : List α), Sublist xs xs
 | [] => Sublist.slnil
