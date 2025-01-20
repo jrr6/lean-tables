@@ -11,6 +11,42 @@ set_option synthInstance.maxHeartbeats 0
 namespace Table.Examples.Tests
 open Tables
 
+-- def abstractAgeUpdate := λ (r : Row $ schema students) =>
+--   match getValue r "age" with
+--   | some age =>
+--     match (age ≤ 12 : Bool), (age ≤ 19 : Bool) with
+--     | true, _ => /["age" := "kid"]
+--     | _, true => /["age" := "teenager"]
+--     | _, _ => /["age" := "adult"]
+--   | _ => /["age" := EMP]
+
+-- #synth DecidableEq $
+--   Table $
+--   -- (Schema.retypedFromSubschema (sch := [("name", String), ("age", Nat)]) [{ fst := ("age", String), snd := Schema.HasName.tl Schema.HasName.hd }])
+--   Schema.retypedFromSubschema (sch := Schema.retypeColumn [("name", String), ("age", Nat)] (Schema.HasName.tl Schema.HasName.hd) String)
+--     (Schema.map ((λ ⟨h, pf⟩ => ⟨h, Schema.hasRetypedName pf⟩)
+--                   : (h : Header) × Schema.HasName h.fst [("name", String), ("age", Nat)] → (h : Header) × Schema.HasName h.fst (Schema.retypeColumn [("name", String), ("age", Nat)] (.tl .hd) String))
+--                 [])
+
+-- #synth DecidableEq $ Table
+--   (Schema.retypeColumn [("name", String), ("age", Nat)] (Schema.HasName.tl Schema.HasName.hd) String)
+
+-- #synth DecidableEq $ Table $ Schema.retypedFromSubschema (sch := [("test", String)]) []
+
+-- #synth DecidableEq $
+--   Table $
+--   -- (Schema.retypedFromSubschema (sch := [("name", String), ("age", Nat)]) [{ fst := ("age", String), snd := Schema.HasName.tl Schema.HasName.hd }])
+--   Schema.retypedFromSubschema (sch := Schema.retypeColumn [("name", String), ("age", Nat)] (Schema.HasName.tl Schema.HasName.hd) String)
+--     []
+-- #test
+-- (update A["age"] students abstractAgeUpdate :)
+-- =[by inst]--(Table [("name", String), ("age", String), ("favorite color", String)])
+-- Table.mk [
+--   /[ "Bob"   , "kid"      , "blue"         ],
+--   /[ "Alice" , "teenager" , "green"        ],
+--   /[ "Eve"   , "teenager" , "red"          ]
+-- ]
+
 -- `addRows`
 #test
 addRows students [/["Colton", 19, "blue"]]
@@ -132,7 +168,7 @@ Table.mk [
 ]
 
 #test
-hcat (dropColumns students A["name", "age"]) gradebook
+(hcat (dropColumns students A["name", "age"]) gradebook :)
 =
 Table.mk [
   /[ "blue"         , "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    ],
@@ -379,7 +415,7 @@ Table.mk [ /[7], /[8] ]
 
 -- `dropColumn`
 #test
-dropColumn students "age"
+(dropColumn students "age" :)
 =
 Table.mk [
   /[ "Bob"   , "blue"         ],
@@ -388,7 +424,7 @@ Table.mk [
 ]
 
 #test
-dropColumn gradebook "final"
+(dropColumn gradebook "final" :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     ],
@@ -398,7 +434,7 @@ Table.mk [
 
 -- `dropColumns`
 #test
-dropColumns students A["age"]
+(dropColumns students A["age"] :)
 =
 Table.mk [
   /[ "Bob"   , "blue"         ],
@@ -407,7 +443,7 @@ Table.mk [
 ]
 
 #test
-dropColumns gradebook A["final", "midterm"]
+(dropColumns gradebook A["final", "midterm"] :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     ],
@@ -683,7 +719,7 @@ Table.mk [
 -- `pivotLonger`
 
 #test
-pivotLonger gradebook A["midterm", "final"] "exam" "score"
+(pivotLonger gradebook A["midterm", "final"] "exam" "score" :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , "midterm" , 77    ],
@@ -701,8 +737,8 @@ Table.mk [
 --     [("test", String), ("score", Nat)]
 -- So it's something to do with the Table DecEq instance
 #test
-pivotLonger gradebook A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
-            "test" "score"
+(pivotLonger gradebook A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
+            "test" "score" :)
 =(Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)])
 Table.mk [
   /[ "Bob"   , 12  , "quiz1"   , 8     ],
@@ -729,7 +765,7 @@ Table.mk [
 -- is not reducible
 
 #test
-pivotWider students "name" "age"
+(pivotWider students "name" "age" :)
 =(Table [("favorite color", String), ("Bob", Nat), ("Alice", Nat), ("Eve", Nat)])
 Table.mk [
   /["blue", 12, EMP, EMP],
@@ -740,12 +776,13 @@ Table.mk [
 -- TODO: test freezing without the type annotation
 def longerTable :
     Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)] :=
-  pivotLonger gradebook
+  (pivotLonger gradebook
               A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
               "test"
-              "score"
+              "score" :)
 
-#test pivotWider longerTable "test" "score"
+#test
+(pivotWider longerTable "test" "score" :)
 =(Table [("name", String), ("age", Nat), ("quiz1", Nat), ("quiz2", Nat), ("quiz3", Nat), ("quiz4", Nat), ("midterm", Nat), ("final", Nat)])
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , 7     , 9     , 77      , 87    ],
@@ -755,7 +792,7 @@ Table.mk [
 
 -- `flatten`
 #test
-flatten gradebookSeq A["quizzes"]
+(flatten gradebookSeq A["quizzes"] :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8       , 77      , 87    ],
@@ -778,7 +815,7 @@ def t := buildColumn gradebookSeq "quiz-pass?" (λ r =>
 )
 
 #test
-flatten t A["quiz-pass?", "quizzes"]
+(flatten t A["quiz-pass?", "quizzes"] :)
 =
 Table.mk [
   /[ "Bob"   , 12  , 8       , 77      , 87    , true       ],
@@ -799,7 +836,7 @@ Table.mk [
 def addLastName := Option.map (· ++ " Smith")
 
 #test
-transformColumn students "name" addLastName
+(transformColumn students "name" addLastName :)
 =
 Table.mk [
   /[ "Bob Smith"   , 12  , "blue"         ],
@@ -813,7 +850,7 @@ def quizScoreToPassFail := Option.map (λ n =>
   else "pass")
 
 #test
-transformColumn gradebook "quiz1" quizScoreToPassFail
+(transformColumn gradebook "quiz1" quizScoreToPassFail :)
 =
 Table.mk [
   /[ "Bob"   , 12  , "pass" , 9     , 77      , 7     , 9     , 87    ],
@@ -823,8 +860,8 @@ Table.mk [
 
 -- `renameColumns`
 #test
-renameColumns students A[("favorite color", "preferred color"),
-                         ("name", "first name")]
+(renameColumns students A[("favorite color", "preferred color"),
+                         ("name", "first name")] :)
 =
 Table.mk [
   /[ "first name" := "Bob", "age" := 12, "preferred color" := "blue"],
@@ -837,10 +874,10 @@ Table.mk [
 -- manually specify the correct index in the schema with an explicit proof
 -- renameColumns gradebook A[("midterm", "final"), ("final", "midterm")]
 #test
-renameColumns gradebook
+(renameColumns gradebook
   (.cons ⟨("midterm", "final"), by name⟩
   (.cons ⟨("final", "midterm"), by repeat apply Schema.HasName.tl; constructor⟩
-   .nil))
+   .nil)) :)
 =
 Table.mk [
   /[ "name" := "Bob", "age" := 12, "quiz1" := 8, "quiz2" := 9, "final" := 77, "quiz3" := 7, "quiz4" := 9, "midterm" := 87],

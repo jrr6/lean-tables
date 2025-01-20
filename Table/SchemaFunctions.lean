@@ -287,13 +287,15 @@ def Schema.retypedFromSubschemaHasColOfNotMemT :
 | .((c, τ)) :: hs, ⟨(nm', τ'), hn'⟩ :: rs, hnmem, .hd =>
   have hneq : nm' ≠ c := fun heq =>
     Empty.elim $ hnmem τ' (heq ▸ hn') (by subst heq; apply List.MemT.hd)
-  retypedFromSubschemaHasColOfNotMemT
-    (map (fun x => ⟨x.fst, hasRetypedName x.snd⟩) rs)
-    (fun τ'' hn hneg =>
-      hnmem τ'' (hasNameOfRetypedHasName hn) (.tl _ $
-        memTMapRetypedNameOfMemThasNameOfRetypedHasName hneg))
-    (retypedHasOtherCol hn' hneq .hd)
+  (retypedFromSubschema.eq_2 (η := η) _ _ _ _ _ ).symm ▸
+    retypedFromSubschemaHasColOfNotMemT
+      (map (fun x => ⟨x.fst, hasRetypedName x.snd⟩) rs)
+      (fun τ'' hn hneg =>
+        hnmem τ'' (hasNameOfRetypedHasName hn) (.tl _ $
+          memTMapRetypedNameOfMemThasNameOfRetypedHasName hneg))
+      (retypedHasOtherCol hn' hneq .hd)
 | _ :: hs, ⟨(nm', τ'), hn'⟩ :: rs, hnmem, .tl h =>
+  (retypedFromSubschema.eq_2 (η := η) _ _ _ _ _ ).symm ▸
   have hneq : nm' ≠ c := fun heq =>
     Empty.elim $ hnmem τ' (heq ▸ hn') (by subst heq; apply List.MemT.hd)
   retypedFromSubschemaHasColOfNotMemT

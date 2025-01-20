@@ -73,7 +73,7 @@ theorem addColumn_spec3 {τ : Type u} :
     simp only [Schema.lookupType]
     -- Again, this could be avoided by isolating the relevant proof into a
     -- separate lemma
-    apply ih (dropColumn t _)
+    apply ih (dropColumn t _ .hd)
 
 theorem addColumn_spec4 :
   ∀ {τ : Type u} (t : Table sch) (c : η) (vs : List $ Option τ),

@@ -13,7 +13,7 @@ open Tables
 
 /--
 error: typeclass instance problem is stuck, it is often due to metavariables
-  DecidableEq ?m.1951
+  DecidableEq ?m.1987
 -/
 #guard_msgs in
 def missingSchema :=
@@ -31,7 +31,7 @@ error: application type mismatch
 argument
   Row.nil
 has type
-  Row [] : Type 1
+  Row [] : Type (max ?u.9830 (?u.9831 + 1))
 but is expected to have type
   Row [("name", String), ("age", Nat), ("favorite color", String)] : Type 1
 -/
@@ -48,11 +48,20 @@ Table.mk [
 
 /--
 error: application type mismatch
+  Row.cons ?m.10728 Row.nil
+argument
+  Row.nil
+has type
+  Row [] : Type (max ?u.10729 (?u.10730 + 1))
+but is expected to have type
+  Row [("favorite color", String)] : Type 1
+---
+error: application type mismatch
   Row.cons (Cell.val "blue")
 argument
   Cell.val "blue"
 has type
-  Cell "age" String : Type
+  Cell ?m.10639 String : Type ?u.10635
 but is expected to have type
   Cell "age" Nat : Type
 -/
@@ -67,33 +76,6 @@ Table.mk [
 
 -- ## swappedColumns
 /--
-error: application type mismatch
-  Row.cons (Cell.val "Bob")
-argument
-  Cell.val "Bob"
-has type
-  Cell "age" String : Type
-but is expected to have type
-  Cell "age" Nat : Type
----
-error: application type mismatch
-  Row.cons (Cell.val "Alice")
-argument
-  Cell.val "Alice"
-has type
-  Cell "age" String : Type
-but is expected to have type
-  Cell "age" Nat : Type
----
-error: application type mismatch
-  Row.cons (Cell.val "Eve")
-argument
-  Cell.val "Eve"
-has type
-  Cell "age" String : Type
-but is expected to have type
-  Cell "age" Nat : Type
----
 error: failed to synthesize
   OfNat String 12
 numerals are polymorphic in Lean, but the numeral `12` cannot be used in a context where the expected type is
@@ -114,6 +96,15 @@ numerals are polymorphic in Lean, but the numeral `13` cannot be used in a conte
   String
 due to the absence of the instance above
 Additional diagnostic information may be available using the `set_option diagnostics true` command.
+---
+error: application type mismatch
+  Row.cons (Cell.val "Eve")
+argument
+  Cell.val "Eve"
+has type
+  Cell ?m.13444 String : Type ?u.13440
+but is expected to have type
+  Cell "age" Nat : Type
 -/
 #guard_msgs in
 def swappedColumns :
@@ -134,7 +125,7 @@ error: application type mismatch
 argument
   Row.cons (Cell.val "blue") Row.nil
 has type
-  Row [(?m.13553, String)] : Type 1
+  Row [(?m.14891, String)] : Type (max ?u.15037 1)
 but is expected to have type
   Row [] : Type 1
 ---
@@ -143,7 +134,7 @@ error: application type mismatch
 argument
   Row.cons (Cell.val "green") Row.nil
 has type
-  Row [(?m.14255, String)] : Type 1
+  Row [(?m.15607, String)] : Type (max ?u.15753 1)
 but is expected to have type
   Row [] : Type 1
 ---
@@ -152,7 +143,7 @@ error: application type mismatch
 argument
   Row.cons (Cell.val "red") Row.nil
 has type
-  Row [(?m.14926, String)] : Type 1
+  Row [(?m.16311, String)] : Type (max ?u.16457 1)
 but is expected to have type
   Row [] : Type 1
 -/
@@ -172,29 +163,38 @@ Table.mk [
 
 /--
 error: application type mismatch
-  Row.cons (Cell.val "blue")
+  Row.cons ?m.19228 Row.nil
 argument
-  Cell.val "blue"
+  Row.nil
 has type
-  Cell "favorite number" String : Type
+  Row [] : Type (max ?u.19229 (?u.19230 + 1))
 but is expected to have type
-  Cell "favorite number" Nat : Type
+  Row [("favorite color", String)] : Type 1
 ---
 error: application type mismatch
-  Row.cons (Cell.val "green")
+  Row.cons ?m.19837 Row.nil
 argument
-  Cell.val "green"
+  Row.nil
 has type
-  Cell "favorite number" String : Type
+  Row [] : Type (max ?u.19838 (?u.19839 + 1))
 but is expected to have type
-  Cell "favorite number" Nat : Type
+  Row [("favorite color", String)] : Type 1
+---
+error: application type mismatch
+  Row.cons ?m.20434 Row.nil
+argument
+  Row.nil
+has type
+  Row [] : Type (max ?u.20435 (?u.20436 + 1))
+but is expected to have type
+  Row [("favorite color", String)] : Type 1
 ---
 error: application type mismatch
   Row.cons (Cell.val "red")
 argument
   Cell.val "red"
 has type
-  Cell "favorite number" String : Type
+  Cell ?m.20356 String : Type ?u.20352
 but is expected to have type
   Cell "favorite number" Nat : Type
 -/
@@ -307,7 +307,7 @@ def brownAndGetAcneTable :=
 error: could not synthesize default value for parameter 'hc' using tactics
 ---
 error: Could not prove that header ("brown and get acne",
-  ?m.23236) is in schema Schema.append
+  ?m.27949) is in schema Schema.append
   [("name", String), ("get acne", Bool), ("red", Bool), ("black", Bool), ("white", Bool), ("green", Bool),
     ("yellow", Bool), ("brown", Bool), ("orange", Bool), ("pink", Bool), ("purple", Bool)]
   [("part2", Bool)]
@@ -353,9 +353,9 @@ def getOnlyRowCorrected :=
 
 /--
 error: type mismatch
-  getValue r "favorite color" ?m.29027
+  getValue r "favorite color" ?m.33775
 has type
-  Option ?m.28961 : Type
+  Option ?m.33708 : Type
 but is expected to have type
   Bool : Type
 -/

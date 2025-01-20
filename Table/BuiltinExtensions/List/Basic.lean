@@ -206,7 +206,7 @@ theorem List.map_sublist_of_sublist :
 theorem List.get_mem_cons_of_head_not_mem_getee {y :α} {xs ys : List α} {i} :
   xs.get i ∈ y :: ys → y ∉ xs → xs.get i ∈ ys :=
   λ hget hnmem =>
-  have hget_lem := get_mem xs i.val i.isLt
+  have hget_lem := get_mem xs i
   have hneq_lem := neq_of_mem_not_mem hget_lem hnmem
   match mem_cons.mp hget with
   | .inr htl => htl

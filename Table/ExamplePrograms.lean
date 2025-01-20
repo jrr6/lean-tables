@@ -44,7 +44,7 @@ def sampleRows (t : Table sch) (n : Fin (nrows t + 1)) : Table sch :=
 
   let indices : List (Fin (nrows t)) :=
     Prod.fst $ n.val.fold
-      (λ k acc =>
+      (λ k _ acc =>
         let (acc, remainingIndices, seed) := acc
         dbg_trace acc.length + remainingIndices.length
         match hni : List.length remainingIndices with
