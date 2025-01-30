@@ -975,13 +975,10 @@ def abstractAgeUpdate := λ (r : Row $ schema students) =>
     | _, _ => /["age" := "adult"]
   | _ => /["age" := EMP]
 
-#eval update [⟨("age", String), by name⟩] students abstractAgeUpdate
-
--- TODO: why are we back to needing the `:)` notation here? Also, the reducible
--- function in the `update` type is not reducing (WF recursion may be to blame?)
+-- TODO: why are we back to needing the `:)` notation here?
 #test
 (update A["age"] students abstractAgeUpdate :)
-=[by inst]--(Table [("name", String), ("age", String), ("favorite color", String)])
+=
 Table.mk [
   /[ "Bob"   , "kid"      , "blue"         ],
   /[ "Alice" , "teenager" , "green"        ],
@@ -997,7 +994,7 @@ def didWellUpdate := λ (r : Row $ schema gradebook) =>
 
 #test
 (update A["midterm", "final"] gradebook didWellUpdate :)
-=[by inst]
+=
 Table.mk [
   /[ "Bob"   , 12  , 8     , 9     , false   , 7     , 9     , true  ],
   /[ "Alice" , 17  , 6     , 8     , true    , 8     , 7     , true  ],

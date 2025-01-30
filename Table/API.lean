@@ -336,14 +336,20 @@ def update {schema₁ : @Schema η}
       {schema : @Schema η} → {sch : RetypedSubschema schema} →
       Row schema → Row sch.toSchema → Row (Schema.retypedFromSubschema sch)
     | _, [], r, Row.nil => r
-    | schema, ⟨(nm, τ), hsch⟩ :: _, r, Row.cons c rest =>
+    | schema, ⟨(nm, τ), hsch⟩ :: subsch', r, Row.cons c rest =>
       have hterm :
         Row.length (@Row.retypedSubschemaPres η _ schema nm τ hsch _ rest) <
         Row.length (Row.cons c rest) :=
         Row.length_retypedSubschemaPres rest ▸ Nat.lt_succ_self _
-      updateCells (schema := schema.retypeColumn _ _)
+      let newRow := updateCells (schema := schema.retypeColumn hsch τ)
         (r.retypeCellByName hsch c)
         (Row.retypedSubschemaPres rest)
+      -- TODO: this casting is suboptimal
+      -- Perhaps we could avoid it if we wrote a symmetric "fueled" function
+      -- to the type-level one?
+      (Schema.retypedFromSubschema.eq_def (η := η) _ ▸
+      Schema.length_map _ _ ▸
+      newRow)
     termination_by _ _ _ rs => rs.length
 
     updateCells r newCells
