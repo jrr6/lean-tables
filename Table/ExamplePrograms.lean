@@ -144,19 +144,8 @@ theorem gradebook_schema_is_quiz_schema : IsQuizSchema (schema gradebook) := by
                 | apply IsQuizSchema.consNonQuiz (by with_unfolding_all decide)
                 | apply IsQuizSchema.nil)
 
--- TODO: figure out why elaboration is taking so long here
-set_option maxHeartbeats 1000000
 theorem quiz_col_type_eq_Nat_of_IsQuizSchema {nm : String} :
   {sch : @Schema String} → {τ : Type _} →
-  IsQuizSchema sch → sch.HasCol (nm, τ) → nm.startsWith "quiz" = true → τ = Nat
-  | (.(nm), .(Nat)) :: hs, .(Nat), .consQuiz heq hrest, .hd =>
-    λ _ => rfl
-  | (_, _) :: hs, τ, .consQuiz _ hrest, .tl hc' =>
-    λ heq => quiz_col_type_eq_Nat_of_IsQuizSchema hrest hc' heq
-  | (.(nm), τ) :: hs, .(τ), .consNonQuiz hneq hrest, .hd =>
-    λ heq => absurd heq (Bool.not_eq_true _ ▸ hneq)
-  | (nm, σ) :: hs, τ, .consNonQuiz hneq hrest, .tl hc' =>
-    λ heq => quiz_col_type_eq_Nat_of_IsQuizSchema hrest hc' heq
 
 -- We take some minor liberties with our implementation to make it more amenable
 -- to casting
