@@ -64,16 +64,17 @@ def sampleRows (t : Table sch) (n : Fin (nrows t + 1)) : Table sch :=
 
 -- `pHackingHomogeneous` and `pHackingHeterogeneous`
 
+def fact : Nat → Nat
+  | 0 => 1
+  | .succ n => n.succ * fact n
+
+-- TODO: use vectors/otherwise eliminate `!` here
 def fisherTest (xs : List (Bool × Bool)) :=
   let tab := xs.foldl (λ acc (x, y) =>
     let xIdx := if x then 1 else 0
     let yIdx := if y then 1 else 0
-    -- Vectors would be a more elegant way to handle this
     acc.set xIdx (acc[xIdx]!.set yIdx (acc[xIdx]![yIdx]! + 1))
   ) [[0, 0], [0, 0]]
-  let rec fact : Nat → Nat
-  | 0 => 1
-  | .succ n => n.succ * fact n
   Float.ofNat (fact (tab[0]![0]! + tab[0]![1]!)
     * fact (tab[1]![0]! + tab[1]![1]!)
     * fact (tab[0]![0]! + tab[1]![0]!)
@@ -144,8 +145,24 @@ theorem gradebook_schema_is_quiz_schema : IsQuizSchema (schema gradebook) := by
                 | apply IsQuizSchema.consNonQuiz (by with_unfolding_all decide)
                 | apply IsQuizSchema.nil)
 
+-- This is cleaner to write in term mode, but, for some reason, elaboration lags if we do so
 theorem quiz_col_type_eq_Nat_of_IsQuizSchema {nm : String} :
   {sch : @Schema String} → {τ : Type _} →
+  IsQuizSchema sch → sch.HasCol (nm, τ) → nm.startsWith "quiz" = true → τ = Nat := by
+  intro sch τ hsch hc hnm
+  induction hsch with
+  | nil => cases hc
+  | consQuiz heq hrest ih =>
+    cases hc with
+    | hd => rfl
+    | tl h => apply ih h
+  | consNonQuiz hneq hrest ih =>
+    cases hc with
+    | hd =>
+      apply False.elim
+      apply Bool.not_eq_true _ ▸ hneq
+      apply hnm
+    | tl h => apply ih h
 
 -- We take some minor liberties with our implementation to make it more amenable
 -- to casting

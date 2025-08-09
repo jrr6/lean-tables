@@ -29,23 +29,18 @@ theorem addRows_spec2 :
 
 -- `addColumn`
 
+omit dec_η in
+theorem Schema.names_append (sch : Schema) (c : η) (τ : Type u) :
+  Schema.names (Schema.append sch [(c, τ)]) = Schema.append sch.names [c] := by
+  rw [Schema.append_eq_List_append, Schema.append_eq_List_append]
+  simp only [List.append_eq, List.map_append, List.map_cons, List.map_nil]
+
 -- We omit the precondition because it is not required for this portion of the
 -- spec
 theorem addColumn_spec1 :
   ∀ {τ : Type u} (t : Table sch) (c : η) (vs : List (Option τ)),
-    header (addColumn t c vs) = List.append (header t) [c]
-:= by
-  intros τ t c vs
-  simp [header, addColumn, Schema.names]
-  induction sch with
-  | nil => simp [List.map, List.append]
-  | cons s ss ih =>
-    simp only [List.map]
-    rw [ih]
-    simp [List.append]
-    -- We could avoid this by proving a separate lemma about schemata that
-    -- doesn't take the (unused) table argument
-    exact dropColumn t _
+    header (addColumn t c vs) = Schema.append (header t) [c] :=
+  λ {τ} _ c _ => Schema.names_append sch c τ
 
 theorem addColumn_spec2 :
   ∀ {τ : Type u}
@@ -61,19 +56,14 @@ theorem addColumn_spec2 :
       (schema (addColumn t c vs)).lookup ⟨c', Schema.hasNameOfAppend h'⟩ :=
 λ t c vs c' h' => Schema.lookup_eq_lookup_append _ _ _ _
 
-theorem addColumn_spec3 {τ : Type u} :
+def Schema.hasAppendedHeadName (sch : @Schema η) (c : η) :
+    Schema.HasName c (Schema.append sch [(c, τ)]) :=
+  Schema.colImpliesName $ sch.hasAppendedHead c τ []
+
+def addColumn_spec3 {τ : Type u} :
   ∀ (t : Table sch) (c : η) (vs : List $ Option τ),
-    (schema (addColumn t c vs)).lookupType
-      ⟨c, Schema.colImpliesName $ sch.hasAppendedHead c τ []⟩ = τ := by
-  intros t c vs
-  induction sch with
-  | nil =>
-    simp only [Schema.lookupType]
-  | cons s ss ih =>
-    simp only [Schema.lookupType]
-    -- Again, this could be avoided by isolating the relevant proof into a
-    -- separate lemma
-    apply ih (dropColumn t _ .hd)
+    (schema (addColumn t c vs)).HasName c :=
+  fun _ c _ => Schema.hasAppendedHeadName sch c
 
 theorem addColumn_spec4 :
   ∀ {τ : Type u} (t : Table sch) (c : η) (vs : List $ Option τ),
@@ -85,21 +75,10 @@ theorem addColumn_spec4 :
   rw [List.length_zipExtendingNone]
 
 -- `buildColumn`
-
--- Spec 1 is enforced by the type system
 theorem buildColumn_spec2 :
   ∀ {τ : Type u} (t : Table sch) (c : η) (f : Row sch → Option τ),
-    header (buildColumn t c f) = List.append (header t) [c] :=
-by intros τ t c f
-   simp [header, Schema.names]
-   induction sch with
-  | nil => simp [List.map, List.append]
-  | cons s ss ih =>
-    simp only [List.map]
-    rw [ih]
-    simp [List.append]
-    exact Table.mk []
-    exact (λ x => f (Row.cons Cell.emp x))
+    header (buildColumn t c f) = Schema.append (header t) [c] :=
+  fun {τ} _ c _ => Schema.names_append sch c τ
 
 theorem buildColumn_spec3 :
   ∀ {τ : Type u}
@@ -112,19 +91,10 @@ theorem buildColumn_spec3 :
       (schema (buildColumn t c f)).lookup ⟨c', Schema.hasNameOfAppend h'⟩ :=
 λ t c vs c' h' => Schema.lookup_eq_lookup_append _ _ _ _
 
-theorem buildColumn_spec4 {τ : Type u} [DecidableEq τ] :
+def buildColumn_spec4 {τ : Type u} [DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (f : Row sch → Option τ),
-    (schema (buildColumn t c f)).lookupType
-      ⟨c, Schema.colImpliesName $ sch.hasAppendedHead c τ []⟩ = τ := by
-  intros t c f
-  induction sch with
-  | nil =>
-    simp only [Schema.lookupType]
-  | cons s ss ih =>
-    simp only [Schema.lookupType]
-    apply ih
-    . exact (dropColumn t _)
-    . exact f ∘ (Row.cons Cell.emp)
+    (schema (buildColumn t c f)).HasCol (c, τ) :=
+  fun _ c _ => sch.hasAppendedHead c τ []
 
 theorem buildColumn_spec5 :
   ∀ {τ : Type u} (t : Table sch) (c : η) (f : Row sch → Option τ),
@@ -154,8 +124,8 @@ theorem vcat_spec2 :
 -- This is precisely the type signature, but we can state it anyway
 theorem hcat_spec1 :
   ∀ {sch₁ : @Schema η} {sch₂ : @Schema η} (t₁ : Table sch₁) (t₂ : Table sch₂),
-    schema (hcat t₁ t₂) = List.append (schema t₁) (schema t₂) :=
-λ _ _ => Schema.append_eq_List_append _ _ ▸ rfl
+    schema (hcat t₁ t₂) = Schema.append (schema t₁) (schema t₂) :=
+λ _ _ => rfl
 
 theorem hcat_spec2 :
   ∀ {sch₁ : @Schema η} {sch₂ : @Schema η} (t₁ : Table sch₁) (t₂ : Table sch₂),
@@ -180,8 +150,8 @@ theorem values_spec2 :
 
 theorem crossJoin_spec1 :
   ∀ {sch₁ : @Schema η} {sch₂ : @Schema η} (t₁ : Table sch₁) (t₂ : Table sch₂),
-    schema (crossJoin t₁ t₂) = List.append (schema t₁) (schema t₂) :=
-λ _ _ => Schema.append_eq_List_append _ _ ▸ rfl
+    schema (crossJoin t₁ t₂) = Schema.append (schema t₁) (schema t₂) :=
+λ _ _ => rfl
 
 theorem crossJoin_spec2 :
   ∀ {sch₁ : @Schema η} {sch₂ : @Schema η} (t₁ : Table sch₁) (t₂ : Table sch₂),
@@ -197,9 +167,9 @@ theorem leftJoin_spec1 {s₁ s₂ : @Schema η} :
   ∀ (t₁ : Table s₁) (t₂ : Table s₂)
     (cs : ActionList (Schema.removeOtherDecCH s₁) s₂),
   schema (leftJoin t₁ t₂ cs) =
-  List.append (schema t₁)
+  Schema.append (schema t₁)
               (Schema.removeOtherDecCHs (schema t₁) (schema t₂) cs) :=
-λ _ _ _ => Schema.append_eq_List_append _ _ ▸ rfl
+λ _ _ _ => rfl
 
 theorem leftJoin_spec2 {s₁ s₂ : @Schema η} :
   ∀ (t₁ : Table s₁) (t₂ : Table s₂)
@@ -467,6 +437,7 @@ theorem selectColumns2_spec2 :
   simp only [finHeaderLengthOfFinNcols]
   apply Schema.get_map_nths_eq_get_get
 
+-- TODO: lookupType
 theorem selectColumns2_spec3 :
   ∀ {sch : @Schema η} (t : Table sch)
     (ns : List (Fin (ncols t))),
@@ -589,8 +560,8 @@ theorem dropColumn_spec2_unique :
     cases hsch with | cons hnmem hu =>
     simp only at hnmem
     have : (decide (nm ∉ [nm])) = false :=
-      by simp only [decide_not, List.mem_singleton, decide_True,
-                    decide_False, not]
+      by simp only [decide_not, List.mem_singleton, decide_true,
+                    decide_false, not]
     rw [this]
     simp only [Schema.names, List.map]
     have : List.filter (λ x => x ∉ [nm]) (List.map Prod.fst s')

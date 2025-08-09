@@ -282,8 +282,7 @@ def bin [ToString η]
     Row.cons (Cell.val s!"{k - n} <= {c} < {k}") (Row.singleValue cnt))}
 end BinTypeScope
 
--- # Mising Values
-
+-- # Missing Values
 def completeCases {τ} (t : Table schema)
                   (c : η) (hc : schema.HasCol (c, τ) := by header) :=
   List.map (λ v => Option.isSome v) (getColumn2 t c hc)

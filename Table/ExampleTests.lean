@@ -736,6 +736,7 @@ Table.mk [
 --     A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"])
 --     [("test", String), ("score", Nat)]
 -- So it's something to do with the Table DecEq instance
+-- The timeout error concerns synthesizing a `CoeT` instance
 #test
 (pivotLonger gradebook A["quiz1", "quiz2", "quiz3", "quiz4", "midterm", "final"]
             "test" "score" :)
