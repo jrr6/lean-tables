@@ -560,8 +560,8 @@ theorem dropColumn_spec2_unique :
     cases hsch with | cons hnmem hu =>
     simp only at hnmem
     have : (decide (nm ∉ [nm])) = false :=
-      by simp only [decide_not, List.mem_singleton, decide_true,
-                    decide_false, not]
+      by simp only [decide_not, List.mem_singleton, decide_True,
+                    decide_False, not]
     rw [this]
     simp only [Schema.names, List.map]
     have : List.filter (λ x => x ∉ [nm]) (List.map Prod.fst s')
