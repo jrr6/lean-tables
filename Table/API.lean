@@ -90,12 +90,9 @@ def header (t : Table schema) : List η := Schema.names schema
 def getRow (t : Table schema) (n : Nat) (h : n < nrows t := by decide)
   : Row schema :=
   match htr : t.rows, n with
-  | [], n => by
-    simp only [nrows] at h
-    rw [htr] at h
-    apply False.elim
-    apply Nat.not_lt_zero
-    apply h
+  | [], n =>
+    have h : n < Schema.length [] := htr.rec h
+    False.elim (Nat.not_lt_zero n h)
   | r :: _, 0 => r
   | r :: rs, Nat.succ n =>
     getRow {rows := rs} n (Nat.lt_of_succ_lt_succ (by
@@ -268,14 +265,9 @@ def bin [ToString η]
            (cnt + 1, rest)
       else (0, y :: ys)
     let (cnt, rest) := countBin (x :: xs)
-
-    have hterm : max - (k + n) < max - k :=
-    by apply Nat.lt_of_sub_add
-       . exact Nat.lt_of_not_le h
-       . exact hn
-
+    have hterm : max - (k + n) < max - k := Nat.lt_of_sub_add (Nat.lt_of_not_le h) hn
     (k, cnt) :: kthBin (k + n) rest
-  termination_by k xs => max - k
+  termination_by k _ => max - k
 
   let bins := kthBin (n * (s / n + 1)) (s :: ss)
   {rows := bins.map (λ (k, cnt) =>
@@ -429,7 +421,7 @@ def groupByCertified {η'} [DecidableEq η']
     : Table schema' :=
   let projected := t.rows.certifiedMap (λ r pf => (key r pf, project r pf))
   let grouped := projected.groupPairsByKey
-{rows := grouped.map (λ klv => aggregate klv.1 klv.2)}
+  {rows := grouped.map (λ klv => aggregate klv.1 klv.2)}
 
 /--
 `flattenOne` takes a list of row copies and clean-row templates (i.e., a list of
@@ -583,58 +575,49 @@ def Schema.hasColOfMemPivotCol
     Schema.hasColOfMemT hmemT
 
 def pivotWider.foldProof
-  (t : Table schema) (c1 c2 : η)
-  (hc1 : schema.HasCol (c1, η))
-  (hc2 : (schema.removeHeader hc1).HasCol (c2, τ))
-  (r : Row (Schema.fromCHeaders [⟨(c1, η), hc1⟩,
-                                 ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]))
-  (hr : List.MemT r
-        (List.map (λ r' => Row.pick r' [⟨(c1, η), hc1⟩,
-                                        ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])
-        t.rows))
-  (nm : η)
-  (hnm : r.getCell .hd = .val nm)
-  : List.MemT (some nm) (getColumn2 t c1 hc1) := by
-  simp only [getColumn2, getValue]
+    (t : Table schema) (c1 c2 : η)
+    (hc1 : schema.HasCol (c1, η))
+    (hc2 : (schema.removeHeader hc1).HasCol (c2, τ))
+    (r : Row (Schema.fromCHeaders [⟨(c1, η), hc1⟩,
+                                  ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]))
+    (hr : List.MemT r
+          (List.map (λ r' => Row.pick r' [⟨(c1, η), hc1⟩,
+                                          ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])
+          t.rows))
+    (nm : η)
+    (hnm : r.getCell .hd = .val nm)
+    : List.MemT (some nm) (getColumn2 t c1 hc1) := by
   let nmCell := r.getCell .hd
-  have hsomenm : some nm = Cell.toOption nmCell := by
-    simp only [nmCell, Cell.toOption, hnm]
+  have hsomenm : some nm = Cell.toOption nmCell :=
+    (rfl : nmCell = r.getCell .hd).trans hnm ▸ rfl
   rw [hsomenm]
-  have hcelleq : nmCell = r.getCell .hd := rfl
-
-  have hfeq :
-    (λ (r : Row schema) => r.getCell hc1) =
-    (λ (r : Row schema) => Row.getCell
-      (r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])
-      .hd) :=
-    rfl
 
   let hcell : List.MemT nmCell $ List.map (λ r => r.getCell hc1) t.rows := by
-    rw [hcelleq]
-    rw [hfeq]
-    have hcomp :
-      (λ (r : Row schema) => Row.getCell
-        (r.pick [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) .hd) =
+    have hcelleq : nmCell = r.getCell .hd := rfl
+    have hfeq :
+      (λ (r : Row schema) => r.getCell hc1) =
       (λ (r : Row schema) =>
         (λ r' => Row.getCell r' .hd) ∘
         (λ r' => r'.pick [⟨(c1, η), hc1⟩,
                           ⟨(c2, τ), Schema.removeHeaderPres hc2⟩]) $ r) :=
       rfl
-    rw [hcomp, ←List.map_map]
-    apply List.memT_map_of_memT (f :=
+
+    rw [hcelleq, hfeq, ←List.map_map]
+    exact List.memT_map_of_memT (f :=
       (λ (r : Row (Schema.fromCHeaders
         [⟨(c1, η), hc1⟩, ⟨(c2, τ), Schema.removeHeaderPres hc2⟩])) =>
         Row.getCell r .hd)
-    )
-    exact hr
+    ) hr
 
   have hcomp :
     (λ r => Cell.toOption (Row.getCell r hc1)) =
     (λ r => (Cell.toOption ∘ (λ r' => Row.getCell r' hc1)) r) :=
     rfl
+
+  unfold getColumn2
+  unfold getValue
   rw [hcomp, ←List.map_map]
-  apply List.memT_map_of_memT
-  apply hcell
+  exact List.memT_map_of_memT _ hcell
 
 -- Note: type-class resolution and other reducibility-dependent operations are
 -- difficult when working with `pivotWider`, since the non-reducible function
