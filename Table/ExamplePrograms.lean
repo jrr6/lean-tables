@@ -46,7 +46,6 @@ def sampleRows (t : Table sch) (n : Fin (nrows t + 1)) : Table sch :=
     Prod.fst $ n.val.fold
       (λ k acc =>
         let (acc, remainingIndices, seed) := acc
-        dbg_trace acc.length + remainingIndices.length
         match hni : List.length remainingIndices with
         | 0 =>
           -- Note: this case will never be reached; it could be eliminated by
@@ -60,31 +59,62 @@ def sampleRows (t : Table sch) (n : Fin (nrows t + 1)) : Table sch :=
       ) ([], allFins (nrows t), 42)
   selectRows1 t indices
 
-#table sampleRows gradebookMissing 2
+#test
+sampleRows gradebookMissing 2
+=
+Table.mk [
+  /["Eve",   13, EMP, 9, 84, 8  , 8, 77],
+  /["Alice", 17, 6  , 8, 88, EMP, 7, 85]
+]
 
 -- `pHackingHomogeneous` and `pHackingHeterogeneous`
+
+-- Lean 4.14 lacks built-in vectors, so we define them here:
+inductive Vector (α : Type u) : Nat → Type u where
+  | nil : Vector α 0
+  | cons : α → Vector α n → Vector α (n + 1)
+
+namespace Vector
+def get : Vector α n → Fin n → α
+  | .cons x _, 0 => x
+  | .cons _ xs, ⟨k + 1, hk⟩ => xs.get ⟨k, Nat.le_of_succ_le_succ hk⟩
+
+def set : Vector α n → Fin n → α → Vector α n
+  | .cons _ xs, 0, y => .cons y xs
+  | .cons x xs, ⟨k + 1, hk⟩, y => .cons x $ xs.set ⟨k, Nat.le_of_succ_le_succ hk⟩ y
+
+def foldl (f : α → β → α) (init : α) : Vector β n → α
+  | .nil => init
+  | .cons x xs => xs.foldl f (f init x)
+
+def ofList : (xs : List α) → Vector α xs.length
+  | [] => .nil
+  | x :: xs => .cons x (ofList xs)
+
+instance : GetElem (Vector α n) Nat α (fun _ k => k < n) where
+  getElem v k h := v.get ⟨k, h⟩
+end Vector
 
 def fact : Nat → Nat
   | 0 => 1
   | .succ n => n.succ * fact n
 
--- TODO: use vectors/otherwise eliminate `!` here
 def fisherTest (xs : List (Bool × Bool)) :=
-  let tab := xs.foldl (λ acc (x, y) =>
+  let tab := xs.foldl (α := Vector (Vector Nat 2) 2) (λ acc (x, y) =>
     let xIdx := if x then 1 else 0
     let yIdx := if y then 1 else 0
-    acc.set xIdx (acc[xIdx]!.set yIdx (acc[xIdx]![yIdx]! + 1))
-  ) [[0, 0], [0, 0]]
-  Float.ofNat (fact (tab[0]![0]! + tab[0]![1]!)
-    * fact (tab[1]![0]! + tab[1]![1]!)
-    * fact (tab[0]![0]! + tab[1]![0]!)
-    * fact (tab[0]![1]! + tab[1]![1]!))
+    acc.set xIdx (acc[xIdx].set yIdx (acc[xIdx][yIdx] + 1))
+  ) (.ofList [.ofList [0, 0], .ofList [0, 0]])
+  Float.ofNat (fact (tab[0][0] + tab[0][1])
+    * fact (tab[1][0] + tab[1][1])
+    * fact (tab[0][0] + tab[1][0])
+    * fact (tab[0][1] + tab[1][1]))
   /
-  Float.ofNat (fact tab[0]![0]!
-    * fact tab[0]![1]!
-    * fact tab[1]![0]!
-    * fact tab[1]![1]!
-    * fact (tab.foldl (List.foldl (·+·)) 0))
+  Float.ofNat (fact tab[0][0]
+    * fact tab[0][1]
+    * fact tab[1][0]
+    * fact tab[1][1]
+    * fact (tab.foldl (Vector.foldl (·+·)) 0))
 
 def pHacking {sch : Schema} (t : Table sch)
   (hacne : sch.HasCol ("get acne", Bool) := by header)
@@ -158,10 +188,7 @@ theorem quiz_col_type_eq_Nat_of_IsQuizSchema {nm : String} :
     | tl h => apply ih h
   | consNonQuiz hneq hrest ih =>
     cases hc with
-    | hd =>
-      apply False.elim
-      apply Bool.not_eq_true _ ▸ hneq
-      apply hnm
+    | hd => nomatch hnm.symm.trans hneq
     | tl h => apply ih h
 
 -- We take some minor liberties with our implementation to make it more amenable
@@ -241,7 +268,6 @@ Table.mk [
 def tableOfColumn {τ} (c : η) (vs : List (Option τ)) : Table [(c, τ)] :=
   Table.mk $ vs.map ((Row.cons ∘ Cell.fromOption) · Row.nil)
 
-deriving instance DecidableEq for ULift
 def groupByRetentive' {schema : @Schema η} {τ : Type u} [DecidableEq τ]
   (t : Table schema) (c : η) (hc : schema.HasCol (c, τ) := by header)
     : Table [("key", ULift.{max (u+1) u_η} τ), ("groups", Table schema)] :=
