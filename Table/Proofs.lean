@@ -515,18 +515,17 @@ by intros t z h
      . exact Schema.length_eq_List_length ▸ prop
      . exact h
 
--- This is changed slightly from B2T2 to avoid casting. The exact statement
--- would be:
--- z.val < 0 → nrows (head t z) = nrows t + z.val
 theorem head_spec3 : ∀ (t : Table sch) (z : {z : Int // z.natAbs < nrows t}),
-  z.val < 0 → nrows (head t z) = nrows t - z.val.natAbs := by
+  z.val < 0 → nrows (head t z) = nrows t + z.val := by
   intros t z h
   cases z with | mk z prop =>
   simp only at h
   simp only [nrows, Schema.length_eq_List_length] at prop
   simp only [head, nrows, List.dropLastN, Function.comp, h,
-             Schema.length_eq_List_length, ite_true]
+             Schema.length_eq_List_length, ite_true, Int.add_neg_eq_sub]
   rw [List.length_reverse, List.length_drop, List.length_reverse]
+  rw [Int.ofNat_sub]
+  exact Nat.le_of_lt prop
 
 -- `distinct`
 
