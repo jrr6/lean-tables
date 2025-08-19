@@ -323,19 +323,21 @@ def update {schema₁ : @Schema η}
   : Table $ Schema.retypedFromSubschema schema₂ :=
   {rows := t.rows.map (λ r =>
     let newCells : Row schema₂.toSchema := f r
-    let rec updateCells :
+
+    let rec updateCellsFueled :
       {schema : @Schema η} → {sch : RetypedSubschema schema} →
-      Row schema → Row sch.toSchema → Row (Schema.retypedFromSubschema sch)
-    | _, [], r, Row.nil => r
-    | schema, ⟨(nm, τ), hsch⟩ :: _, r, Row.cons c rest =>
-      have hterm :
-        Row.length (@Row.retypedSubschemaPres η _ schema nm τ hsch _ rest) <
-        Row.length (Row.cons c rest) :=
-        Row.length_retypedSubschemaPres rest ▸ Nat.lt_succ_self _
-      updateCells (schema := schema.retypeColumn _ _)
-        (r.retypeCellByName hsch c)
-        (Row.retypedSubschemaPres rest)
-    termination_by _ _ _ rs => rs.length
+      Row schema → Row sch.toSchema → (n : Nat) → Row (Schema.retypedFromSubschemaFueled n sch)
+    | _, [], r, Row.nil, 0 => r
+    | _, [], r, Row.nil, _ + 1 => r
+    | _, _ :: _, r, _, 0 => r
+    | schema, ⟨(nm, τ), hsch⟩ :: subsch', r, Row.cons c rest, n + 1 =>
+      updateCellsFueled (r.retypeCellByName hsch c) (Row.retypedSubschemaPres rest) n
+
+    let rec updateCells
+        {schema : @Schema η} {sch : RetypedSubschema schema}
+        (r : Row schema) (r' : Row sch.toSchema) :
+        Row (Schema.retypedFromSubschema sch) :=
+    updateCellsFueled r r' (Schema.length sch)
 
     updateCells r newCells
   )}
