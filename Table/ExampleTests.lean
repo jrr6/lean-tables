@@ -11,42 +11,6 @@ set_option synthInstance.maxHeartbeats 0
 namespace Table.Examples.Tests
 open Tables
 
--- def abstractAgeUpdate := λ (r : Row $ schema students) =>
---   match getValue r "age" with
---   | some age =>
---     match (age ≤ 12 : Bool), (age ≤ 19 : Bool) with
---     | true, _ => /["age" := "kid"]
---     | _, true => /["age" := "teenager"]
---     | _, _ => /["age" := "adult"]
---   | _ => /["age" := EMP]
-
--- #synth DecidableEq $
---   Table $
---   -- (Schema.retypedFromSubschema (sch := [("name", String), ("age", Nat)]) [{ fst := ("age", String), snd := Schema.HasName.tl Schema.HasName.hd }])
---   Schema.retypedFromSubschema (sch := Schema.retypeColumn [("name", String), ("age", Nat)] (Schema.HasName.tl Schema.HasName.hd) String)
---     (Schema.map ((λ ⟨h, pf⟩ => ⟨h, Schema.hasRetypedName pf⟩)
---                   : (h : Header) × Schema.HasName h.fst [("name", String), ("age", Nat)] → (h : Header) × Schema.HasName h.fst (Schema.retypeColumn [("name", String), ("age", Nat)] (.tl .hd) String))
---                 [])
-
--- #synth DecidableEq $ Table
---   (Schema.retypeColumn [("name", String), ("age", Nat)] (Schema.HasName.tl Schema.HasName.hd) String)
-
--- #synth DecidableEq $ Table $ Schema.retypedFromSubschema (sch := [("test", String)]) []
-
--- #synth DecidableEq $
---   Table $
---   -- (Schema.retypedFromSubschema (sch := [("name", String), ("age", Nat)]) [{ fst := ("age", String), snd := Schema.HasName.tl Schema.HasName.hd }])
---   Schema.retypedFromSubschema (sch := Schema.retypeColumn [("name", String), ("age", Nat)] (Schema.HasName.tl Schema.HasName.hd) String)
---     []
--- #test
--- (update A["age"] students abstractAgeUpdate :)
--- =[by inst]--(Table [("name", String), ("age", String), ("favorite color", String)])
--- Table.mk [
---   /[ "Bob"   , "kid"      , "blue"         ],
---   /[ "Alice" , "teenager" , "green"        ],
---   /[ "Eve"   , "teenager" , "red"          ]
--- ]
-
 -- `addRows`
 #test
 addRows students [/["Colton", 19, "blue"]]
@@ -584,7 +548,6 @@ Table.mk [
   /[ "15 <= age < 20" , 1     ]
 ]
 
--- TODO: tell B2T2 that there's a typo in this test ("final," not "age")
 #test
 bin gradebook "final" 5
 =
@@ -613,7 +576,8 @@ Table.mk [
 def proportion (bs : List $ Option Bool) : Option Nat := some $
   (100 * (bs.filter (· = some true)).length) / bs.length
 
--- KC says order doesn't matter, so okay that we disagree w/ B2T2
+-- A B2T2 author clarified that order doesn't matter for this test, so our deviation from their
+-- ordering is acceptable
 #test
 pivotTable
   jellyNamed
@@ -644,7 +608,7 @@ def average (xs : List Nat) := List.foldl (·+·) 0 xs / xs.length
 def aggregate := λ (k : String) vs =>
 /["key" := k, "average" := average vs]
 
--- Verified with KC that B2T2 doesn't care about the order here
+-- Like the `pivotTable` test above, our deviation from B2T2's ordering here is okay
 #test
 groupBy students colorTemp nameLength aggregate
 =
@@ -774,7 +738,7 @@ Table.mk [
   /["red", EMP, EMP, 13]
 ]
 
--- TODO: test freezing without the type annotation
+-- TODO: the test below freezes without the type annotation here
 def longerTable :
     Table [("name", String), ("age", Nat), ("test", String), ("score", Nat)] :=
   pivotLonger gradebook
@@ -871,9 +835,9 @@ Table.mk [
 ]
 
 -- This test fails using convenience notation because our action list behavior
--- doesn't match the "simultaneity" of renaming B2T2 expects; we must instead
--- manually specify the correct index in the schema with an explicit proof
--- renameColumns gradebook A[("midterm", "final"), ("final", "midterm")]
+-- doesn't match the "simultaneity" of renaming B2T2 expects; we must manually
+-- specify the correct index in the schema with an explicit proof instead of
+-- `renameColumns gradebook A[("midterm", "final"), ("final", "midterm")]`
 #test
 renameColumns gradebook
   (.cons ⟨("midterm", "final"), by name⟩
@@ -898,9 +862,6 @@ find A["age"] students /["age" := 14]
 none
 
 -- `groupByRetentive`
--- Deal with ULift decidable equality
-deriving instance DecidableEq for ULift
-
 #test
 groupByRetentive students "favorite color"
 =
@@ -987,10 +948,10 @@ Table.mk [
 
 def didWellUpdate := λ (r : Row $ schema gradebook) =>
   match getValue r "midterm", getValue r "final" with
-  | some (m : Nat), some (f : Nat) => /["midterm" := (85 ≤ m : Bool), "final" := (85 ≤ f : Bool)]
+  | some m, some f => /["midterm" := (85 ≤ m : Bool), "final" := (85 ≤ f : Bool)]
   | some m, none   => /["midterm" := (85 ≤ m : Bool), "final" := EMP]
   | none, some f   => /["midterm" := EMP, "final" := (85 ≤ f : Bool)]
-  | none, none   => /["midterm" := EMP, "final" := EMP]
+  | none, none     => /["midterm" := EMP, "final" := EMP]
 
 #test
 update A["midterm", "final"] gradebook didWellUpdate
@@ -1018,7 +979,7 @@ Table.mk [
 ]
 
 #test
-select gradebook (λ (r : Row $ schema gradebook) (n : Fin (nrows gradebook)) =>
+select gradebook (λ (r : Row $ schema gradebook) _ =>
   let nameCell : Cell "full name" String :=
     Cell.fromOption $ (getValue r "name").map (· ++ " Smith")
   let mf2 : Cell "(midterm + final) / 2" Nat :=
@@ -1060,12 +1021,12 @@ selectMany gradebook
     Row.nil)
 =
 Table.mk [
-  /[ 77      ],
-  /[ 88      ],
-  /[ 88      ],
-  /[ 84      ],
-  /[ 84      ],
-  /[ 84      ]
+  /[ 77 ],
+  /[ 88 ],
+  /[ 88 ],
+  /[ 84 ],
+  /[ 84 ],
+  /[ 84 ]
 ]
 
 -- `groupJoin`

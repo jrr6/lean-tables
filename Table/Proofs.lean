@@ -1096,8 +1096,8 @@ theorem renameColumns_spec3 :
 
 -- `find`
 
--- The specification for `find` is contained in its type (`Option` corresponds
--- to "Error," and `Fin` restricts the range of the output)
+-- The specification for `find` is contained in its type (`none` corresponds
+-- to `error("not found")`, and `Fin` restricts the range of the output)
 
 -- `groupByRetentive`
 
@@ -1121,9 +1121,6 @@ theorem groupByRetentive_spec3
     (schema (groupByRetentive t c hc)).lookupType ⟨"groups", .tl .hd⟩
     = Table sch :=
 λ _ _ _ => rfl
-
--- Need decidable equality of `ULift`s for `groupBy{Retentive,Subtractive}`
-deriving instance DecidableEq for ULift
 
 theorem groupByRetentive_spec4 [inst : DecidableEq τ] :
   ∀ (t : Table sch) (c : η) (hc : sch.HasCol (c, τ)),

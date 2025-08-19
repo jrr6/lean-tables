@@ -81,13 +81,13 @@ def cr : Parser Char := pchar '\r'
 def lf : Parser Char := pchar '\n'
 def crlf : Parser String := pstring "\r\n"
 def comma : Parser Char := pchar ','
-def dQUOTE : Parser Char := pchar '\"'
-def twoDQUOTE  : Parser Char :=  attempt (pchar '"' *> pchar '"')
+def dQuote : Parser Char := pchar '\"'
+def twoDQuote  : Parser Char :=  attempt (pchar '"' *> pchar '"')
 
 def escaped : Parser String := attempt
-  dQUOTE *>
-  manyChars (textData <|> comma <|> cr <|> lf <|> twoDQUOTE)
-  <* dQUOTE
+  dQuote *>
+  manyChars (textData <|> comma <|> cr <|> lf <|> twoDQuote)
+  <* dQuote
 
 def nonEscaped : Parser String := manyChars textData
 
@@ -105,7 +105,7 @@ def file : Parser $ Array CSVRow :=
 inductive HeaderMode
   | checkHeader | skipHeader | noHeader
 
-def parse (s : String) : Except String $ Array $ Array $ String :=
+def parse (s : String) : Except String $ Array (Array String) :=
   match file s.mkIterator with
   | ParseResult.success _ res => Except.ok res
   | ParseResult.error it err  => Except.error s!"CSV parsing error at offset {it.i.byteIdx}: {err}"
