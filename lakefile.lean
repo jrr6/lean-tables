@@ -10,3 +10,8 @@ lean_lib Table {
   roots := #[`Table]
   globs := #[Glob.submodules `Table]
 }
+
+@[test_driver]
+lean_lib Tests {
+  globs := #[Glob.submodules `Tests]
+}

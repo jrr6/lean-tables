@@ -1,7 +1,7 @@
 import Table.API
-import Table.ExampleTables
-import Table.TestingNotation
 import Table.Widgets
+import Tests.ExampleTables
+import Tests.TestingNotation
 
 -- TODO: set these project-wide
 -- Table equality typeclass resolution requires a lot of instances

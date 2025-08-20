@@ -1,7 +1,6 @@
 import Lean
 import Table.API
 import Table.Notation
-import Table.TestingNotation
 
 open Lean Widget
 

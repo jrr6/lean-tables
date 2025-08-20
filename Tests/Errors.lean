@@ -1,6 +1,6 @@
 import Table.API
 import Table.Notation
-import Table.ExampleTables
+import Tests.ExampleTables
 
 namespace Table.Examples.Errors
 open Tables

@@ -1,8 +1,8 @@
 import Table.API
-import Table.ExampleTables
 import Table.Notation
 import Table.Widgets
-import Table.TestingNotation
+import Tests.ExampleTables
+import Tests.TestingNotation
 
 -- Table equality type-class resolution requires a lot of instances
 set_option synthInstance.maxSize 12000000
