@@ -14,7 +14,7 @@ open Tables
 universe u_η
 variable {η : Type u_η} [DecidableEq η] {sch : @Schema η}
 
--- `dotProduct`
+/-! `dotProduct` -/
 def dotProduct (t : Table sch) (c1 : η) (c2 : η)
                (hc1 : sch.HasCol (c1, Nat) := by header)
                (hc2 : sch.HasCol (c2, Nat) := by header) :=
@@ -27,47 +27,75 @@ def dotProduct (t : Table sch) (c1 : η) (c2 : η)
 =
 183
 
--- `sampleRows`
+/-! `sampleRows` -/
+
+-- Simple LCG; seeds from cs.cmu.edu/~15122/handouts/lectures/12-hashing.pdf
+structure LCG where
+  seed : Nat
+
+namespace LCG
+def new : LCG := ⟨42⟩
+
+def randUpTo (lcg : LCG) (max : Nat) : Fin max.succ × LCG :=
+    let newSeed := lcg.seed * 1664525 + 1013904223
+    (⟨newSeed % max.succ, Nat.mod_lt _ (Nat.zero_lt_succ max)⟩, ⟨newSeed⟩)
+end LCG
+
+-- Backporting `List.finRange`
+theorem _root_.Fin.foldr_loop (f : Fin (n+1) → α → α) (x) (h : i+1 ≤ n+1) :
+    Fin.foldr.loop (n+1) f ⟨i+1, h⟩ x =
+      f 0 (Fin.foldr.loop n (fun j => f j.succ) ⟨i, Nat.le_of_succ_le_succ h⟩ x) := by
+  induction i generalizing x with
+  | zero => simp only [Nat.zero_add, Fin.foldr.loop, Fin.zero_eta]
+  | succ i ih => simp only [Fin.foldr.loop, ih, Fin.succ_mk]
+
+theorem _root_.Fin.foldr_succ (f : Fin (n + 1) → α → α) (x) :
+    Fin.foldr (n + 1) f x = f 0 (Fin.foldr n (fun i => f i.succ) x) := Fin.foldr_loop ..
+
+def _root_.List.ofFn {n} (f : Fin n → α) : List α := Fin.foldr n (f · :: ·) []
+
+def _root_.List.finRange (n : Nat) : List (Fin n) := List.ofFn fun i => i
+
+theorem _root_.List.length_ofFn {n} (f : Fin n → α) : (List.ofFn f).length = n := by
+  simp only [List.ofFn]
+  induction n with
+  | zero => simp only [Fin.foldr, Fin.foldr.loop, List.length_nil]
+  | succ n ih =>
+  simp only [Fin.foldr_succ, List.length_cons, ih]
+
+theorem _root_.List.length_finRange {n} : (List.finRange n).length = n :=
+  List.length_ofFn _
+
+-- B2T2's assumed `sample` function
 -- This is very inefficiently implemented to avoid an unwieldy termination proof
+def sample (xs : List α) (n : Fin (xs.length + 1)) : List α :=
+  let (indices, _) := n.val.fold
+    (λ _ acc =>
+      let (acc, remainingIndices, lcg) := acc
+      match hni : remainingIndices.length with
+      -- Note: the zero case will never be reached; it could be eliminated with
+      -- suitable invariants
+      | 0 => (acc, remainingIndices, lcg)
+      | .succ ni =>
+        let (idx, lcg) := lcg.randUpTo ni
+        (List.get remainingIndices (hni ▸ idx) :: acc,
+          List.eraseIdx remainingIndices idx, lcg)
+    ) ([], List.finRange xs.length, LCG.new)
+  indices.map xs.get
+
 def sampleRows (t : Table sch) (n : Fin (nrows t + 1)) : Table sch :=
-  -- Simple LCG; seeds from cs.cmu.edu/~15122/handouts/lectures/12-hashing.pdf
-  let randFinSucc (n : Nat) (seed : Nat) : Fin n.succ × Nat :=
-    let newSeed := seed * 1664525 + 1013904223
-    (⟨newSeed % n.succ, Nat.mod_lt _ (Nat.zero_lt_succ n)⟩, newSeed)
-
-  let allFins (n : Nat) : List (Fin n) :=
-    let rec go : Fin n.succ → List (Fin n)
-    | ⟨0, _⟩ => []
-    | ⟨.succ k, h⟩ =>
-      ⟨k, Nat.lt_of_succ_lt_succ h⟩ :: go ⟨k, Nat.lt_of_succ_lt h⟩
-    go ⟨n, Nat.lt.base n⟩
-
-  let indices : List (Fin (nrows t)) :=
-    Prod.fst $ n.val.fold
-      (λ k acc =>
-        let (acc, remainingIndices, seed) := acc
-        match hni : List.length remainingIndices with
-        | 0 =>
-          -- Note: this case will never be reached; it could be eliminated by
-          -- maintaining proofs of suitable invariants in the accumulator
-          (acc, remainingIndices, seed)
-        | .succ ni =>
-          let (idx, newSeed) := randFinSucc ni seed
-          (List.get remainingIndices (hni ▸ idx) :: acc,
-           List.eraseIdx remainingIndices idx,
-           newSeed)
-      ) ([], allFins (nrows t), 42)
+  let indices := sample (List.finRange (nrows t)) (List.length_finRange ▸ n)
   selectRows1 t indices
 
 #test
 sampleRows gradebookMissing 2
 =
 Table.mk [
-  /["Eve",   13, EMP, 9, 84, 8  , 8, 77],
+  /["Bob", 12, 8, 9, 77, 7, 9, 87],
   /["Alice", 17, 6  , 8, 88, EMP, 7, 85]
 ]
 
--- `pHackingHomogeneous` and `pHackingHeterogeneous`
+/-! `pHackingHomogeneous` and `pHackingHeterogeneous` -/
 
 -- Lean 4.14 lacks built-in vectors, so we define them here:
 inductive Vector (α : Type u) : Nat → Type u where
@@ -116,43 +144,62 @@ def fisherTest (xs : List (Bool × Bool)) :=
     * fact tab[1][1]
     * fact (tab.foldl (Vector.foldl (·+·)) 0))
 
+end Examples.Programs
+
+-- TODO: move this somewhere else (and possibly universalize it in place of existing `Subschema`? Perhaps too much to bite off now, though)
+inductive Schema.IsSubschema : @Schema η → @Schema η → Type _
+  | nil : IsSubschema [] []
+  | cons (hdr) : IsSubschema subsch sch → IsSubschema subsch (hdr :: sch)
+  | cons₂ (hdr) : IsSubschema subsch sch → IsSubschema (hdr :: subsch) (hdr :: sch)
+
+def Schema.isSubschemaRefl : (sch : @Schema η) → Schema.IsSubschema sch sch
+  | [] => .nil
+  | hdr :: hs => .cons₂ hdr (isSubschemaRefl hs)
+
+def Schema.subschemaHomogeneous :
+    {sch sch' : @Schema η} → IsSubschema sch' sch → sch.Homogeneous α → sch'.Homogeneous α
+  | _, _, .nil, .nil => .nil
+  | _ :: _, _, .cons _ hsubsch, .cons hhom => subschemaHomogeneous hsubsch hhom
+  | _ :: _, _ :: _, .cons₂ _ hsubsch, .cons hhom => .cons <| subschemaHomogeneous hsubsch hhom
+
+def Schema.removeNameSubschema : {nm : η} → (sch : @Schema η) → (h : sch.HasName nm) → IsSubschema (Schema.removeName sch h) sch
+  | _, hdr :: hs, .hd => .cons hdr (isSubschemaRefl hs)
+  | _, hdr :: hs, .tl h => .cons₂ hdr (removeNameSubschema hs h)
+
+namespace Examples.Programs
+open Tables
+
+universe u_η
+variable {η : Type u_η} [DecidableEq η] {sch : @Schema η}
+
 def pHacking {sch : Schema} (t : Table sch)
   (hacne : sch.HasCol ("get acne", Bool) := by header)
-  (hhom : sch.Homogeneous Bool := by repeat constructor) :=
+  (hhom : sch.Homogeneous Bool := by repeat constructor) : IO Unit := do
   let colAcne := getColumn2 t "get acne"
-  let opts := sch.certify.certifiedMap (λ hdr hmem =>
-    -- A more elegant approach would be to write a lemma that shows
-    -- "inheritance" of homogeneity by subschemata
-    if hdr.1.1 = "get acne" then none else
-    let colJB : List (Option Bool) :=
-        getColumn2 t hdr.1.1 (Schema.homogenizeHC hhom hdr.2)
-    let nonempties := List.zip colAcne colJB
-      |>.filterMap (λ
-        | (.some x, .some y) => some (x, y)
-        | _                  => none)
+  let jellyAnon := dropColumns t (.cons ⟨"get acne", Schema.colImpliesName hacne⟩ .nil)
+  for h : ⟨(nm, τ), hhdr⟩ in (schema jellyAnon).certify do
+    let hhom_sub : (schema jellyAnon).Homogeneous Bool :=
+      Schema.subschemaHomogeneous (Schema.removeNameSubschema _ _) hhom
+    let colJB := getColumn2 jellyAnon nm (Schema.homogenizeHC hhom_sub hhdr)
+    let nonempties := colAcne.zip colJB |>.filterMap (λ | (some x, some y) => some (x, y)
+                                                        | _ => none)
     let p := fisherTest nonempties
     if p < 0.05 then
-      some hdr.1.1
-    else
-      none
-  )
-  opts.somes
+      IO.println <| "We found a link between " ++ nm ++ " jelly beans and acne (p < 0.05)."
 
 def pHackingHomogeneous := pHacking jellyAnon
 
-#test
-pHackingHomogeneous
-=
-["orange"]
+/-- info: We found a link between orange jelly beans and acne (p < 0.05). -/
+#guard_msgs in
+#eval pHackingHomogeneous
 
 def pHackingHeterogeneous := pHacking (dropColumns jellyNamed A["name"])
 
-#test
-pHackingHeterogeneous
-=
-["orange"]
+/-- info: We found a link between orange jelly beans and acne (p < 0.05). -/
+#guard_msgs in
+#eval pHackingHeterogeneous
 
--- `quizScoreFilter`
+/-! `quizScoreFilter` -/
 
 -- TODO: in principle, there's no reason this shouldn't be able to be in `Type`
 -- (which would allow us to recurse on the proof directly), but Lean freezes if
@@ -181,7 +228,7 @@ theorem quiz_col_type_eq_Nat_of_IsQuizSchema {nm : String} :
   IsQuizSchema sch → sch.HasCol (nm, τ) → nm.startsWith "quiz" = true → τ = Nat := by
   intro sch τ hsch hc hnm
   induction hsch with
-  | nil => cases hc
+  | nil => nomatch hc
   | consQuiz heq hrest ih =>
     cases hc with
     | hd => rfl
@@ -191,27 +238,22 @@ theorem quiz_col_type_eq_Nat_of_IsQuizSchema {nm : String} :
     | hd => nomatch hnm.symm.trans hneq
     | tl h => apply ih h
 
--- We take some minor liberties with our implementation to make it more amenable
--- to casting
-#test
-buildColumn gradebook "average-quiz" (λ r =>
-  let quizColNames : List ((nm : String) × r.schema.HasCol (nm, Nat)) :=
-    r.schema.certify.filterMap (λ chdr =>
-      if h : chdr.1.1.startsWith "quiz"
-      then
-        let chdr' : Schema.HasCol (chdr.1.1, chdr.1.2) r.schema := chdr.2
-        some ⟨chdr.1.1,
-              Eq.rec (motive := λ x _ => Schema.HasCol (chdr.1.1, x) r.schema)
-                     chdr'
-                     (quiz_col_type_eq_Nat_of_IsQuizSchema
-                        gradebook_schema_is_quiz_schema chdr.2 h)⟩
-      else none)
-  let scores : List (Option Nat) := quizColNames.map (λ c =>
-    (r.getCell c.2).toOption
-  )
+/-- Calculates the average of the non-`none` entries in `xs`. -/
+def _root_.List.averageOption [Zero α] [Add α] [HDiv α Nat α] (xs : List (Option α)) :=
+  xs.somes.sum / xs.length
 
-  some $ scores.somes.foldl (·+·) 0 / scores.length
-)
+def quizScoreFilter :=
+  buildColumn gradebook "average-quiz" (λ r =>
+    let quizColNames : List ((nm : String) × r.schema.HasCol (nm, Nat)) :=
+      r.schema.certify.filterMap (λ ⟨(nm, _), pf⟩ =>
+        if h : nm.startsWith "quiz"
+        then some ⟨nm, quiz_col_type_eq_Nat_of_IsQuizSchema gradebook_schema_is_quiz_schema pf h ▸ pf⟩
+        else none)
+    let scores := quizColNames.map (λ c => (r.getCell c.2).toOption)
+    some $ scores.averageOption)
+
+#test
+quizScoreFilter
 =
 Table.mk [
 /[ "Bob"   , 12  , 8     , 9     , 77      , 7     , 9     , 87    , 8],
@@ -219,7 +261,7 @@ Table.mk [
 /[ "Eve"   , 13  , 7     , 9     , 84      , 8     , 8     , 77    , 8]
 ]
 
--- `quizScoreSelect`
+/-! `quizScoreSelect` -/
 -- This is basically cheating, but we're limited by the fact that things like
 -- `IsQuizSchema` can't seem to live in `Type`; we've already shown above that
 -- less "cheating"-like but uglier solutions are possible
@@ -253,10 +295,14 @@ def quizAndAverage :=
           pf))
       |>.toOption
     )
-    some $ ns.somes.foldl (·+·) 0 / ns.length
+    some ns.averageOption
   )
 
-#test addColumn gradebook "average-quiz" (getColumn2 quizAndAverage "average")
+def quizScoreSelect :=
+  addColumn gradebook "average-quiz" (getColumn2 quizAndAverage "average")
+
+#test
+quizScoreSelect
 =
 Table.mk [
   /["Bob", 12, 8, 9, 77, 7, 9, 87, 8],
