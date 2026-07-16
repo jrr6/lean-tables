@@ -63,7 +63,9 @@ macro "action_list_tactic_no_cycle" : tactic =>
                 | apply Schema.HasCol.tl
                 | apply Schema.HasName.hd
                 | apply Schema.HasName.tl
+                | apply Schema.colImpliesName
                 | exact inferInstance
+                | assumption
                 | decide  -- for `Fin`s
   )
 )
