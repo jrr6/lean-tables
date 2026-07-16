@@ -54,6 +54,9 @@ def ofExcept [ToString ε] (e : Except ε α) : PIO α :=
   | .ok a    => .ok a
   | .error e => .error ⟨IO.userError (toString e)⟩
 
+def println (s : String) : PIO PUnit :=
+  discard <| PIO.lift0 <| IO.println s
+
 end PIO
 
 namespace CSV
@@ -80,6 +83,7 @@ def textData : Parser Char := satisfy fun c =>
 def cr : Parser Char := pchar '\r'
 def lf : Parser Char := pchar '\n'
 def crlf : Parser String := pstring "\r\n"
+def lineEnd := pstring "\r\n" <|> pstring "\n"
 def comma : Parser Char := pchar ','
 def dQuote : Parser Char := pchar '\"'
 def twoDQuote  : Parser Char :=  attempt (pchar '"' *> pchar '"')
@@ -100,7 +104,7 @@ def manySep (p : Parser α) (s : Parser β) : Parser $ Array α := do
 def row : Parser CSVRow := manySep cell comma
 
 def file : Parser $ Array CSVRow :=
-  manySep row (crlf <* notFollowedBy eof) <* (optional crlf) <* eof
+  manySep row (lineEnd <* notFollowedBy eof) <* (optional lineEnd) <* eof
 
 inductive HeaderMode
   | checkHeader | skipHeader | noHeader
@@ -167,6 +171,7 @@ def parseCSV {η : Type u} [DecidableEq η] [CSVParseable η]
     (schema : @Schema η) (contents : String) (headerMode : HeaderMode := .checkHeader)
     (inst : ParseableSchema schema := by ps_inst) : Except String (Table schema) :=
   parse contents |>.bind fun csvRows =>
+    let csvRows := csvRows.map (·.map String.trim)
     match headerMode with
     | .noHeader => Table.mk <$> csvRows.toList.mapM (rowOfCSVRow? inst)
     | .skipHeader | .checkHeader =>
